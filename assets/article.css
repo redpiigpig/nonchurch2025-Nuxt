@@ -1,0 +1,890 @@
+/* src/assets/article.css */
+
+/* --------------------------------------------------------------------------
+   1. Base Typography & Layout
+   -------------------------------------------------------------------------- */
+.markdown-body {
+  /* 字體、大小、行高、顏色皆已繼承 main.css，無需重複 */
+  text-align: justify;
+  word-wrap: break-word;
+}
+
+.markdown-body p {
+  margin-bottom: 1rem;
+  text-indent: 2em;
+}
+
+.markdown-body .no-indent {
+  text-indent: 0 !important;
+}
+
+.markdown-body strong {
+  font-weight: bold;
+}
+
+.markdown-body a {
+  color: #007bff;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.markdown-body a:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
+/* Headings */
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  /* font-family 與 color 已繼承 */
+  font-weight: bold;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+.markdown-body h2 {
+  font-size: 1.8rem;
+  padding-bottom: 10px;
+}
+
+.markdown-body h3 {
+  font-size: 1.4rem;
+}
+
+/* Standard Images */
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 30px auto;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Divider */
+.markdown-body hr {
+  border: 0;
+  height: 1px;
+  background: #ccc;
+  margin: 40px 0;
+}
+
+.custom-divider {
+  width: 100%;
+  height: 2px;
+  background: #ccc;
+  margin: 40px auto;
+  clear: both;
+  display: block;
+}
+
+/* Keyword Section */
+.keyword-section {
+  margin: 3rem 0;
+  font-weight: bold;
+  /* 保留標楷體設定 */
+  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
+  font-size: 1.2rem;
+  color: #333;
+}
+
+.keyword-section :deep(p) {
+  margin: 0;
+}
+
+/* Superscript */
+.markdown-body sup {
+  font-size: 0.9rem;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+  top: -0.5em;
+  margin-left: 2px;
+}
+
+.markdown-body sup a {
+  text-decoration: none;
+  color: #007bff;
+  /* font-family 已繼承 */
+  padding: 0 3px;
+  display: inline-block;
+  text-indent: 0;
+}
+
+.markdown-body sup a:hover {
+  color: #0056b3;
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .markdown-body p {
+    font-size: 1rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   2. Quote Styles (Inline, Book, Special)
+   -------------------------------------------------------------------------- */
+/* Style 1: Inline Quote (em) */
+.markdown-body em {
+  font-style: normal;
+  /* 加入 Mac 的 BiauKai 以及 iOS 專用的 Songti TC */
+  font-family: "DFKai-SB", "標楷體", "BiauKai", "Kaiti TC", "Songti TC", "Songti", serif;
+  color: #555;
+}
+
+/* Style 2: Book Citation (.book-quote) */
+.book-quote {
+  background-color: rgba(0, 0, 0, 0.03);
+  border-left: 5px solid #8b4513;
+  margin: 30px 2em 60px 2em;
+  padding: 20px 30px;
+  /* 保留標楷體設定 */
+  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
+  font-size: 1.2rem;
+  line-height: 1.8;
+  color: #444;
+  border-radius: 5px;
+  font-weight: bold;
+}
+
+.book-quote-rel {
+  display: block;
+  text-align: right;
+  font-size: 1.2rem;
+  margin-top: 1.5rem;
+  color: #444;
+  /* 保留標楷體設定 */
+  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
+  font-style: normal;
+  font-weight: bold;
+}
+
+/* Style 3: Blockquote / Special Quote */
+.markdown-body blockquote,
+.quote-box {
+  margin: 3rem 0;
+  padding: 0 2rem;
+  font-family: "DFKai-SB", "標楷體", serif; /* 保留特殊字體 */
+  font-size: 1.2rem;
+  line-height: 1.8;
+  color: #444;
+  text-align: justify;
+}
+
+.markdown-body blockquote p,
+.quote-box p,
+.indented-quote {
+  text-indent: 0;
+}
+
+.markdown-body blockquote .rel {
+  display: block;
+  text-align: right;
+  font-size: 1.2rem;
+  margin-top: 10px;
+  color: #444;
+  /* 保留標楷體設定 */
+  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
+  font-style: normal;
+}
+
+.markdown-body blockquote small {
+  display: block;
+  text-align: right;
+  font-size: 1rem;
+  margin-top: 10px;
+  color: #666;
+  /* font-family 已繼承 Times New Roman */
+  font-style: normal;
+}
+
+/* Style 4: Book Intro Box */
+.book-box {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin: 30px 2em;
+  padding: 20px 30px;
+  background-color: #f9f9f9;
+  border-left: 5px solid #378b13;
+  border-radius: 5px;
+}
+
+.book-info {
+  flex: 2;
+  /* 保留標楷體設定 */
+  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
+}
+
+.book-image {
+  flex: 1;
+  text-align: center;
+}
+
+.book-image img {
+  margin: 0;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 768px) {
+  .book-box {
+    flex-direction: column;
+    text-align: left;
+    padding: 15px;
+    margin: 20px 0;
+  }
+  .book-image img {
+    max-width: 200px;
+  }
+  .markdown-body blockquote,
+  .quote-box {
+    margin: 20px 10px;
+    padding: 15px;
+  }
+  .indented-quote {
+    padding: 0 1rem;
+  }
+  .markdown-body blockquote .rel {
+    font-size: 1rem;
+  }
+  .book-quote {
+    margin: 0;
+    font-size: 1rem;
+  }
+  .book-quote-rel {
+    font-size: 1rem;
+    margin-top: 0.5rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   3. Footnotes System
+   -------------------------------------------------------------------------- */
+.footnotes h2,
+.footnotes hr {
+  display: none !important;
+}
+
+.footnotes {
+  margin-top: 60px;
+  padding-top: 20px;
+  border-top: 2px solid #444;
+  font-size: 1rem;
+  color: #666;
+}
+
+.footnotes ol {
+  padding-left: 0;
+  margin-left: -1rem;
+  list-style: none;
+  counter-reset: footnote-counter;
+}
+
+.footnotes li {
+  display: flex;
+  align-items: flex-start;
+  line-height: 1;
+  counter-increment: footnote-counter;
+  position: relative;
+}
+
+.footnotes li::before {
+  content: counter(footnote-counter);
+  display: inline-block;
+  width: 2em;
+  flex-shrink: 0;
+  color: #007bff;
+  /* font-family 已繼承 */
+  font-weight: normal;
+  text-align: left;
+}
+
+.footnotes li p {
+  margin: 0;
+  text-indent: 0 !important;
+  /* font-family 已繼承 */
+  color: #444;
+  text-align: justify;
+}
+
+.footnotes li a:last-of-type {
+  opacity: 0;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2em;
+  height: 1em;
+  cursor: pointer;
+}
+
+.footnotes li:hover::before {
+  color: #0056b3;
+  font-weight: bold;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.footnote-ref a {
+  font-weight: normal !important;
+  text-decoration: none !important;
+  color: #007bff !important;
+  /* font-family 已繼承 */
+  cursor: pointer;
+}
+
+.title-header .footnote-ref,
+.author-info .footnote-ref {
+  font-size: 14px !important;
+  font-weight: normal !important;
+  line-height: 1 !important;
+  vertical-align: super !important;
+  margin-left: 2px;
+}
+
+.title-header .footnote-ref a,
+.author-info .footnote-ref a {
+  text-decoration: none !important;
+  color: #007bff !important;
+  border-bottom: none !important;
+  font-weight: normal !important;
+}
+
+.title-header .footnote-ref a:hover,
+.author-info .footnote-ref a:hover {
+  color: #0056b3 !important;
+  text-decoration: underline !important;
+}
+
+.main-title .footnote-ref {
+  font-size: 16px !important;
+  position: relative;
+  top: -0.5rem !important;
+}
+
+.sub-title .footnote-ref {
+  font-size: 14px !important;
+  position: relative;
+  top: -0.3rem !important;
+}
+
+@media (max-width: 768px) {
+  .footnotes {
+    font-size: 0.85rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   4. Image Layout System
+   -------------------------------------------------------------------------- */
+.markdown-body figure {
+  display: block;
+  width: 100%;
+}
+
+.markdown-body figure img {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.markdown-body figcaption {
+  /* font-family 已繼承 */
+  font-size: 0.95rem;
+  color: #666;
+  text-align: center;
+  margin-top: 1.2rem;
+  line-height: 1.4;
+}
+
+.img-right {
+  float: right;
+  margin-left: 25px;
+  margin-bottom: 15px;
+  clear: right;
+  margin-top: 0;
+}
+
+.img-left {
+  float: left;
+  margin-right: 25px;
+  margin-bottom: 15px;
+  margin-top: 0;
+  clear: left;
+}
+
+.img-bottom {
+  float: none;
+  display: block;
+  margin: 30px auto;
+  clear: both;
+}
+
+.px-150 {
+  max-width: 150px;
+}
+.px-200 {
+  max-width: 200px;
+}
+.px-250 {
+  max-width: 250px;
+}
+.px-300 {
+  max-width: 300px;
+}
+.px-350 {
+  max-width: 350px;
+}
+.px-400 {
+  max-width: 400px;
+}
+.px-450 {
+  max-width: 450px;
+}
+.px-500 {
+  max-width: 500px;
+}
+.px-550 {
+  max-width: 550px;
+}
+.px-600 {
+  max-width: 600px;
+}
+.px-650 {
+  max-width: 650px;
+}
+.px-700 {
+  max-width: 700px;
+}
+.px-750 {
+  max-width: 750px;
+}
+.px-800 {
+  max-width: 800px;
+}
+.w-full {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .img-right,
+  .img-left {
+    float: none !important;
+    margin: 20px auto !important;
+  }
+  .markdown-body figcaption {
+    font-size: 0.85rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. Specialized Components
+   -------------------------------------------------------------------------- */
+.portrait-box {
+  float: right;
+  clear: right;
+  margin: 5px 0 15px 25px;
+  width: 300px;
+  max-width: 40%;
+  display: block;
+}
+
+.portrait-box img {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0;
+  border: 1px solid #000;
+  outline: 4.5px solid #000;
+  outline-offset: 1px;
+  background-color: #fff;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+@media (max-width: 768px) {
+  .portrait-box {
+    float: none;
+    margin: 2rem auto;
+    width: 80%;
+    max-width: 300px;
+  }
+}
+
+.reference-box {
+  background-color: #f9f9f9;
+  border-left: 5px solid #378b13;
+  border-radius: 5px;
+  margin: 30px 6em;
+  padding: 20px 30px;
+  display: block;
+  /* 保留標楷體設定 */
+  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
+  font-size: 1.15rem;
+  color: #333;
+}
+
+.reference-box strong {
+  display: block;
+  font-size: 1.25rem;
+  margin-bottom: 15px;
+  color: #000;
+  font-weight: bold;
+}
+
+.reference-box ul {
+  margin: 0;
+  padding-left: 0;
+  list-style: none !important;
+}
+
+.reference-box li {
+  position: relative;
+  margin-bottom: 0.8rem;
+  line-height: 1.6;
+  text-align: justify;
+  padding-left: 1.5em;
+  text-indent: 0 !important;
+  display: block;
+}
+
+.reference-box li::before {
+  content: "";
+  display: block;
+  position: absolute;
+  left: 0.5em;
+  top: 0.6em;
+  width: 5px;
+  height: 5px;
+  background-color: #000;
+  border-radius: 50%;
+}
+
+@media (max-width: 768px) {
+  .reference-box {
+    margin: 20px 10px;
+    padding: 15px;
+    font-size: 1rem;
+  }
+}
+
+.special-box {
+  border: 2px dashed #444;
+  border-radius: 10px;
+  max-width: 600px;
+  margin: 30px auto;
+  padding: 20px 30px;
+  text-align: center;
+  font-family: "DFKai-SB", "標楷體", serif;
+  line-height: 1.8;
+  color: #333;
+}
+
+.special-box h3 {
+  font-family: "DFKai-SB", "標楷體", serif;
+  margin-top: 0;
+  margin-bottom: 5px;
+  font-size: 1.4rem;
+  border-bottom: none;
+}
+
+.special-box h3 a {
+  text-decoration: none;
+  color: #007bff;
+}
+
+.special-box h3 a:hover {
+  text-decoration: underline;
+}
+
+.special-box .meta {
+  /* font-family 已繼承 */
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 0;
+  margin-bottom: 20px;
+  text-indent: 0 !important;
+}
+
+.special-box p {
+  text-align: center;
+  margin: 0;
+  text-indent: 0 !important;
+  font-family: "DFKai-SB", "標楷體", serif;
+}
+
+/* --------------------------------------------------------------------------
+   6. Data Table Component
+   -------------------------------------------------------------------------- */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0, 30px;
+  /* font-family 已繼承 */
+  font-size: 1.2rem;
+  table-layout: fixed;
+}
+
+.data-table thead {
+  background-color: #f2f2f2;
+}
+
+.data-table th {
+  padding: 12px 10px;
+  text-align: center;
+  font-weight: bold;
+  border: 1px solid #999;
+  color: #333;
+}
+
+.data-table td {
+  border: 1px solid #999;
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.data-table td:first-child {
+  text-align: center;
+}
+
+.data-link {
+  text-decoration: none;
+  color: #007bff;
+}
+
+.data-link:hover {
+  text-decoration: underline;
+  color: #0056b3;
+}
+
+.data-table small {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.85rem;
+  color: #666;
+  font-family: sans-serif;
+}
+
+.table-title {
+  text-align: center;
+  font-family: "DFKai-SB", "標楷體", serif;
+  font-style: italic;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 3rem;
+  color: #555;
+  font-size: 1.2rem;
+}
+
+@media (max-width: 768px) {
+  .data-table {
+    font-size: 1rem;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 8px 5px;
+  }
+  col:nth-child(1) {
+    width: 3rem !important;
+  }
+  col:nth-child(2) {
+    width: auto !important;
+  }
+  col:nth-child(3) {
+    width: 4rem !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   7. Info Card Component
+   -------------------------------------------------------------------------- */
+.info-card {
+  background-color: #f5faff;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  padding: 20px;
+  float: right;
+  width: 320px;
+  max-width: 100%;
+  margin: 10px 0 20px 30px;
+  clear: right;
+}
+
+.info-card-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 15px;
+}
+
+.info-card img {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #eee;
+  margin: 0;
+  box-shadow: none;
+}
+
+.info-card h3 {
+  font-family: "DFKai-SB", "標楷體", serif;
+  font-size: 1.5rem;
+  margin: 0;
+  color: #333;
+  border-bottom: none;
+  padding: 0;
+}
+
+.info-card-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.info-card-links a {
+  display: inline-block;
+  padding: 5px 12px;
+  background-color: #f5f5f5;
+  color: #555;
+  text-decoration: none;
+  font-size: 0.9rem;
+  border-radius: 20px;
+  transition: all 0.2s;
+  font-family: sans-serif;
+}
+
+.info-card-links a:hover {
+  background-color: #007bff;
+  color: white;
+  transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .info-card {
+    float: none;
+    margin: 20px auto;
+    width: 100%;
+    display: block;
+    box-sizing: border-box;
+  }
+  .info-card-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 15px;
+  }
+  .info-card img {
+    width: 150px;
+    height: 150px;
+    margin: 0;
+  }
+  .info-card h3 {
+    text-align: center;
+    width: 100%;
+    margin-top: 10px;
+  }
+  .info-card-links {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+/* =========================================
+   8. 主題圖片 (Theme Image)
+   ========================================= */
+.theme-image {
+  text-align: center;
+  margin: 40px 0;
+}
+
+.theme-image img {
+  max-width: 650px;
+  width: auto;
+  height: auto;
+  border-radius: 5px;
+  border: 1.5px solid #444;
+  box-shadow: 0 0 0 1.5px white, 0 0 0 4.5px #444;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .theme-image img {
+    max-width: 90%;
+  }
+}
+
+/* ==========================
+   9. 作者簡介
+  ========================== */
+.author-profile {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  padding-left: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #ccc;
+}
+
+.author-profile:last-child {
+  border-bottom: none;
+}
+
+.author-profile img {
+  width: 10rem;
+  height: 10rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #444;
+}
+
+.author-profile div {
+  text-align: left;
+  flex: 1;
+}
+
+.author-profile h3 {
+  font-size: 1.5rem;
+  text-align: left;
+  padding-left: 1rem;
+}
+
+.author-profile p {
+  font-size: 1.2rem;
+  line-height: 1.6;
+  text-align: left;
+  padding-left: 2rem;
+}
+
+@media (max-width: 768px) {
+  .author-profile {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding-left: 0;
+  }
+
+  .author-profile img {
+    width: 12rem;
+    height: 12rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .author-profile h3,
+  .author-profile p {
+    padding-left: 0;
+    text-align: center;
+  }
+}

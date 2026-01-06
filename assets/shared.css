@@ -1,0 +1,125 @@
+
+
+/* =========================================
+   1. 頁面主標題 (Page Title)
+   ========================================= */
+.page-main-title {
+  display: block;
+  width: 100%;
+  /* font-family 已繼承 */
+  font-size: 2.5rem;
+  font-weight: bold;
+  text-align: center;
+  line-height: 1.4;
+  margin-top: 30px;
+  margin-bottom: 20px;
+  /* color 已繼承 #444 */
+  letter-spacing: 1.5rem;
+
+  /* Flexbox 用於更穩定的垂直置中 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-left: 1.5rem; /* 補償 letter-spacing */
+}
+
+.page-main-title .emoji {
+  font-size: 2rem;
+  margin: 0 0.5rem;
+  vertical-align: middle;
+  letter-spacing: 0;
+}
+
+@media (max-width: 768px) {
+  .page-main-title {
+    font-size: 1.8rem;
+    letter-spacing: 0.2rem;
+    padding-left: 0.2rem;
+    white-space: nowrap;
+    margin-top: 20px;
+  }
+  .page-main-title .emoji {
+    font-size: 1.5rem;
+  }
+}
+
+/* =========================================
+   2. 裝飾分隔線 (Divider)
+   ========================================= */
+.main-divider {
+  width: 100%;
+  height: 4px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+  margin: 20px auto 40px auto;
+}
+
+/* =========================================
+   3. 年份選擇器 (Year Selector)
+   ========================================= */
+.year-selector-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin: 0 0 3rem 0;
+  /* font-family 已繼承 */
+  /* color #555 稍微淺一點，保留設定 */
+  color: #555;
+}
+
+.custom-select {
+  position: relative;
+  display: inline-block;
+}
+
+.custom-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: transparent;
+  border: none;
+  border-bottom: 2px solid #888;
+  border-radius: 0;
+  padding: 5px 30px 5px 10px;
+  /* font-family 已由 main.css 的 select 規則繼承 */
+  font-weight: bold;
+  color: #333;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+.custom-select select:hover,
+.custom-select select:focus {
+  border-bottom-color: #000;
+}
+
+.custom-select .arrow {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+@media (max-width: 768px) {
+  .year-selector-wrapper {
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+  }
+}
+
+/* =========================================
+   4. 無資料提示 (No Data)
+   ========================================= */
+.no-data {
+  text-align: center;
+  padding: 3rem 0;
+  color: #666;
+  font-size: 1.6rem;
+  /* font-family 已繼承 */
+}

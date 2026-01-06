@@ -1,0 +1,80 @@
+{
+  "id": "5-13話語與肉身",
+  "title": "話語與肉身",
+  "subtitle": "——簡評林貝克《教義的本質》",
+  "issue": 5,
+  "issueTitle": "誕神者",
+  "category": "評論與回應",
+  "author": "張辰瑋",
+  "authorTitle": "國立台北教育大學台灣文化研究所碩士",
+  "keyword": "**🌿 關鍵字**：教義的本質、林貝克、後自由神學、道成肉身、身體經驗",
+  "prev": {
+    "id": "5-12權力即知識",
+    "title": "權力即知識"
+  },
+  "next": null,
+
+  "seo": {
+    "description": "本文評論喬治・林貝克的《教義的本質》，聚焦於其文化—語言論神學，並從身體經驗與語言發展角度出發，補足林貝克忽略的能動性與信仰實踐。",
+    "keywords": "林貝克, 教義的本質, 後自由神學, 語言神學, 身體經驗, 神學方法論, 詮釋學, 無境界者雜誌",
+    "robots": "index, follow",
+    "googleVerification": "esy8QRHBehvbinog9TiYUoWVXChXabcTUuNcQk3o0no",
+    "og": {
+      "title": "話語與肉身——簡評林貝克《教義的本質》",
+      "description": "從林貝克的神學方法論出發，批判其忽略的身體面向，進一步提出後自由主義的整合性神學實踐。",
+      "image": "https://i.postimg.cc/VNPTsb79/13-1jiao-yi-de-ben-zhi.webp",
+      "url": "https://nonchurch2025.byethost10.com/articles/5-13話語與肉身.html",
+      "type": "article",
+      "site_name": "無境界者雜誌",
+      "locale": "zh_TW"
+    }
+  },
+
+  "footnotes": [
+    {
+      "id": 1,
+      "text": "王志成，《和平的渴望：當代宗教對話理論》（北京：宗教文化出版社，2003），頁174。"
+    },
+    {
+      "id": 2,
+      "text": "這七個特徵分別是：一、模式的保持（Preservation of its Type）；二、原則的一致性（Continuity of its Principles）；三、同化力（its Assimilative Power）；四、邏輯上的連貫性（its Logical Sequence）；五、對未來的預見（Anticipation of its Future）；六、對過去的保守（Conservative Action on its Past）；七、歷時持久的活力（its Chronic Vigour）。"
+    },
+    {
+      "id": 3,
+      "text": "在台灣的後自由主義神學脈絡中，部分學者雖然批判並拒絕基要派式的「命題式教義」，但其立場仍然主要推崇唯信論，並在倫理議題上延續了保守派的傾向。換言之，他們的方法論上接納了反基礎主義（Anti-foundationalism）的語境性與相對性，但信仰實踐上依然延續傳統新教的排他性與倫理實踐。"
+    },
+    {
+      "id": 4,
+      "text": "曾慶豹，《上帝、關係與言說──邁向後自由的批判神學》（台北：五南，2000），頁38-53。"
+    },
+    {
+      "id": 5,
+      "text": "奧地利哲學家維根斯坦晚期思想主張，語言是人類生活形式的載體，每個語詞並無絕對的意義或邏輯確定性，而是在生活脈絡中被塑造的「語言遊戲」，因此語言的邏輯具有相對的浮動性，但也並非毫無規則。"
+    },
+    {
+      "id": 6,
+      "text": "卡爾‧拉內主張，聖神也內住在非基督徒的心中，並以理性與良知引導他們做出符合天主旨意的行動，因此凡遵守內在良知的人，即使並沒有在理智上認信基督，但仍舊可以被算做「匿名基督徒」，因而有可能不會被排除在救恩之外。"
+    },
+    { "id": 7, "text": "林貝克，《教義的本質》，頁64-65。" },
+    {
+      "id": 8,
+      "text": "保羅‧尼特（Paul Knitter）著，王志成 譯，《宗教對話模式》（<i>Introducing Theologies of Religions</i>）（北京：中國人民大學出版社，2004）。"
+    },
+    {
+      "id": 9,
+      "text": "納迪克．安德森（Benedict Anderson）著，吳叡人 譯，《想像的共同體：民族主義的起源與散布》（<i>Imagined Communities: Reflections on the Origin and Spread of Nationalism</i>）（台北：時報，2010）。"
+    },
+    {
+      "id": 10,
+      "text": "賈德．戴蒙（Jared Diamond）著，王道還 譯，《第三種猩猩：人類的身世與未來》（<i>The Third Chimpanzee: The Evolution and Future of the Human Animal.</i>）（台北：時報出版，2014）。"
+    },
+    {
+      "id": 11,
+      "text": "龔卓軍，《身體部署：梅洛龐蒂與現象學之後》（台北：心靈工坊，2006）。"
+    },
+    {
+      "id": 12,
+      "text": "曾慶豹，《約瑟和他的兄弟們--護教反共．黨國基督徒與臺灣基要派的形成》（台南：教會公報社，2017）。"
+    }
+  ]
+}

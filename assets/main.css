@@ -1,0 +1,91 @@
+/* src/assets/main.css */
+
+/* =========================================
+   1. 全域基礎設定 (Global Reset & Typography)
+   ========================================= */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: "Times New Roman", serif; /* 全站統一字體 */
+}
+
+body {
+  font-size: 1.2rem; /* 全站統一字體大小 */
+  line-height: 1.8; /* 全站統一列高 */
+  color: #444; /* 全站統一顏色 (深灰) */
+
+  /* 背景設定 */
+  background-image: url("https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/background_image.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-color: #f4f4f4;
+  overflow-x: hidden;
+}
+
+/* =========================================
+   2. 讓表單元件乖乖繼承字體 (新增!)
+   ========================================= */
+button,
+input,
+select,
+textarea {
+  font-family: inherit; /* 自動跟隨 body 的 Times New Roman */
+  font-size: inherit;
+  color: inherit;
+}
+
+/* =========================================
+   3. 基礎標籤重置
+   ========================================= */
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+li {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+h2 {
+  text-align: center;
+  color: #444;
+  margin-bottom: 1rem;
+}
+
+h3 {
+  margin: 1em 0 -0.5em;
+  color: #444;
+}
+
+section {
+  margin-bottom: 2rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* =========================================
+   4. 頁面佈局 (Layout)
+   ========================================= */
+.site-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.main-content {
+  flex: 1;
+  width: 100%;
+}
