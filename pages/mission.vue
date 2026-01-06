@@ -1,8 +1,17 @@
 <script setup>
 import MainLayout from "~/components/MainLayout.vue";
 
-useHead({
+useSeoMeta({
   title: "使命宣言 - 無境界者雜誌",
+  description:
+    "本刊物創辦之目的，是希望藉著參考生長在東亞的無教會主義神學，對當代台灣的教會現象與信仰生活進行反思與對話。",
+
+  // Open Graph
+  ogTitle: "使命宣言 - 無境界者雜誌",
+  ogDescription:
+    "本刊物創辦之目的，是希望藉著參考生長在東亞的無教會主義神學，對當代台灣的教會現象與信仰生活進行反思與對話。",
+  ogImage:
+    "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/default_cover.jpg",
 });
 </script>
 
@@ -67,8 +76,7 @@ useHead({
 </template>
 
 <style scoped>
-/* shared.css 已經在 nuxt.config 全域引入，這裡可以直接使用 */
-
+/* 請保留你原本 mission.vue 裡的所有 CSS，這裡完全沿用 */
 p {
   line-height: 1.8;
   margin: 0.5rem;

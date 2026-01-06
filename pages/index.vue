@@ -1,152 +1,161 @@
 <script setup>
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-// 注意：請確保您的 supabase.js 已經搬到新專案根目錄
-import { supabase } from "../supabase";
-// 注意：請確保 MainLayout 已經搬到 components 資料夾
-import MainLayout from "../components/MainLayout.vue";
-// 注意：請確保這些資料夾也都搬過來了
-import { useEditorMode } from "../composables/useEditorMode";
-import { authors } from "../data/authors.js";
+import { supabase } from "~/supabase"; // 建議使用 ~ Alias
+import MainLayout from "~/components/MainLayout.vue";
+import { useEditorMode } from "~/composables/useEditorMode"; // Nuxt 其實會自動引入 composables，不寫這行也行
+import { authors } from "~/data/authors.js";
 
 const route = useRoute();
 const router = useRouter();
 const { isEditor } = useEditorMode();
 
-const issuesList = ref([]);
-const currentIssueData = ref(null);
-const currentIssueContent = ref([]);
-const articleSummaries = ref({});
-const hotKeywords = ref([]);
-const loading = ref(true);
 const adminSelectedIssue = ref("");
 const searchQuery = ref("");
 const searchType = ref("title");
 const emailTooltip = ref("點擊複製 Email");
 
-// ⭐ Nuxt SEO 設定
-useHead({
-  title: "無境界者雜誌 - 首頁",
-  meta: [
-    { name: "description", content: "無境界者雜誌 - 信仰與社會的自由論述平台" },
-  ],
-});
-
-const extractCurrentKeywords = () => {
-  if (!currentIssueContent.value.length) return;
-  const allKeywords = currentIssueContent.value
-    .map((a) => a.keyword)
-    .filter((k) => k)
-    .join("、")
-    .split("、")
-    .map((k) =>
-      k.replace("🌿", "").replace("關鍵字：", "").replace("關鍵字:", "").trim()
-    )
-    .filter((k) => k && k.length > 0);
-  const uniqueKeywords = [...new Set(allKeywords)];
-  const shuffled = uniqueKeywords.sort(() => 0.5 - Math.random());
-  hotKeywords.value = shuffled.slice(0, 5);
-};
-
-const fetchIssues = async () => {
-  loading.value = true;
-  let query = supabase
-    .from("issues")
-    .select("*")
-    .order("id", { ascending: false });
-
-  if (!isEditor.value) {
-    query = query.eq("is_published", true);
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    console.error("載入期刊失敗", error);
-  } else {
-    issuesList.value = data || [];
-    await loadTargetIssue();
-  }
-  loading.value = false;
-};
-
-const loadTargetIssue = async () => {
-  if (issuesList.value.length === 0) return;
-
-  let target = null;
-  if (route.params.issueNumber) {
-    target = issuesList.value.find((i) => i.id == route.params.issueNumber);
-  }
-  if (!target) target = issuesList.value[0];
-
-  currentIssueData.value = target;
-
-  if (target) {
-    adminSelectedIssue.value = target.id;
-  }
-
-  if (target) {
-    let artQuery = supabase.from("articles").select("*").eq("issue", target.id);
+// ----------------------------------------------------------------
+// 1. SSR 資料獲取 (取代 onMounted)
+// ----------------------------------------------------------------
+const { data: pageData, refresh } = await useAsyncData(
+  `home-issue-${route.params.issueNumber || "latest"}-${isEditor.value}`,
+  async () => {
+    // A. 抓取期刊列表
+    let query = supabase
+      .from("issues")
+      .select("*")
+      .order("id", { ascending: false });
 
     if (!isEditor.value) {
-      artQuery = artQuery.eq("is_published", true);
+      query = query.eq("is_published", true);
     }
 
-    const { data: articles, error } = await artQuery;
+    const { data: issuesData, error: issuesError } = await query;
+    if (issuesError) throw issuesError;
 
-    if (!error && articles) {
-      articles.sort((a, b) => {
-        return a.id.localeCompare(b.id, undefined, {
-          numeric: true,
-          sensitivity: "base",
+    const issuesList = issuesData || [];
+    if (issuesList.length === 0)
+      return {
+        issues: [],
+        target: null,
+        content: [],
+        summaries: {},
+        keywords: [],
+      };
+
+    // B. 決定要顯示哪一期 (網址參數優先，否則最新一期)
+    let target = null;
+    if (route.params.issueNumber) {
+      target = issuesList.find((i) => i.id == route.params.issueNumber);
+    }
+    if (!target) target = issuesList[0];
+
+    // C. 抓取該期文章
+    let content = [];
+    let summaries = {};
+    let keywords = [];
+
+    if (target) {
+      let artQuery = supabase
+        .from("articles")
+        .select("*")
+        .eq("issue", target.id);
+      if (!isEditor.value) {
+        artQuery = artQuery.eq("is_published", true);
+      }
+      const { data: articles } = await artQuery;
+
+      if (articles) {
+        // 排序邏輯
+        articles.sort((a, b) => {
+          return a.id.localeCompare(b.id, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          });
         });
-      });
 
-      currentIssueContent.value = articles.map((a) => ({
-        routeId: a.id,
-        category: a.category,
-        section: a.section,
-        title: a.title,
-        subtitle: a.subtitle,
-        author: a.author_display || a.author,
-        keyword: a.keyword,
-        color: getCategoryColor(a.category),
-      }));
+        // 整理文章資料
+        content = articles.map((a) => ({
+          routeId: a.id,
+          category: a.category,
+          section: a.section,
+          title: a.title,
+          subtitle: a.subtitle,
+          author: a.author_display || a.author,
+          keyword: a.keyword,
+          color: getCategoryColor(a.category),
+        }));
 
-      fetchSummaries(currentIssueContent.value);
-      extractCurrentKeywords();
+        // 建立簡介對照表
+        articles.forEach((a) => {
+          summaries[a.id] = a.summary;
+        });
+
+        // 處理關鍵字 (隨機排序移到這裡做，避免 Hydration Mismatch)
+        const allKeywords = content
+          .map((a) => a.keyword)
+          .filter((k) => k)
+          .join("、")
+          .split("、")
+          .map((k) => k.replace("🌿", "").replace("關鍵字：", "").trim())
+          .filter((k) => k && k.length > 0);
+
+        const uniqueKeywords = [...new Set(allKeywords)];
+        // Fisher-Yates Shuffle
+        for (let i = uniqueKeywords.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [uniqueKeywords[i], uniqueKeywords[j]] = [
+            uniqueKeywords[j],
+            uniqueKeywords[i],
+          ];
+        }
+        keywords = uniqueKeywords.slice(0, 5);
+      }
     }
-  }
-};
 
-const handleAdminIssueChange = () => {
-  if (!adminSelectedIssue.value) return;
-  const isAdminPath = route.path.startsWith("/admin");
-  const targetPath = isAdminPath
-    ? `/admin/home/issue/${adminSelectedIssue.value}`
-    : `/home/issue/${adminSelectedIssue.value}`;
-  router.push(targetPath);
-};
-
-const fetchSummaries = async (contentList) => {
-  if (!contentList) return;
-  const ids = contentList
-    .filter((item) => item.routeId)
-    .map((item) => item.routeId);
-  if (ids.length === 0) return;
-  try {
-    const { data, error } = await supabase
-      .from("articles")
-      .select("id, summary")
-      .in("id", ids);
-    if (!error && data) {
-      data.forEach((row) => {
-        articleSummaries.value[row.id] = row.summary;
-      });
-    }
-  } catch (err) {
-    console.error("載入簡介失敗:", err);
+    return {
+      issues: issuesList,
+      target: target,
+      content: content,
+      summaries: summaries,
+      keywords: keywords,
+    };
+  },
+  {
+    watch: [() => route.params.issueNumber, isEditor], // 當期數或編輯模式改變時，自動重抓
   }
-};
+);
+
+// 解構資料
+const issuesList = computed(() => pageData.value?.issues || []);
+const currentIssueData = computed(() => pageData.value?.target);
+const currentIssueContent = computed(() => pageData.value?.content || []);
+const articleSummaries = computed(() => pageData.value?.summaries || {});
+const hotKeywords = computed(() => pageData.value?.keywords || []);
+
+// ----------------------------------------------------------------
+// 2. SEO 設定 (首頁縮圖關鍵)
+// ----------------------------------------------------------------
+useSeoMeta({
+  title: () =>
+    currentIssueData.value
+      ? `第${currentIssueData.value.id}期 ${currentIssueData.value.title} - 無境界者雜誌`
+      : "無境界者雜誌",
+  description: () =>
+    currentIssueData.value?.intro_home ||
+    "無境界者雜誌 - 信仰與社會的自由論述平台",
+  ogTitle: () => currentIssueData.value?.title,
+  ogDescription: () => currentIssueData.value?.intro_home,
+  // ⭐ 讓最新一期的封面成為分享縮圖
+  ogImage: () =>
+    currentIssueData.value?.cover_img || "https://你的網址/default-cover.png",
+  twitterCard: "summary_large_image",
+});
+
+// ----------------------------------------------------------------
+// 3. 輔助函式
+// ----------------------------------------------------------------
 
 const getCategoryColor = (category) => {
   const map = {
@@ -189,15 +198,28 @@ const currentIssue = computed(() => {
   };
 });
 
+// 同步 Admin 選單的值
+watch(
+  currentIssueData,
+  (newVal) => {
+    if (newVal) adminSelectedIssue.value = newVal.id;
+  },
+  { immediate: true }
+);
+
 const formattedIntroCfp = computed(() => {
   let text =
     currentIssue.value?.introCfp || "下一期將以精彩主題呈現，敬請期待。";
-  text = text.replace(/（(.*?)）/, (match) => {
-    return `<span style="color: #ff8000; font-weight: bold;">${match}</span>`;
-  });
-  text = text.replace(/「(.*?)」/, (match) => {
-    return `<span style="color: #007bff; font-weight: bold;">${match}</span>`;
-  });
+  text = text.replace(
+    /（(.*?)）/,
+    (match) =>
+      `<span style="color: #ff8000; font-weight: bold;">${match}</span>`
+  );
+  text = text.replace(
+    /「(.*?)」/,
+    (match) =>
+      `<span style="color: #007bff; font-weight: bold;">${match}</span>`
+  );
   return text;
 });
 
@@ -220,14 +242,15 @@ const themePlaza = computed(() => groupArticles("主題廣場"));
 const diverseLectures = computed(() => groupArticles("多元講堂"));
 
 const currentIssueAuthors = computed(() => {
-  if (!currentIssue.value) return [];
-  if (!authors) return [];
+  if (!currentIssue.value || !authors) return [];
   const appearingNames = [
     ...new Set(currentIssue.value.content.map((a) => a.author)),
   ];
+
   let filteredAuthors = authors.filter((a) =>
     appearingNames.some((name) => name && name.includes(a.name))
   );
+
   const orderList = currentIssue.value.authorOrder;
   if (orderList && Array.isArray(orderList)) {
     filteredAuthors.sort((a, b) => {
@@ -244,6 +267,15 @@ const currentIssueAuthors = computed(() => {
   return filteredAuthors;
 });
 
+const handleAdminIssueChange = () => {
+  if (!adminSelectedIssue.value) return;
+  const isAdminPath = route.path.startsWith("/admin");
+  const targetPath = isAdminPath
+    ? `/admin/home/issue/${adminSelectedIssue.value}`
+    : `/home/issue/${adminSelectedIssue.value}`;
+  router.push(targetPath);
+};
+
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
     router.push({
@@ -254,26 +286,16 @@ const handleSearch = () => {
 };
 
 const copyEmail = () => {
-  navigator.clipboard.writeText("nonchurch2025@gmail.com").then(() => {
-    emailTooltip.value = "已複製！";
-    setTimeout(() => {
-      emailTooltip.value = "點擊複製 Email";
-    }, 2000);
-  });
+  // 需在客戶端執行
+  if (import.meta.client) {
+    navigator.clipboard.writeText("nonchurch2025@gmail.com").then(() => {
+      emailTooltip.value = "已複製！";
+      setTimeout(() => {
+        emailTooltip.value = "點擊複製 Email";
+      }, 2000);
+    });
+  }
 };
-
-watch(
-  () => route.params.issueNumber,
-  () => loadTargetIssue()
-);
-
-watch(isEditor, () => {
-  fetchIssues();
-});
-
-onMounted(() => {
-  fetchIssues();
-});
 </script>
 
 <template>
@@ -303,7 +325,7 @@ onMounted(() => {
       </select>
     </div>
 
-    <div v-if="loading" class="loading-state">
+    <div v-if="!currentIssue && !pageData" class="loading-state">
       正在載入首頁 🕊️<span class="loading-dots"></span>
     </div>
 
@@ -374,9 +396,11 @@ onMounted(() => {
             class="article-link"
           >
             <div class="article">
-              <span class="article-type" :class="getColorClass(article.color)">
-                {{ article.category }}
-              </span>
+              <span
+                class="article-type"
+                :class="getColorClass(article.color)"
+                >{{ article.category }}</span
+              >
               <h3>{{ article.title }}</h3>
               <h4 v-if="article.subtitle">──{{ article.subtitle }}</h4>
               <br />
@@ -399,9 +423,11 @@ onMounted(() => {
             class="article-link"
           >
             <div class="article">
-              <span class="article-type" :class="getColorClass(article.color)">
-                {{ article.category }}
-              </span>
+              <span
+                class="article-type"
+                :class="getColorClass(article.color)"
+                >{{ article.category }}</span
+              >
               <h3>{{ article.title }}</h3>
               <h4 v-if="article.subtitle">──{{ article.subtitle }}</h4>
               <br />
@@ -428,9 +454,11 @@ onMounted(() => {
             class="article-link"
           >
             <div class="article">
-              <span class="article-type" :class="getColorClass(article.color)">
-                {{ article.category }}
-              </span>
+              <span
+                class="article-type"
+                :class="getColorClass(article.color)"
+                >{{ article.category }}</span
+              >
               <h3>{{ article.title }}</h3>
               <h4 v-if="article.subtitle">──{{ article.subtitle }}</h4>
               <br />
@@ -607,7 +635,9 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* ⭐ 新增：後台工具列樣式 */
+/* =================================================================
+   1. 後台工具列
+   ================================================================= */
 .admin-toolbar {
   background-color: #fff3cd;
   padding: 15px;
@@ -630,18 +660,6 @@ onMounted(() => {
   font-size: 1rem;
 }
 
-/* ... (原本的樣式保持不變) ... */
-h1,
-h2,
-h3,
-h4,
-p,
-span,
-a,
-div {
-  font-family: "Times New Roman", serif;
-}
-
 section {
   padding: 2rem;
   margin: 0 0 2rem 0;
@@ -649,10 +667,9 @@ section {
 
 h2 {
   text-align: center;
-  color: #444;
-  margin-bottom: 1rem;
   font-size: 2rem;
   font-weight: bold;
+  margin-bottom: 1rem;
 }
 
 .btn {
@@ -674,6 +691,9 @@ h2 {
   transform: translateY(-3px);
 }
 
+/* =================================================================
+   2. 當期雜誌
+   ================================================================= */
 .current-issue {
   display: flex;
   gap: 2rem;
@@ -760,7 +780,9 @@ h2 {
   margin-right: 8px;
 }
 
-/* ... 文章卡片 ... */
+/* =================================================================
+   3. 文章卡片與網格系統
+   ================================================================= */
 .diverse-lectures {
   background: #ffffff;
   border-radius: 8px;
@@ -888,6 +910,9 @@ h2 {
   background-color: #6a5acd;
 }
 
+/* =================================================================
+   4. 作者頭像
+   ================================================================= */
 .authors {
   padding: 3rem;
 }
@@ -922,6 +947,7 @@ h2 {
   position: relative;
   text-decoration: none;
 }
+/* Tooltip 樣式 */
 .author a::after {
   content: attr(data-tooltip);
   position: absolute;
@@ -945,6 +971,9 @@ h2 {
   transform: translateX(-50%) translateY(-5px);
 }
 
+/* =================================================================
+   5. 徵稿與搜尋、社群
+   ================================================================= */
 .next-preview-submission {
   display: flex;
   justify-content: center;
@@ -981,6 +1010,7 @@ h2 {
   text-indent: 2rem;
 }
 
+/* 搜尋區塊 */
 .search {
   text-align: center;
   border-radius: 8px;
@@ -1006,7 +1036,6 @@ h2 {
   margin: 0 0.5rem;
   color: #007bff;
   text-decoration: none;
-  font-family: "Times New Roman", serif;
 }
 .keyword-link:hover {
   text-decoration: underline;
@@ -1039,6 +1068,7 @@ h2 {
   cursor: pointer;
 }
 
+/* 聯繫與社群按鈕 */
 .contact {
   text-align: center;
   background: #fff;
@@ -1099,6 +1129,7 @@ h2 {
   color: white;
   box-shadow: 0 5px 15px rgba(219, 68, 55, 0.4);
 }
+/* Tooltip for Social Buttons */
 .social-btn::after {
   content: attr(data-tooltip);
   position: absolute;
@@ -1123,25 +1154,20 @@ h2 {
   visibility: visible;
   transform: translateX(-50%) translateY(-5px);
 }
-/* ===========================
-   新增：載入動畫樣式
-   =========================== */
+
 .loading-state {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 50vh; /* 讓它垂直置中，高度佔畫面一半 */
-  font-size: 2rem; /* 字體大小 */
+  min-height: 50vh;
+  font-size: 2rem;
   color: #888;
-  font-family: serif; /* 如果想要跟內文一樣用襯線體 */
   font-weight: bold;
 }
-
 .loading-dots::after {
   content: "";
   animation: dots-cycle 2s infinite steps(1);
 }
-
 @keyframes dots-cycle {
   0% {
     content: "";
@@ -1192,9 +1218,6 @@ h2 {
   }
   .search-box {
     flex-direction: column;
-  }
-  .search-box option {
-    font-size: 0.8rem;
   }
   .search-input {
     width: 100%;

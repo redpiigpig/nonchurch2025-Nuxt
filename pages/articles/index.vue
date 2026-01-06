@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
@@ -9,26 +9,28 @@ const { isEditor } = useEditorMode();
 const route = useRoute();
 const router = useRouter();
 
-useHead({
-  title: "文章列表 - 無境界者雜誌",
-});
-
-const selectedYear = ref(2025);
+// ----------------------------------------------------------------
+// 1. 年份設定與 URL 同步
+// ----------------------------------------------------------------
 const yearOptions = [
   { value: 2026, label: "2026 年 (第 7-12 期)" },
   { value: 2025, label: "2025 年 (第 1-6 期)" },
 ];
 
-const groupedIssues = ref([]);
-const loading = ref(true);
+// 預設年份邏輯：優先讀取 URL query，否則預設 2025
+const initialYear = parseInt(route.query.year) || 2025;
+const selectedYear = ref(initialYear);
 
-const saveScrollPosition = (selector) => {
-  if (import.meta.client) {
-    const currentState = window.history.state || {};
-    window.history.replaceState({ ...currentState, scrollTo: selector }, "");
-  }
-};
+// SEO 設定：動態標題
+useSeoMeta({
+  title: () => `${selectedYear.value} 年文章列表 - 無境界者雜誌`,
+  description: "瀏覽無境界者雜誌歷年期刊與文章列表。",
+  ogTitle: () => `${selectedYear.value} 年文章列表 - 無境界者雜誌`,
+});
 
+// ----------------------------------------------------------------
+// 2. 輔助函式 (保持你原本的邏輯，但移到 setup 頂層方便呼叫)
+// ----------------------------------------------------------------
 const extractOrderFromId = (idStr) => {
   if (!idStr) return 0;
   const match = idStr.match(/-(\d+)/);
@@ -38,130 +40,6 @@ const extractOrderFromId = (idStr) => {
 };
 
 const formatDisplayId = (num) => (num ? num.toString().padStart(2, "0") : "");
-
-const scrollToAnchor = async () => {
-  if (route.hash && import.meta.client) {
-    await nextTick();
-    const targetId = route.hash.substring(1);
-    const element = document.getElementById(targetId);
-    if (element) {
-      element.scrollIntoView({ behavior: "auto", block: "center" });
-    }
-  }
-};
-
-const fetchAndGroupArticles = async () => {
-  loading.value = true;
-
-  let query = supabase
-    .from("issues")
-    .select(
-      `
-      *,
-      content:articles (
-        id, category, title, subtitle, author, author_display, section, is_published
-      )
-    `
-    )
-    .order("id", { ascending: false });
-
-  if (!isEditor.value) {
-    query = query.eq("is_published", true);
-  }
-
-  const { data: issuesData, error } = await query;
-
-  if (error) {
-    console.error("載入失敗:", error);
-    loading.value = false;
-    return;
-  }
-
-  groupedIssues.value = issuesData.map((issue) => {
-    const storageBase =
-      "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images";
-    const defaultCover = `${storageBase}/covers/cover-${issue.id}.png`;
-    const defaultPdf = `${storageBase}/magazines/Vol.${issue.id}.pdf`;
-
-    issue.cover_img =
-      issue.cover_img && issue.cover_img.startsWith("http")
-        ? issue.cover_img
-        : defaultCover;
-    issue.pdf_link =
-      issue.pdf_link && issue.pdf_link.startsWith("http")
-        ? issue.pdf_link
-        : defaultPdf;
-
-    if (issue.content && issue.content.length > 0) {
-      if (!isEditor.value) {
-        issue.content = issue.content.filter((a) => a.is_published);
-      }
-
-      issue.content.forEach((art) => {
-        art.routeId = art.id;
-        art._sortOrder = extractOrderFromId(art.id);
-        art.display_id = formatDisplayId(art._sortOrder);
-        art.color = getCategoryColor(art.category);
-        art.type = "article";
-        if (art.author_display) art.author = art.author_display;
-      });
-
-      issue.content.sort((a, b) => a._sortOrder - b._sortOrder);
-
-      let lastSection = null;
-      issue.content.forEach((art) => {
-        const currentSection = art.section ? art.section.trim() : null;
-        if (currentSection) {
-          if (currentSection === lastSection) {
-            art.showSectionHeader = false;
-          } else {
-            art.showSectionHeader = true;
-            lastSection = currentSection;
-          }
-        } else {
-          art.showSectionHeader = false;
-        }
-      });
-
-      let maxId = 0;
-      if (issue.content.length > 0) {
-        maxId = issue.content[issue.content.length - 1]._sortOrder;
-      }
-      issue.content.push({
-        display_id: formatDisplayId(maxId + 1),
-        title: "投稿資訊／下期主題",
-        type: "text-only",
-        is_footer_start: true,
-      });
-      issue.content.push({
-        display_id: formatDisplayId(maxId + 2),
-        title: "編輯資訊／線上資訊",
-        type: "text-only",
-      });
-    } else {
-      issue.content = [];
-    }
-
-    issue.isDraft = !issue.is_published;
-    return issue;
-  });
-
-  const queryYear = parseInt(route.query.year);
-  const isQueryValid = yearOptions.some((opt) => opt.value === queryYear);
-
-  if (isQueryValid) {
-    selectedYear.value = queryYear;
-  } else if (groupedIssues.value.length > 0) {
-    const latestIssue = groupedIssues.value[0];
-    const latestYear = 2025 + Math.floor((latestIssue.id - 1) / 6);
-    if (yearOptions.some((opt) => opt.value === latestYear)) {
-      selectedYear.value = latestYear;
-    }
-  }
-
-  loading.value = false;
-  scrollToAnchor();
-};
 
 const getCategoryColor = (category) => {
   const map = {
@@ -179,24 +57,166 @@ const getCategoryColor = (category) => {
   return map[category] || "#999";
 };
 
+// ----------------------------------------------------------------
+// 3. SSR 資料獲取 (核心改動)
+// ----------------------------------------------------------------
+// 我們使用 useAsyncData 在伺服器端就抓好並整理好資料
+const {
+  data: groupedIssues,
+  pending: loading,
+  refresh,
+} = await useAsyncData(
+  `articles-list-${isEditor.value}`, // Cache Key 包含編輯模式狀態
+  async () => {
+    // A. 查詢資料
+    let query = supabase
+      .from("issues")
+      .select(
+        `
+        *,
+        content:articles (
+          id, category, title, subtitle, author, author_display, section, is_published
+        )
+      `
+      )
+      .order("id", { ascending: false });
+
+    if (!isEditor.value) {
+      query = query.eq("is_published", true);
+    }
+
+    const { data: issuesData, error } = await query;
+    if (error) throw error;
+    if (!issuesData) return [];
+
+    // B. 資料加工 (Map & Grouping)
+    return issuesData.map((issue) => {
+      // 處理封面圖與 PDF 連結
+      const storageBase =
+        "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images";
+      const defaultCover = `${storageBase}/covers/cover-${issue.id}.png`;
+      const defaultPdf = `${storageBase}/magazines/Vol.${issue.id}.pdf`;
+
+      issue.cover_img = issue.cover_img?.startsWith("http")
+        ? issue.cover_img
+        : defaultCover;
+      issue.pdf_link = issue.pdf_link?.startsWith("http")
+        ? issue.pdf_link
+        : defaultPdf;
+      issue.isDraft = !issue.is_published;
+
+      // 處理文章內容
+      if (issue.content && issue.content.length > 0) {
+        // 過濾草稿文章 (若非編輯模式)
+        if (!isEditor.value) {
+          issue.content = issue.content.filter((a) => a.is_published);
+        }
+
+        // 格式化文章欄位
+        issue.content.forEach((art) => {
+          art.routeId = art.id;
+          art._sortOrder = extractOrderFromId(art.id);
+          art.display_id = formatDisplayId(art._sortOrder);
+          art.color = getCategoryColor(art.category);
+          art.type = "article";
+          if (art.author_display) art.author = art.author_display;
+        });
+
+        // 排序文章
+        issue.content.sort((a, b) => a._sortOrder - b._sortOrder);
+
+        // 處理 Section Header (避免重複顯示相同區塊標題)
+        let lastSection = null;
+        issue.content.forEach((art) => {
+          const currentSection = art.section ? art.section.trim() : null;
+          art.showSectionHeader =
+            currentSection && currentSection !== lastSection;
+          if (currentSection) lastSection = currentSection;
+        });
+
+        // 插入固定結尾項目
+        const maxId =
+          issue.content.length > 0
+            ? issue.content[issue.content.length - 1]._sortOrder
+            : 0;
+        issue.content.push(
+          {
+            display_id: formatDisplayId(maxId + 1),
+            title: "投稿資訊／下期主題",
+            type: "text-only",
+            is_footer_start: true,
+          },
+          {
+            display_id: formatDisplayId(maxId + 2),
+            title: "編輯資訊／線上資訊",
+            type: "text-only",
+          }
+        );
+      } else {
+        issue.content = [];
+      }
+
+      return issue;
+    });
+  },
+  {
+    watch: [isEditor], // 當編輯模式切換時自動重抓
+  }
+);
+
+// ----------------------------------------------------------------
+// 4. Client 端互動邏輯
+// ----------------------------------------------------------------
+
+// 根據選定年份過濾期刊 (Computed)
 const filteredIssues = computed(() => {
+  if (!groupedIssues.value) return [];
   return groupedIssues.value.filter((i) => {
     const issueYear = 2025 + Math.floor((i.id - 1) / 6);
     return issueYear === selectedYear.value;
   });
 });
 
+// 監聽年份選擇，更新 URL
 watch(selectedYear, (newVal) => {
   router.replace({ query: { ...route.query, year: newVal } });
 });
 
-watch(isEditor, () => {
-  fetchAndGroupArticles();
-});
+// 捲動位置紀錄 (Client Only)
+const saveScrollPosition = (selector) => {
+  if (import.meta.client) {
+    const currentState = window.history.state || {};
+    window.history.replaceState({ ...currentState, scrollTo: selector }, "");
+  }
+};
 
-onMounted(() => {
-  fetchAndGroupArticles();
-});
+// 處理錨點捲動 (例如從首頁點擊 "第X期" 跳轉過來)
+const handleAnchorScroll = async () => {
+  if (route.hash && import.meta.client) {
+    await nextTick();
+    // 稍微延遲確保 DOM 已渲染
+    setTimeout(() => {
+      const targetId = route.hash.substring(1);
+      const element = document.getElementById(targetId);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 500);
+  }
+};
+
+// 進入頁面時嘗試捲動
+if (import.meta.client) {
+  handleAnchorScroll();
+}
+
+// 監聽路由變化 (處理同一頁內切換錨點)
+watch(
+  () => route.hash,
+  () => {
+    handleAnchorScroll();
+  }
+);
 </script>
 
 <template>
@@ -228,7 +248,10 @@ onMounted(() => {
         正在載入文章列表 🕊️<span class="loading-dots"></span>
       </div>
 
-      <div v-else-if="filteredIssues.length === 0" class="no-data">
+      <div
+        v-else-if="!filteredIssues || filteredIssues.length === 0"
+        class="no-data"
+      >
         <p>尚無 {{ selectedYear }} 年的雜誌資料，敬請期待。🥺</p>
       </div>
 
@@ -337,7 +360,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* 樣式保持原樣 */
 h2 {
   text-align: left;
   color: #444;

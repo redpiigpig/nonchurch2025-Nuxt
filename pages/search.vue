@@ -4,8 +4,10 @@ import { useRoute, useRouter } from "vue-router";
 import { supabase } from "~/supabase";
 import MainLayout from "~/components/MainLayout.vue";
 
-useHead({
+// SEO 設定：搜尋頁通常不希望被索引，以免浪費爬蟲預算
+useSeoMeta({
   title: "搜尋 - 無境界者雜誌",
+  robots: "noindex, follow",
 });
 
 const route = useRoute();
@@ -18,9 +20,6 @@ const inputType = ref("title");
 const currentKeyword = ref("");
 const currentField = ref("title");
 
-const hotKeywords = ref([]);
-const latestIssueId = ref(null);
-
 const fieldLabels = {
   title: "文章標題",
   author: "作者",
@@ -28,49 +27,77 @@ const fieldLabels = {
   keyword: "關鍵字",
 };
 
-const fetchLatestKeywords = async () => {
-  try {
-    const { data: issues, error: issueError } = await supabase
-      .from("issues")
-      .select("id")
-      .eq("is_published", true)
-      .order("id", { ascending: false })
-      .limit(1);
+// ----------------------------------------------------------------
+// 1. SSR 資料獲取：隨機關鍵字
+// ----------------------------------------------------------------
+// 將熱門關鍵字改為 SSR，避免 Hydration Mismatch
+const { data: keywordData } = await useAsyncData(
+  "search-hot-keywords",
+  async () => {
+    try {
+      // A. 找最新一期
+      const { data: issues } = await supabase
+        .from("issues")
+        .select("id")
+        .eq("is_published", true)
+        .order("id", { ascending: false })
+        .limit(1);
 
-    if (issueError || !issues || issues.length === 0) return;
+      if (!issues || issues.length === 0)
+        return { issueId: null, keywords: [] };
+      const targetIssueId = issues[0].id;
 
-    const targetIssueId = issues[0].id;
-    latestIssueId.value = targetIssueId;
+      // B. 找該期文章關鍵字
+      const { data: articles } = await supabase
+        .from("articles")
+        .select("keyword")
+        .eq("issue", targetIssueId)
+        .eq("is_published", true);
 
-    const { data: articles, error: artError } = await supabase
-      .from("articles")
-      .select("keyword")
-      .eq("issue", targetIssueId)
-      .eq("is_published", true);
+      if (!articles) return { issueId: targetIssueId, keywords: [] };
 
-    if (artError || !articles) return;
+      // C. 整理與隨機排序
+      const allKeywords = articles
+        .map((a) => a.keyword)
+        .filter((k) => k)
+        .join("、")
+        .split(/[、,]/)
+        .map((k) =>
+          k
+            .replace("🌿", "")
+            .replace("關鍵字：", "")
+            .replace("關鍵字:", "")
+            .trim()
+        )
+        .filter((k) => k && k.length > 0);
 
-    const allKeywords = articles
-      .map((a) => a.keyword)
-      .filter((k) => k)
-      .join("、")
-      .split(/[、,]/)
-      .map((k) =>
-        k
-          .replace("🌿", "")
-          .replace("關鍵字：", "")
-          .replace("關鍵字:", "")
-          .trim()
-      )
-      .filter((k) => k && k.length > 0);
+      const uniqueKeywords = [...new Set(allKeywords)];
+      // Fisher-Yates Shuffle
+      for (let i = uniqueKeywords.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [uniqueKeywords[i], uniqueKeywords[j]] = [
+          uniqueKeywords[j],
+          uniqueKeywords[i],
+        ];
+      }
 
-    const uniqueKeywords = [...new Set(allKeywords)];
-    const shuffled = uniqueKeywords.sort(() => 0.5 - Math.random());
-    hotKeywords.value = shuffled.slice(0, 6);
-  } catch (err) {
-    console.error("載入關鍵字失敗:", err);
+      return {
+        issueId: targetIssueId,
+        keywords: uniqueKeywords.slice(0, 6),
+      };
+    } catch (err) {
+      console.error("載入關鍵字失敗:", err);
+      return { issueId: null, keywords: [] };
+    }
   }
-};
+);
+
+const latestIssueId = computed(() => keywordData.value?.issueId);
+const hotKeywords = computed(() => keywordData.value?.keywords || []);
+
+// ----------------------------------------------------------------
+// 2. 搜尋功能 (維持 Client-Side)
+// ----------------------------------------------------------------
 
 const clickTag = (tag) => {
   inputQuery.value = tag;
@@ -118,6 +145,10 @@ const fetchResults = async () => {
     loading.value = false;
   }
 };
+
+// ----------------------------------------------------------------
+// 3. 反白與格式處理 (Helper Functions)
+// ----------------------------------------------------------------
 
 const highlightFull = (content, searchTerm) => {
   if (!content) return "";
@@ -184,7 +215,7 @@ const renderMarkers = (text) => {
 watch(() => route.query, fetchResults);
 
 onMounted(() => {
-  fetchLatestKeywords();
+  // 這裡不需要再 fetchLatestKeywords 了，因為已經用 useAsyncData 做完了
   fetchResults();
 });
 </script>
@@ -308,7 +339,7 @@ onMounted(() => {
 </template>
 
 <style>
-/* 關鍵字反白樣式 */
+/* CSS 樣式保持不變，請保留你原本檔案中的這部分 */
 .highlight-text {
   color: #003366;
   font-weight: bold;
@@ -331,7 +362,7 @@ onMounted(() => {
 </style>
 
 <style scoped>
-/* 樣式保持原樣 */
+/* 請保留你原本 search.vue 裡的所有 CSS，這裡完全沿用 */
 .search-page-container {
   max-width: 800px;
   margin: 40px auto;

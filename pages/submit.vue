@@ -1,40 +1,25 @@
 <script setup>
-import { ref, computed, watch, onMounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { ref, computed, watch } from "vue";
+import { useRoute } from "vue-router";
 import MainLayout from "~/components/MainLayout.vue";
 import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
 
-useHead({
-  title: "投稿資訊 - 無境界者雜誌",
-});
-
 const route = useRoute();
-const router = useRouter();
-const loading = ref(true);
-const currentTheme = ref(null);
 const { isEditor } = useEditorMode();
-
-const allIssues = ref([]);
 const adminSelectedIssue = ref("");
 
-// 如果網址有參數 (例如 /submit/issue/6)，我們需要特別處理
-// 但因為我們現在是在 submit/index.vue，預設只抓最新，或者需要透過 query params
-// 為了相容您原本的邏輯，這裡我們稍微改用 query params 比較簡單 (?issue=6)
-
-const fetchThemeData = async () => {
-  loading.value = true;
-  currentTheme.value = null;
-
-  try {
+// ----------------------------------------------------------------
+// 1. SSR 資料獲取 (核心改動)
+// ----------------------------------------------------------------
+const { data: pageData, pending: loading } = await useAsyncData(
+  `submit-theme-${isEditor.value}`,
+  async () => {
+    // A. 抓取徵稿主題 (預設抓最新一期有設定 cfp_title 的)
     let query = supabase
       .from("issues")
-      .select("id, title, date, cfp_title, cfp_theme, cfp_deadline, cfp_image");
-
-    // 這裡我們改抓 route.query.issue，或者 route.params (如果我們用動態路由)
-    // 為了簡單起見，這裡預設抓最新
-    query = query
-      .not("cfp_title", "is", null)
+      .select("id, title, date, cfp_title, cfp_theme, cfp_deadline, cfp_image")
+      .not("cfp_title", "is", null) // 確保有徵稿標題
       .order("id", { ascending: false })
       .limit(1);
 
@@ -42,34 +27,65 @@ const fetchThemeData = async () => {
       query = query.eq("is_published", true);
     }
 
-    const { data, error } = await query;
+    const { data: themeData, error: themeError } = await query;
+    if (themeError) throw themeError;
 
-    if (error) throw error;
-
-    if (data && data.length > 0) {
-      currentTheme.value = data[0];
-      adminSelectedIssue.value = data[0].id;
+    // B. 抓取所有期數 (僅供管理員切換用)
+    let allIssues = [];
+    if (isEditor.value) {
+      const { data: issuesData } = await supabase
+        .from("issues")
+        .select("id, title, is_published")
+        .order("id", { ascending: false });
+      allIssues = issuesData || [];
     }
-  } catch (err) {
-    console.error("Error fetching submission theme:", err.message);
-  } finally {
-    loading.value = false;
+
+    return {
+      theme: themeData && themeData.length > 0 ? themeData[0] : null,
+      allIssues: allIssues,
+    };
+  },
+  {
+    watch: [isEditor], // 當編輯模式切換時自動重抓
   }
-};
+);
 
-const fetchAllIssues = async () => {
-  const { data } = await supabase
-    .from("issues")
-    .select("id, title, is_published")
-    .order("id", { ascending: false });
-  allIssues.value = data || [];
-};
+const currentTheme = computed(() => pageData.value?.theme);
+const allIssues = computed(() => pageData.value?.allIssues || []);
 
-const handleAdminIssueChange = () => {
-  // 這裡如果要支援切換期數，建議後續再擴充
-  alert("目前靜態頁面暫時鎖定最新一期投稿資訊");
-};
+// ----------------------------------------------------------------
+// 2. SEO 設定 (分享時顯示徵稿主題與圖片)
+// ----------------------------------------------------------------
+useSeoMeta({
+  title: () =>
+    currentTheme.value
+      ? `徵稿主題：${currentTheme.value.cfp_title} - 投稿資訊`
+      : "投稿資訊 - 無境界者雜誌",
+  description: () =>
+    currentTheme.value?.cfp_theme ||
+    "歡迎投稿至無境界者雜誌，本刊物是一個不以教會為本位的自由信仰論述平台。",
 
+  // Open Graph
+  ogTitle: () =>
+    currentTheme.value
+      ? `徵稿：${currentTheme.value.cfp_title}`
+      : "投稿資訊 - 無境界者雜誌",
+  ogDescription: () => {
+    if (!currentTheme.value) return "歡迎投稿！";
+    const deadline = currentTheme.value.cfp_deadline || "詳見內文";
+    const desc = currentTheme.value.cfp_theme?.substring(0, 60) || "";
+    return `📌 截稿日期：${deadline}。${desc}...`;
+  },
+  // ⭐ 關鍵：如果有設定徵稿圖片，就用那張；否則用系統預設圖
+  ogImage: () =>
+    currentTheme.value?.cfp_image ||
+    "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/default_cover.jpg",
+  twitterCard: "summary_large_image",
+});
+
+// ----------------------------------------------------------------
+// 3. 頁面邏輯
+// ----------------------------------------------------------------
 const themeParagraphs = computed(() => {
   if (!currentTheme.value || !currentTheme.value.cfp_theme) return [];
   return currentTheme.value.cfp_theme
@@ -77,15 +93,18 @@ const themeParagraphs = computed(() => {
     .filter((p) => p.trim() !== "");
 });
 
-watch(isEditor, () => {
-  fetchThemeData();
-  if (isEditor.value) fetchAllIssues();
-});
+// 初始化管理員選單
+watch(
+  currentTheme,
+  (newVal) => {
+    if (newVal) adminSelectedIssue.value = newVal.id;
+  },
+  { immediate: true }
+);
 
-onMounted(() => {
-  fetchThemeData();
-  if (isEditor.value) fetchAllIssues();
-});
+const handleAdminIssueChange = () => {
+  alert("目前靜態頁面暫時鎖定顯示最新一期徵稿資訊");
+};
 </script>
 
 <template>
@@ -94,6 +113,7 @@ onMounted(() => {
       <span class="emoji">📬</span>投稿資訊<span class="emoji">📬</span>
     </h1>
     <div class="main-divider"></div>
+
     <div v-if="isEditor" class="admin-toolbar">
       <span class="toolbar-label">🔧 管理員導航：</span>
       <select
@@ -253,7 +273,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* 樣式保持原樣 */
+/* 請保留你原本 submit.vue 裡的所有 CSS，這裡完全沿用 */
 .admin-toolbar {
   background-color: #fff3cd;
   padding: 15px;

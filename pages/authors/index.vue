@@ -1,86 +1,90 @@
 <script setup>
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import MainLayout from "~/components/MainLayout.vue";
 import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
 
+// 設定頁面 Meta (SEO)
 useHead({
   title: "專欄作者 - 無境界者雜誌",
+  meta: [
+    {
+      name: "description",
+      content: "無境界者雜誌專欄作者列表，匯集多元觀點的信仰論述。",
+    },
+    { property: "og:title", content: "專欄作者 - 無境界者雜誌" },
+    {
+      property: "og:description",
+      content: "無境界者雜誌專欄作者列表，匯集多元觀點的信仰論述。",
+    },
+  ],
 });
 
 const { isEditor } = useEditorMode();
 const route = useRoute();
 const router = useRouter();
 
-const selectedYear = ref(2025);
 const yearOptions = [
   { value: 2026, label: "2026 年專欄作者" },
   { value: 2025, label: "2025 年專欄作者" },
 ];
 
-const allAuthors = ref([]);
-const randomizedAuthors = ref([]);
-const isLoading = ref(true);
+// 1. 初始化年份：優先讀取網址參數，否則預設 2025
+const initialYear = parseInt(route.query.year);
+const isValidYear = yearOptions.some((opt) => opt.value === initialYear);
+const selectedYear = ref(isValidYear ? initialYear : 2025);
 
-const initYear = () => {
-  const queryYear = parseInt(route.query.year);
-  if (yearOptions.some((opt) => opt.value === queryYear)) {
-    selectedYear.value = queryYear;
-  }
-};
-
-const fetchAuthors = async () => {
-  try {
-    isLoading.value = true;
+// ----------------------------------------------------------------
+// 2. SSR 資料獲取 + 隨機排序 (核心改動)
+// ----------------------------------------------------------------
+const {
+  data: randomizedAuthors,
+  pending: isLoading,
+  refresh,
+} = await useAsyncData(
+  `authors-list-${selectedYear.value}-${isEditor.value}`, // Cache Key 包含年份和編輯狀態
+  async () => {
+    // A. 查詢資料
     let query = supabase
       .from("authors")
       .select("*")
       .order("id", { ascending: true });
 
+    // 如果不是編輯模式，只抓已發布的
     if (!isEditor.value) {
       query = query.eq("is_published", true);
     }
 
     const { data, error } = await query;
-
     if (error) throw error;
+    if (!data) return [];
 
-    if (data) {
-      allAuthors.value = data;
-      updateAuthors();
+    // B. 過濾年份
+    const filtered = data.filter(
+      (a) => a.years && a.years.includes(selectedYear.value)
+    );
+
+    // C. 隨機排序 (在伺服器端就排好，傳給瀏覽器直接用，避免不一致)
+    const newArr = [...filtered];
+    for (let i = newArr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
     }
-  } catch (error) {
-    console.error("Error fetching authors:", error.message);
-  } finally {
-    isLoading.value = false;
-  }
-};
 
-const updateAuthors = () => {
-  const filtered = allAuthors.value.filter(
-    (a) => a.years && a.years.includes(selectedYear.value)
-  );
-  const newArr = [...filtered];
-  for (let i = newArr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    return newArr;
+  },
+  {
+    watch: [selectedYear, isEditor], // 當年份或編輯模式改變時，自動重新抓取
   }
-  randomizedAuthors.value = newArr;
-};
+);
 
+// ----------------------------------------------------------------
+// 3. 監聽與互動
+// ----------------------------------------------------------------
 watch(selectedYear, (newVal) => {
+  // 更新網址，但不需手動呼叫 refresh，因為 useAsyncData 已經 watch 了 selectedYear
   router.replace({ query: { ...route.query, year: newVal } });
-  updateAuthors();
-});
-
-watch(isEditor, () => {
-  fetchAuthors();
-});
-
-onMounted(() => {
-  initYear();
-  fetchAuthors();
 });
 </script>
 
@@ -113,7 +117,10 @@ onMounted(() => {
         <p>正在載入作者資料...</p>
       </div>
 
-      <div v-else-if="randomizedAuthors.length === 0" class="no-data">
+      <div
+        v-else-if="!randomizedAuthors || randomizedAuthors.length === 0"
+        class="no-data"
+      >
         <p>尚無 {{ selectedYear }} 年的專欄作者資料，敬請期待。🥺</p>
       </div>
 
@@ -150,7 +157,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* 樣式保持原樣 */
+/* 這裡請直接貼上你原本檔案中的 CSS，完全不需要改動 */
 .loading-state {
   text-align: center;
   font-size: 1.2rem;
