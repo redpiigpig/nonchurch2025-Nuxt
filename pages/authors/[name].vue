@@ -8,18 +8,41 @@ const author = ref(null);
 const authorArticles = ref([]);
 const loading = ref(true);
 
-useHead({
-  title: computed(() =>
-    author.value ? `${author.value.name} - 無境界者雜誌` : "載入中..."
-  ),
+// ⭐ 修改重點：完整的 SEO 設定
+// 讓 Facebook / Line 分享時能顯示作者大頭貼與簡介
+useSeoMeta({
+  // 網頁標題
+  title: () =>
+    author.value
+      ? `${author.value.name} - 無境界者雜誌`
+      : "載入中... - 無境界者雜誌",
+
+  // Open Graph (FB, Line) 設定
+  ogTitle: () =>
+    author.value ? `${author.value.name} - 無境界者雜誌` : "無境界者雜誌",
+  description: () => author.value?.bio || "無境界者雜誌專欄作者",
+  ogDescription: () => author.value?.bio || "無境界者雜誌專欄作者",
+
+  // 圖片：優先使用作者大頭貼，沒有則使用全站預設圖
+  ogImage: () =>
+    author.value?.author_image ||
+    "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/default-seo.jpg",
+
+  // Twitter 設定
+  twitterCard: "summary_large_image",
+  twitterTitle: () => author.value?.name,
+  twitterDescription: () => author.value?.bio,
+  twitterImage: () => author.value?.author_image,
 });
 
+// 輔助函式：取得文章排序權重
 const getArticleOrder = (id) => {
   if (!id) return 0;
   const match = id.match(/-(\d+)/);
   return match ? parseInt(match[1]) : 0;
 };
 
+// 抓取資料邏輯
 const fetchData = async () => {
   const authorName = route.params.name;
   if (!authorName) return;
@@ -27,6 +50,7 @@ const fetchData = async () => {
   try {
     loading.value = true;
 
+    // 1. 抓取作者基本資料
     const { data: authorData, error: authorError } = await supabase
       .from("authors")
       .select("*")
@@ -36,6 +60,7 @@ const fetchData = async () => {
     if (authorError) throw authorError;
     author.value = authorData;
 
+    // 2. 抓取該作者的文章
     if (authorData) {
       const { data: articlesData, error: articlesError } = await supabase
         .from("articles")
@@ -55,6 +80,7 @@ const fetchData = async () => {
           )
         `
         )
+        // 模糊搜尋作者名稱 (包含 author 欄位或 author_display 欄位)
         .or(
           `author.ilike.%${authorData.name}%,author_display.ilike.%${authorData.name}%`
         )
@@ -62,6 +88,7 @@ const fetchData = async () => {
 
       if (articlesError) throw articlesError;
 
+      // 排序文章：先按期數(新到舊)，再按文章順序
       const sortedData = (articlesData || []).sort((a, b) => {
         const issueA = a.issue || 0;
         const issueB = b.issue || 0;
@@ -161,7 +188,6 @@ watch(
 </template>
 
 <style scoped>
-/* 樣式保持原樣 */
 .author-detail-container {
   max-width: 900px;
   margin: 0 auto;

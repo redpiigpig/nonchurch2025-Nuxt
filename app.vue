@@ -5,17 +5,37 @@ import { useEditorMode } from "~/composables/useEditorMode";
 // 取得編輯模式狀態
 const { isEditor } = useEditorMode();
 
+// ⭐ 新增：設定預設的地球圖示 (讓網頁一載入就有圖示，程式碼才抓得到)
+useHead({
+  link: [
+    {
+      rel: "icon",
+      type: "image/svg+xml",
+      href: `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌏</text></svg>`,
+    },
+  ],
+});
+
+// 全站預設 SEO 設定
+useSeoMeta({
+  titleTemplate: (titleChunk) => {
+    return titleChunk ? `${titleChunk} - 無境界者雜誌` : "無境界者雜誌";
+  },
+  ogSiteName: "無境界者雜誌",
+  ogImage:
+    "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/topic.jpg",
+  twitterCard: "summary_large_image",
+});
+
 // 修改瀏覽器分頁圖示 (Favicon) 的函式
 function changeFavicon(emoji) {
-  if (import.meta.server) return; // 確保只在瀏覽器端執行
-
+  if (import.meta.server) return;
   const link = document.querySelector("link[rel~='icon']");
   if (!link) return;
-  // 使用 SVG Data URI 將 Emoji 變成圖示
   link.href = `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>${emoji}</text></svg>`;
 }
 
-// 監聽 isEditor 變化：編輯模式顯示月亮，前台顯示地球
+// 監聽變化：編輯模式顯示月亮，前台顯示地球
 watch(
   isEditor,
   (newVal) => {

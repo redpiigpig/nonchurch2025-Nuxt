@@ -1,10 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-
-// ✅ 1. 改回手動引入 (這是其他頁面能運作的關鍵)
 import { supabase } from "~/supabase";
-
 import { useEditorMode } from "~/composables/useEditorMode";
 import { authors } from "~/data/authors.js";
 
@@ -21,6 +18,23 @@ const adminSelectedIssue = ref("");
 const searchQuery = ref("");
 const searchType = ref("title");
 const emailTooltip = ref("點擊複製 Email");
+
+useSeoMeta({
+  title: "無境界者雜誌",
+
+  // 描述：使用當期簡介 (introHome)
+  description: () =>
+    currentIssue.value?.introHome || "一個不以教會為本位的自由信仰論述平台",
+  ogDescription: () =>
+    currentIssue.value?.introHome || "一個不以教會為本位的自由信仰論述平台。",
+
+  // 圖片：使用當期封面 (coverImg)，沒有的話用預設圖
+  ogImage: () =>
+    currentIssue.value?.coverImg ||
+    "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/default-seo.jpg",
+
+  twitterCard: "summary_large_image",
+});
 
 // ✅ 2. 為了避免 SSR 錯誤，我們把資料抓取搬回 onMounted (客戶端執行)
 // 雖然犧牲一點點 SEO，但保證能跑，且能讀到登入狀態

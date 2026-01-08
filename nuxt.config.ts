@@ -3,20 +3,25 @@ export default defineNuxtConfig({
   compatibilityDate: "2024-04-03",
   devtools: { enabled: true },
 
+  // 樣式設定
   css: ["~/assets/main.css", "~/assets/article.css", "~/assets/shared.css"],
 
+  // 1. 設定環境變數 (給手動寫的 supabase.js 用)
   runtimeConfig: {
     public: {
-      supabaseUrl: process.env.SUPABASE_URL,
-      supabaseKey: process.env.SUPABASE_KEY,
+      supabaseUrl: process.env.VITE_SUPABASE_URL,
+      supabaseKey: process.env.VITE_SUPABASE_KEY,
     },
   },
 
-  // 👇 記得把 @nuxtjs/supabase 加回來
-  modules: ["@pinia/nuxt", "@nuxtjs/supabase"],
+  // 2. 註冊 Supabase 模組 (記得移除 pinia，只留 supabase)
+  modules: ["@nuxtjs/supabase"],
 
-  // 👇 加上這個避免首頁被強制導向登入頁
+  // 3. 設定 Supabase 模組 (關鍵修正！)
   supabase: {
     redirect: false,
+    // 👇【必須加上這兩行】明確告訴模組變數在哪裡，因為我們改名了
+    url: process.env.VITE_SUPABASE_URL,
+    key: process.env.VITE_SUPABASE_KEY,
   },
 });

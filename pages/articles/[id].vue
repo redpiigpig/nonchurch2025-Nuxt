@@ -46,6 +46,37 @@ useHead({
   }),
 });
 
+useSeoMeta({
+  // 1. 網頁標題
+  title: () =>
+    article.value ? `${article.value.title} - 無境界者雜誌` : "無境界者雜誌",
+
+  // 2. Open Graph (FB, Line) 標題
+  ogTitle: () => article.value?.title,
+
+  // 3. 描述：優先使用 summary (文章摘要)，沒有的話用固定文字
+  description: () =>
+    article.value?.summary ||
+    "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
+  ogDescription: () =>
+    article.value?.summary ||
+    "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
+
+  // 4. ⭐ 關鍵圖片設定 ⭐
+  // 優先順序：資料庫的 seo_image -> 資料庫的 cover_image -> 系統預設圖
+  ogImage: () =>
+    article.value?.seo_image ||
+    article.value?.cover_image ||
+    "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/default-seo.jpg",
+
+  // 5. 其他設定
+  author: () => article.value?.author,
+  twitterCard: "summary_large_image",
+  twitterTitle: () => article.value?.title,
+  twitterDescription: () => article.value?.summary,
+  twitterImage: () => article.value?.seo_image || article.value?.cover_image,
+});
+
 // 處理底部導航點擊 (維持原邏輯)
 const handleNavClick = () => {
   if (import.meta.client) {
