@@ -9,8 +9,6 @@ definePageMeta({
   middleware: "auth",
 });
 
-useHead({ title: "文章編輯 - 後台管理" });
-
 const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
@@ -18,6 +16,7 @@ const isEditMode = ref(false);
 const showPreview = ref(true);
 const textareaRef = ref(null);
 const previewRef = ref(null);
+
 const issueImages = ref([]);
 
 const form = ref({
@@ -144,12 +143,23 @@ const handleSyncScroll = (sourceType) => {
 };
 
 onMounted(async () => {
+  document.title = "編輯者頁面 - 無境界者雜誌";
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    alert("請先登入！");
+    router.push("/login");
+    return;
+  }
   if (route.params.id) {
     isEditMode.value = true;
     await loadArticle(route.params.id);
   } else if (route.query.issue) {
     form.value.issue = parseInt(route.query.issue);
-    if (route.query.issueTitle) form.value.issue_title = route.query.issueTitle;
+    if (route.query.issueTitle) {
+      form.value.issue_title = route.query.issueTitle;
+    }
   }
   fetchIssueImages();
 });
@@ -182,7 +192,9 @@ const resolveNeighbor = async (idInput) => {
     .select("title")
     .eq("id", idInput)
     .single();
-  if (data) return { id: idInput, title: data.title };
+  if (data) {
+    return { id: idInput, title: data.title };
+  }
   const titleGuess = idInput.replace(/^\d+-\d+/, "");
   return { id: idInput, title: titleGuess || idInput };
 };
@@ -234,10 +246,12 @@ const addFootnote = () => {
   const nextId = form.value.footnotes.length + 1;
   form.value.footnotes.push({ id: nextId, text: "" });
 };
+
 const removeFootnote = (index) => {
   form.value.footnotes.splice(index, 1);
   reindexFootnotes();
 };
+
 const updateFootnoteOrder = (currentIndex, event) => {
   const newId = parseInt(event.target.value);
   if (isNaN(newId) || newId < 1) {
@@ -245,13 +259,15 @@ const updateFootnoteOrder = (currentIndex, event) => {
     return;
   }
   let newIndex = newId - 1;
-  if (newIndex >= form.value.footnotes.length)
+  if (newIndex >= form.value.footnotes.length) {
     newIndex = form.value.footnotes.length - 1;
+  }
   if (newIndex === currentIndex) return;
   const item = form.value.footnotes.splice(currentIndex, 1)[0];
   form.value.footnotes.splice(newIndex, 0, item);
   reindexFootnotes();
 };
+
 const reindexFootnotes = () => {
   form.value.footnotes.forEach((note, idx) => {
     note.id = idx + 1;
@@ -273,9 +289,9 @@ const insertOrWrap = async (
   const selectedText = originalText.substring(start, end);
   const checkPrefix = togglePrefix || prefix;
   const checkSuffix = toggleSuffix || suffix;
-  let newText = "",
-    newSelectionStart = 0,
-    newSelectionEnd = 0;
+  let newText = "";
+  let newSelectionStart = 0;
+  let newSelectionEnd = 0;
   const isWrapped =
     originalText.substring(start - checkPrefix.length, start) === checkPrefix &&
     originalText.substring(end, end + checkSuffix.length) === checkSuffix;
@@ -351,21 +367,19 @@ const tools = [
   },
   {
     label: "置右",
-    action: () =>
-      insertOrWrap(
-        '<span style="display: block; text-align: right;">',
-        "</span>",
-        "請在此輸入置右文字"
-      ),
+    action: () => {
+      const prefix = '<span style="display: block; text-align: right;">';
+      const suffix = "</span>";
+      insertOrWrap(prefix, suffix, "請在此輸入置右文字", prefix, suffix);
+    },
   },
   {
     label: "小字體",
-    action: () =>
-      insertOrWrap(
-        '<span style="font-size: 1rem; font-family: serif;">',
-        "</span>",
-        "請在此輸入小字體文字"
-      ),
+    action: () => {
+      const prefix = '<span style="font-size: 1rem; font-family: serif;">';
+      const suffix = "</span>";
+      insertOrWrap(prefix, suffix, "請在此輸入小字體文字", prefix, suffix);
+    },
   },
 ];
 
@@ -432,45 +446,65 @@ const components = [
       let numRows = prompt("請輸入列數", "2");
       numRows = parseInt(numRows) || 2;
       let listItems = "";
-      for (let i = 1; i <= numRows; i++)
+      for (let i = 1; i <= numRows; i++) {
         listItems += `<div style="text-indent: -1.5rem; padding-left: 1.5rem; margin-bottom: 1rem; line-height: 1.8;">•&nbsp;&nbsp;資料來源${i}...</div>`;
-      insertBlock(
-        `\n\n<div class="reference-box"><strong>參考資料</strong><div style="margin-top: 1rem; margin-bottom: 1rem;">${listItems}</div></div>\n\n`
-      );
+      }
+      const template = `\n\n<div class="reference-box"><strong>參考資料</strong><div style="margin-top: 1rem; margin-bottom: 1rem;">${listItems}</div></div>\n\n`;
+      insertBlock(template);
     },
   },
   {
     label: "📊 表格",
-    action: () =>
-      insertBlock(
-        `\n\n<table class="data-table">\n<thead><tr><th>標題1</th><th>標題2</th></tr></thead>\n<tbody><tr><td>內容 1-1</td><td>內容 1-2</td></tr></tbody>\n</table>\n\n`
-      ),
+    action: () => {
+      let sizeInput = prompt("表格尺寸 (欄x列)", "2x5");
+      let cols = 2,
+        rows = 5;
+      if (sizeInput) {
+        const p = sizeInput.toLowerCase().split(/[x\*]/);
+        cols = parseInt(p[0]) || 2;
+        rows = parseInt(p[1]) || 5;
+      }
+      let h = "<thead><tr>";
+      for (let i = 1; i <= cols; i++) h += `<th>標題${i}</th>`;
+      h += "</tr></thead>";
+      let b = "<tbody>";
+      for (let r = 1; r <= rows; r++) {
+        b += "<tr>";
+        for (let c = 1; c <= cols; c++) b += `<td>內容 ${r}-${c}</td>`;
+        b += "</tr>";
+      }
+      b += "</tbody>";
+      insertBlock(`\n\n<table class="data-table">\n${h}\n${b}\n</table>\n\n`);
+    },
   },
 ];
 </script>
 
 <template>
   <div class="editor-layout">
-    <header class="editor-header">
-      <div class="header-left">
-        <button class="btn-back" @click="router.back()">← 返回</button>
-        <h2>{{ isEditMode ? "編輯文章" : "撰寫新文章" }}</h2>
+    <div class="media-manager">
+      <div class="header">
+        <h2>{{ isEditMode ? "✏️ 編輯文章" : "✏️ 撰寫新文章" }}</h2>
+        <p class="desc">
+          在此編輯文章內容、設定分類與 SEO 資訊。右方按鈕可即時預覽或儲存。
+        </p>
       </div>
-      <div class="header-right">
-        <button class="btn-preview-page" @click="handlePreview">
-          📑 預覽頁面
-        </button>
-        <button class="btn-save" @click="saveArticle" :disabled="loading">
-          {{ loading ? "處理中..." : "💾 儲存文章" }}
-        </button>
-      </div>
-    </header>
+    </div>
 
     <div class="editor-content">
       <section class="editor-card collapsed-group">
-        <div class="card-header-wrapper">
+        <div class="card-header-wrapper flex items-center">
           <div class="card-title">基本資料設定</div>
+          <div class="header-right ml-auto flex items-center gap-3">
+            <button class="btn-preview-page" @click="handlePreview">
+              📑 預覽頁面
+            </button>
+            <button class="btn-save" @click="saveArticle" :disabled="loading">
+              {{ loading ? "處理中..." : "💾 儲存文章" }}
+            </button>
+          </div>
         </div>
+
         <div class="card-body">
           <div class="form-grid">
             <div class="form-group full-width">
@@ -507,7 +541,7 @@ const components = [
                   </div>
                 </div>
                 <div style="flex: 1">
-                  <label>文章區塊 (Section)</label
+                  <label>文章區塊</label
                   ><select v-model="form.section" class="input-field">
                     <option value="">（無）</option>
                     <option
@@ -610,6 +644,7 @@ const components = [
             </button>
           </div>
         </div>
+
         <div class="toolbar">
           <div class="toolbar-group">
             <button
@@ -634,6 +669,7 @@ const components = [
             </button>
           </div>
         </div>
+
         <div
           class="editor-split-view"
           :class="{ 'preview-active': showPreview }"
@@ -709,7 +745,7 @@ const components = [
 </template>
 
 <style scoped>
-/* 請保留原本 EditorView.vue 的所有 CSS */
+/* 基本樣式 */
 input,
 textarea,
 select {
@@ -723,31 +759,45 @@ select {
   width: 1200px;
   overflow-x: hidden;
 }
-.editor-header {
-  position: sticky;
-  top: 0px;
-  z-index: 90;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(5px);
-  border-bottom: 1px solid #ddd;
-  padding: 10px 40px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+
+.header {
+  text-align: center;
+  margin-bottom: 15px;
 }
-@media (max-width: 768px) {
-  .editor-header {
-    top: 0;
-    padding: 10px 15px;
-  }
-}
-.header-left h2 {
-  font-size: 1.2rem;
+.header h2 {
   margin: 0;
-  color: #333;
-  margin-left: 15px;
+  color: #2c3e50;
 }
+.desc {
+  color: #666;
+  font-size: 1.2rem;
+  margin: 5px 0 0 0;
+}
+
+/* ⭐ 新增 Flex 輔助類別 */
+.flex {
+  display: flex;
+}
+.items-center {
+  align-items: center;
+}
+.gap-3 {
+  gap: 12px;
+}
+.ml-auto {
+  margin-left: auto;
+}
+
+/* Card Header 修正 */
+.card-header-wrapper {
+  border-bottom: 1px solid #eee;
+  padding: 15px 20px;
+  background-color: #fafafa;
+  display: flex;
+  align-items: center;
+}
+
+/* 內容區塊 */
 .editor-content {
   max-width: 1200px;
   margin: 20px auto;
@@ -765,11 +815,6 @@ select {
   box-sizing: border-box;
   overflow: hidden;
 }
-.card-header-wrapper {
-  border-bottom: 1px solid #eee;
-  padding: 15px 20px;
-  background-color: #fafafa;
-}
 .card-body {
   padding: 20px;
 }
@@ -779,9 +824,6 @@ select {
   color: #2c3e50;
   border-left: 4px solid #007bff;
   padding-left: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin: 0;
 }
 .card-title-row {
@@ -996,17 +1038,6 @@ select {
 .btn-preview-page:hover {
   background: #138496;
 }
-.btn-back {
-  border: 1px solid #ccc;
-  background: transparent;
-  padding: 5px 15px;
-  border-radius: 15px;
-  cursor: pointer;
-}
-.btn-back:hover {
-  background: #f0f0f0;
-  color: #333;
-}
 .footnotes-list {
   display: flex;
   flex-direction: column;
@@ -1071,7 +1102,7 @@ select {
 </style>
 
 <style>
-/* 預覽區樣式 (保留原本 CSS) */
+/* ... (Global Preview Styles 保持不變) ... */
 .preview-pane .markdown-body {
   font-family: "Times New Roman", serif;
   font-size: 1.2rem;

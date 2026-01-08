@@ -7,7 +7,7 @@ definePageMeta({
   middleware: "auth",
 });
 
-useHead({ title: "期刊發布中心 - 後台管理" });
+useHead({ title: "期刊發布中心 - 無境界者雜誌" });
 
 const issuesList = ref([]);
 const loading = ref(false);

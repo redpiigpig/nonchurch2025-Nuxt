@@ -7,7 +7,6 @@ import markedFootnote from "marked-footnote";
 import { supabase } from "~/supabase";
 
 // MainLayout 會自動引入，或是像這樣明確引入也可以
-import MainLayout from "~/components/MainLayout.vue";
 
 marked.use(markedFootnote({ prefixId: "footnote-" }));
 
@@ -245,102 +244,100 @@ const issueLinkParams = computed(() => {
 </script>
 
 <template>
-  <MainLayout>
-    <div v-if="loading" class="loading-state">
-      正在載入文章內容 🕊️<span class="loading-dots"></span>
-    </div>
+  <div v-if="loading" class="loading-state">
+    正在載入文章內容 🕊️<span class="loading-dots"></span>
+  </div>
 
-    <div v-else-if="!article" class="not-found">
-      <h2>找不到這篇文章😖</h2>
-      <NuxtLink to="/articles" class="back-link">回文章列表</NuxtLink>
-    </div>
+  <div v-else-if="!article" class="not-found">
+    <h2>找不到這篇文章😖</h2>
+    <NuxtLink to="/articles" class="back-link">回文章列表</NuxtLink>
+  </div>
 
-    <article v-else class="article-content">
-      <div class="title-header">
-        <div
-          v-if="article.category"
-          class="featured-box"
-          :style="{ backgroundColor: categoryColor }"
-        >
-          {{ article.category }}
-        </div>
-
-        <h1
-          class="main-title"
-          v-html="formatTextWithFootnote(article.title)"
-        ></h1>
-        <h1
-          v-if="article.subtitle"
-          class="sub-title"
-          v-html="'──' + formatTextWithFootnote(article.subtitle)"
-        ></h1>
-      </div>
-
-      <div class="divider-thick"></div>
-      <div class="divider-gap"></div>
-      <div class="divider-thin"></div>
-
-      <div class="author-info">
-        <p class="author-name">
-          <span v-html="formatTextWithFootnote(article.author)"></span>
-          <span
-            class="author-title"
-            v-html="formatTextWithFootnote(article.authorTitle)"
-          ></span>
-          <span
-            v-if="article.remark"
-            class="author-remark"
-            v-html="formatTextWithFootnote(article.remark)"
-          ></span>
-        </p>
-      </div>
-
+  <article v-else class="article-content">
+    <div class="title-header">
       <div
-        v-if="article.keyword"
-        class="keyword-section"
-        v-html="keywordContent"
-      ></div>
-      <br />
-      <div class="markdown-body" v-html="htmlContent"></div>
-
-      <div class="article-navigation">
-        <div class="nav-item">
-          <template v-if="article.prev">
-            <strong>閱讀上一篇文章</strong>
-            <NuxtLink
-              v-if="article.prev.id"
-              :to="`/articles/${article.prev.id}`"
-              @click="handleNavClick"
-            >
-              {{ article.prev.title }}
-            </NuxtLink>
-            <span v-else>{{ article.prev.title }}</span>
-          </template>
-        </div>
-
-        <div class="nav-item">
-          <strong>回到本期雜誌目錄</strong>
-          <NuxtLink :to="issueLinkParams" @click="handleNavClick">
-            第{{ article.issue }}期：{{ article.issueTitle }}
-          </NuxtLink>
-        </div>
-
-        <div class="nav-item">
-          <template v-if="article.next">
-            <strong>閱讀下一篇文章</strong>
-            <NuxtLink
-              v-if="article.next.id"
-              :to="`/articles/${article.next.id}`"
-              @click="handleNavClick"
-            >
-              {{ article.next.title }}
-            </NuxtLink>
-            <span v-else>{{ article.next.title }}</span>
-          </template>
-        </div>
+        v-if="article.category"
+        class="featured-box"
+        :style="{ backgroundColor: categoryColor }"
+      >
+        {{ article.category }}
       </div>
-    </article>
-  </MainLayout>
+
+      <h1
+        class="main-title"
+        v-html="formatTextWithFootnote(article.title)"
+      ></h1>
+      <h1
+        v-if="article.subtitle"
+        class="sub-title"
+        v-html="'──' + formatTextWithFootnote(article.subtitle)"
+      ></h1>
+    </div>
+
+    <div class="divider-thick"></div>
+    <div class="divider-gap"></div>
+    <div class="divider-thin"></div>
+
+    <div class="author-info">
+      <p class="author-name">
+        <span v-html="formatTextWithFootnote(article.author)"></span>
+        <span
+          class="author-title"
+          v-html="formatTextWithFootnote(article.authorTitle)"
+        ></span>
+        <span
+          v-if="article.remark"
+          class="author-remark"
+          v-html="formatTextWithFootnote(article.remark)"
+        ></span>
+      </p>
+    </div>
+
+    <div
+      v-if="article.keyword"
+      class="keyword-section"
+      v-html="keywordContent"
+    ></div>
+    <br />
+    <div class="markdown-body" v-html="htmlContent"></div>
+
+    <div class="article-navigation">
+      <div class="nav-item">
+        <template v-if="article.prev">
+          <strong>閱讀上一篇文章</strong>
+          <NuxtLink
+            v-if="article.prev.id"
+            :to="`/articles/${article.prev.id}`"
+            @click="handleNavClick"
+          >
+            {{ article.prev.title }}
+          </NuxtLink>
+          <span v-else>{{ article.prev.title }}</span>
+        </template>
+      </div>
+
+      <div class="nav-item">
+        <strong>回到本期雜誌目錄</strong>
+        <NuxtLink :to="issueLinkParams" @click="handleNavClick">
+          第{{ article.issue }}期：{{ article.issueTitle }}
+        </NuxtLink>
+      </div>
+
+      <div class="nav-item">
+        <template v-if="article.next">
+          <strong>閱讀下一篇文章</strong>
+          <NuxtLink
+            v-if="article.next.id"
+            :to="`/articles/${article.next.id}`"
+            @click="handleNavClick"
+          >
+            {{ article.next.title }}
+          </NuxtLink>
+          <span v-else>{{ article.next.title }}</span>
+        </template>
+      </div>
+    </div>
+  </article>
 </template>
 
 <style scoped>

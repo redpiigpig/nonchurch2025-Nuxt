@@ -6,7 +6,7 @@ definePageMeta({
 });
 
 useHead({
-  title: "首頁預覽 (編輯模式) - 無境界者雜誌",
+  title: "無境界者雜誌",
 });
 </script>
 

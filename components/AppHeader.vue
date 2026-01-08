@@ -1,33 +1,45 @@
 <script setup>
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import { useEditorMode } from "../composables/useEditorMode";
+import { useEditorMode } from "~/composables/useEditorMode"; // 修正引用路徑
 
 const route = useRoute();
 const { isEditor } = useEditorMode();
 const isEditMode = computed(() => isEditor.value);
 
+// 導覽列連結生成器：前台維持原樣，後台加 /admin
 const getLink = (path) => {
+  // 如果是首頁且在編輯模式，導向 /admin/home
+  if (path === "/home" || path === "/") {
+    return isEditMode.value ? "/admin/home" : "/";
+  }
   if (isEditMode.value) {
     return `/admin${path}`;
   }
   return path;
 };
 
+// ⭐ 鏡像切換按鈕邏輯
 const editLink = computed(() => {
   const currentPath = route.path;
-  if (!isEditMode.value && route.name === "article-detail" && route.params.id) {
+
+  // A. 文章詳情 -> 編輯器
+  if (!isEditMode.value && route.name === "articles-id" && route.params.id) {
     return `/admin/editor/${route.params.id}`;
   }
-  if (
-    isEditMode.value &&
-    (route.name === "admin-editor-edit" || route.name === "admin-editor-new")
-  ) {
+  // B. 編輯器 -> 文章詳情
+  if (isEditMode.value && route.path.includes("admin/editor")) {
     return route.params.id ? `/articles/${route.params.id}` : "/articles";
   }
+
+  // C. 一般頁面切換
   if (isEditMode.value) {
-    return currentPath.replace(/^\/admin/, "") || "/";
+    // 後台 -> 前台 (移除 /admin)
+    return (
+      currentPath.replace(/^\/admin\/home/, "/").replace(/^\/admin/, "") || "/"
+    );
   } else {
+    // 前台 -> 後台 (首頁去 /admin/home，其他加 /admin)
     return currentPath === "/" ? "/admin/home" : `/admin${currentPath}`;
   }
 });
@@ -57,7 +69,7 @@ const editLink = computed(() => {
           >⚙️ 後台管理</NuxtLink
         >
 
-        <NuxtLink :to="getLink('/')">首頁</NuxtLink>
+        <NuxtLink :to="getLink('/home')">首頁</NuxtLink>
         <NuxtLink :to="getLink('/mission')">使命宣言</NuxtLink>
         <NuxtLink :to="getLink('/articles')">文章列表</NuxtLink>
         <NuxtLink :to="getLink('/authors')">專欄作者</NuxtLink>
@@ -96,7 +108,7 @@ const editLink = computed(() => {
 </template>
 
 <style scoped>
-/* 樣式保持原樣，直接貼上 */
+/* 完全沿用您上傳的 AppHeader.vue CSS */
 *,
 *::before,
 *::after {
@@ -120,10 +132,12 @@ const editLink = computed(() => {
   display: flex;
   align-items: center;
 }
+
 .header.editor-header {
   background: linear-gradient(135deg, #2c3e50, #4ca1af);
   padding-left: calc(20px);
 }
+
 .nav {
   display: flex;
   justify-content: space-between;
@@ -132,16 +146,12 @@ const editLink = computed(() => {
   width: 100%;
   margin: 0 auto;
 }
+
 .logo {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-}
-.logo a {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
 }
 .logo-icon {
   width: 70px;
@@ -165,12 +175,14 @@ const editLink = computed(() => {
   align-self: start;
   margin-top: 10px;
 }
+
 .menu {
   display: flex;
   gap: 20px;
   align-items: center;
   margin-right: 2rem;
 }
+
 .editor-header .menu {
   margin-right: -2rem;
 }
@@ -181,17 +193,15 @@ const editLink = computed(() => {
   transition: all 0.3s ease;
   border-radius: 5px;
 }
+
 .menu a:hover {
   color: #1b5e20;
-}
-.menu a.router-link-active {
-  background-color: rgba(255, 255, 255, 0.2);
-  font-weight: bold;
 }
 .admin-link {
   background-color: rgba(255, 255, 255, 0.2);
   font-weight: bold;
 }
+
 .search-icon-btn {
   display: flex;
   align-items: center;
@@ -202,6 +212,7 @@ const editLink = computed(() => {
   width: 22px;
   height: 22px;
 }
+
 .header-edit-btn {
   position: absolute;
   top: 50%;

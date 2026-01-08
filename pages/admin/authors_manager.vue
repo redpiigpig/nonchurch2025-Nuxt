@@ -2,31 +2,30 @@
 import { ref, onMounted } from "vue";
 import { supabase } from "~/supabase"; // 修正路徑
 
-// ⭐ 新增：指定後台 Layout 與 權限驗證
 definePageMeta({
   layout: "admin",
   middleware: "auth",
 });
 
-useHead({ title: "作者管理 - 後台" });
+useHead({
+  title: "作者管理 - 無境界者後台",
+});
 
 const authors = ref([]);
 const loading = ref(false);
 const saving = ref(false);
 
-// 彈窗控制
 const showModal = ref(false);
-const isEditing = ref(false); // true=編輯模式, false=新增模式
+const isEditing = ref(false);
 const currentAuthor = ref({
   id: null,
   name: "",
   bio: "",
   author_image: "",
   years_str: "2025",
-  is_published: false, // 預設狀態
+  is_published: false,
 });
 
-// 1. 讀取作者列表
 const fetchAuthors = async () => {
   loading.value = true;
   const { data, error } = await supabase
@@ -42,7 +41,6 @@ const fetchAuthors = async () => {
   loading.value = false;
 };
 
-// 2. 開啟新增彈窗
 const openAddModal = () => {
   isEditing.value = false;
   currentAuthor.value = {
@@ -50,61 +48,64 @@ const openAddModal = () => {
     name: "",
     bio: "",
     author_image: "",
-    years_str: "2025", // 預設帶入今年
+    years_str: "2025",
     is_published: false,
   };
   showModal.value = true;
 };
 
-// 3. 開啟編輯彈窗
 const openEditModal = (author) => {
   isEditing.value = true;
-  const years = author.years || [];
-  currentAuthor.value = {
-    ...author,
-    years_str: years.join(", "),
-  };
+  const temp = JSON.parse(JSON.stringify(author));
+  if (Array.isArray(temp.years)) {
+    temp.years_str = temp.years.join(", ");
+  } else {
+    temp.years_str = "";
+  }
+  currentAuthor.value = temp;
   showModal.value = true;
 };
 
-// 4. 儲存 (新增或更新)
 const saveAuthor = async () => {
   if (!currentAuthor.value.name) {
-    alert("請輸入作者姓名");
+    alert("請輸入作者姓名！");
     return;
   }
-
   saving.value = true;
-
-  // 處理年份字串轉陣列
-  const yearsArray = currentAuthor.value.years_str
-    .split(/[,，、]/) // 支援多種分隔符
-    .map((y) => parseInt(y.trim()))
-    .filter((y) => !isNaN(y));
-
-  const payload = {
-    name: currentAuthor.value.name,
-    bio: currentAuthor.value.bio,
-    author_image: currentAuthor.value.author_image,
-    years: yearsArray,
-    is_published: currentAuthor.value.is_published,
-  };
-
   try {
+    let yearsArray = [];
+    if (currentAuthor.value.years_str) {
+      yearsArray = currentAuthor.value.years_str
+        .split(/[、,,，]/)
+        .map((y) => parseInt(y.trim()))
+        .filter((y) => !isNaN(y));
+    }
+
+    const payload = {
+      name: currentAuthor.value.name,
+      bio: currentAuthor.value.bio,
+      author_image: currentAuthor.value.author_image,
+      years: yearsArray,
+      is_published: currentAuthor.value.is_published,
+    };
+
+    let error = null;
     if (isEditing.value) {
-      // 更新
-      const { error } = await supabase
+      const { error: updateErr } = await supabase
         .from("authors")
         .update(payload)
         .eq("id", currentAuthor.value.id);
-      if (error) throw error;
+      error = updateErr;
     } else {
-      // 新增
-      const { error } = await supabase.from("authors").insert([payload]);
-      if (error) throw error;
+      const { error: insertErr } = await supabase
+        .from("authors")
+        .insert([payload]);
+      error = insertErr;
     }
 
-    alert("儲存成功！");
+    if (error) throw error;
+
+    alert(isEditing.value ? "更新成功！" : "新增成功！(目前為隱藏狀態)");
     showModal.value = false;
     fetchAuthors();
   } catch (err) {
@@ -114,17 +115,14 @@ const saveAuthor = async () => {
   }
 };
 
-// 5. 刪除作者 (小心使用)
-const deleteAuthor = async (id) => {
-  if (!confirm("確定要刪除這位作者嗎？此操作無法復原！")) return;
-
-  try {
-    const { error } = await supabase.from("authors").delete().eq("id", id);
-    if (error) throw error;
-    alert("已刪除");
+const deleteAuthor = async (id, name) => {
+  if (!confirm(`確定要刪除作者「${name}」嗎？\n此動作無法復原！`)) return;
+  const { error } = await supabase.from("authors").delete().eq("id", id);
+  if (error) {
+    alert("刪除失敗：" + error.message);
+  } else {
+    alert("已刪除！");
     fetchAuthors();
-  } catch (err) {
-    alert("刪除失敗 (可能還有關聯文章)：" + err.message);
   }
 };
 
@@ -134,102 +132,172 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page-container">
-    <div class="header">
-      <h2>🧑‍🏫 專欄作者管理</h2>
-      <button @click="openAddModal" class="btn-add">＋ 新增作者</button>
+  <div class="authors-manager">
+    <div class="header-row">
+      <div>
+        <h2>🧑‍🏫 作者管理</h2>
+        <p class="desc">管理專欄作者的資料、簡介與頭像。</p>
+      </div>
+      <button class="btn-add" @click="openAddModal">＋ 新增作者</button>
     </div>
 
     <div v-if="loading" class="loading">載入中...</div>
 
-    <div class="grid-container">
-      <div v-for="author in authors" :key="author.id" class="author-card">
-        <div class="card-status" :class="{ published: author.is_published }">
-          {{ author.is_published ? "公開" : "隱藏" }}
-        </div>
-        <img
-          :src="author.author_image || 'https://via.placeholder.com/150'"
-          class="avatar"
-        />
-        <h3>{{ author.name }}</h3>
-        <p class="years">年度：{{ (author.years || []).join(", ") }}</p>
-        <div class="actions">
-          <button @click="openEditModal(author)" class="btn-edit">編輯</button>
-          <button @click="deleteAuthor(author.id)" class="btn-del">刪除</button>
-        </div>
-      </div>
+    <div class="table-container" v-else>
+      <table>
+        <thead>
+          <tr>
+            <th width="60">ID</th>
+            <th width="80">頭像</th>
+            <th width="120">姓名</th>
+            <th>簡介 (Bio)</th>
+            <th width="100">所屬年份</th>
+            <th width="80">狀態</th>
+            <th width="140">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="author in authors" :key="author.id">
+            <td class="text-center">{{ author.id }}</td>
+            <td class="text-center">
+              <div
+                class="avatar-thumb"
+                :style="{
+                  backgroundImage: author.author_image
+                    ? `url(${author.author_image})`
+                    : 'none',
+                }"
+              >
+                <span v-if="!author.author_image">無</span>
+              </div>
+            </td>
+            <td style="font-weight: bold">{{ author.name }}</td>
+            <td class="bio-cell">{{ author.bio }}</td>
+            <td class="text-center">
+              <span v-if="author.years && author.years.length">
+                {{ author.years.join(", ") }}
+              </span>
+              <span v-else class="text-muted">-</span>
+            </td>
+            <td class="text-center">
+              <span
+                :class="['badge', author.is_published ? 'published' : 'draft']"
+              >
+                {{ author.is_published ? "公開" : "隱藏" }}
+              </span>
+            </td>
+            <td class="text-center actions">
+              <button class="btn-edit" @click="openEditModal(author)">
+                編輯
+              </button>
+              <button
+                class="btn-delete"
+                @click="deleteAuthor(author.id, author.name)"
+              >
+                刪除
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <div v-if="showModal" class="modal-overlay">
       <div class="modal">
-        <h3>{{ isEditing ? "編輯作者" : "新增作者" }}</h3>
+        <div class="modal-header">
+          <h3>{{ isEditing ? "編輯作者" : "新增作者" }}</h3>
+          <button class="btn-close" @click="showModal = false">×</button>
+        </div>
 
         <div class="modal-body">
-          <div class="form-cols">
-            <div class="avatar-section">
+          <div class="form-row">
+            <div class="avatar-preview-section">
               <div
-                class="avatar-circle"
+                class="avatar-preview-circle"
                 :style="{
-                  backgroundImage: `url(${currentAuthor.author_image})`,
+                  backgroundImage: currentAuthor.author_image
+                    ? `url(${currentAuthor.author_image})`
+                    : 'none',
                 }"
               >
-                <span v-if="!currentAuthor.author_image">無照片</span>
+                <span v-if="!currentAuthor.author_image">預覽</span>
               </div>
+              <p class="preview-label">頭像預覽</p>
             </div>
+
             <div class="form-section">
               <div class="form-group">
-                <label>姓名</label>
+                <label>作者姓名 (Name)</label>
                 <input
-                  v-model="currentAuthor.name"
                   type="text"
+                  v-model="currentAuthor.name"
                   class="input-text"
+                  placeholder="輸入姓名"
                 />
               </div>
+
               <div class="form-group">
-                <label>大頭貼連結 (URL)</label>
+                <label>所屬年份 (Years)</label>
                 <input
-                  v-model="currentAuthor.author_image"
                   type="text"
+                  v-model="currentAuthor.years_str"
+                  class="input-text"
+                  placeholder="例如：2025, 2026"
+                />
+                <small class="hint"
+                  >請輸入年份數字，若有多個年份請用逗號分隔。</small
+                >
+              </div>
+
+              <div class="form-group">
+                <label>大頭貼連結 (Image URL)</label>
+                <input
+                  type="text"
+                  v-model="currentAuthor.author_image"
                   class="input-text"
                   placeholder="https://..."
                 />
               </div>
+
               <div class="form-group">
-                <label>參與年度 (用逗號分隔)</label>
-                <input
-                  v-model="currentAuthor.years_str"
-                  type="text"
-                  class="input-text"
-                  placeholder="2025, 2026"
-                />
-              </div>
-              <div class="form-group">
-                <label>公開狀態</label>
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="currentAuthor.is_published" />
-                  <span>{{
-                    currentAuthor.is_published ? "設為公開" : "暫時隱藏"
-                  }}</span>
-                </label>
+                <label>狀態</label>
+                <div class="radio-group">
+                  <label>
+                    <input
+                      type="radio"
+                      :value="true"
+                      v-model="currentAuthor.is_published"
+                    />
+                    公開
+                  </label>
+                  <label style="margin-left: 15px">
+                    <input
+                      type="radio"
+                      :value="false"
+                      v-model="currentAuthor.is_published"
+                    />
+                    隱藏
+                  </label>
+                </div>
               </div>
             </div>
           </div>
 
           <div class="form-group">
-            <label>簡介 (Bio)</label>
+            <label>作者簡介 (Bio)</label>
             <textarea
               v-model="currentAuthor.bio"
               rows="5"
               class="input-area"
+              placeholder="請輸入作者簡介..."
             ></textarea>
-            <p class="hint">支援換行，會在前台顯示。</p>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button @click="showModal = false" class="btn-cancel">取消</button>
-          <button @click="saveAuthor" class="btn-save" :disabled="saving">
-            {{ saving ? "儲存中..." : "確認儲存" }}
+          <button class="btn-cancel" @click="showModal = false">取消</button>
+          <button class="btn-save" @click="saveAuthor" :disabled="saving">
+            {{ saving ? "處理中..." : "確認儲存" }}
           </button>
         </div>
       </div>
@@ -238,85 +306,57 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* 請保留 AuthorsManager.vue 裡的所有 CSS */
-.page-container {
-  padding: 0 10px;
+/* CSS 完全保留 */
+.authors-manager {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
-.header {
+
+.header-row {
+  position: relative;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 30px;
+  min-height: 60px;
 }
+
+.header-row > div {
+  text-align: center;
+}
+
+.header-row h2 {
+  color: #2c3e50;
+  margin-bottom: 5px;
+  font-size: 1.8rem;
+}
+
+.desc {
+  color: #666;
+  margin: 0;
+}
+
 .btn-add {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
   background-color: #2c3e50;
   color: white;
   border: none;
   padding: 10px 20px;
   border-radius: 5px;
-  cursor: pointer;
   font-weight: bold;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.3s;
 }
+
 .btn-add:hover {
   background-color: #34495e;
 }
-.loading {
-  text-align: center;
-  color: #888;
-}
 
-.grid-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 20px;
-}
-.author-card {
-  background: white;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 20px;
-  text-align: center;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  position: relative;
-  transition: transform 0.2s;
-}
-.author-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
-}
-.card-status {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  font-size: 0.75rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #eee;
-  color: #999;
-}
-.card-status.published {
-  background: #d4edda;
-  color: #155724;
-}
-
-.avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 3px solid #f0f0f0;
-  margin-bottom: 10px;
-}
-.years {
-  font-size: 0.85rem;
-  color: #888;
-  margin-bottom: 15px;
-}
-.actions {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-}
 .btn-edit {
   background-color: #3498db;
   color: white;
@@ -324,8 +364,13 @@ onMounted(() => {
   padding: 5px 10px;
   border-radius: 4px;
   cursor: pointer;
+  margin-right: 5px;
 }
-.btn-del {
+.btn-edit:hover {
+  background-color: #2980b9;
+}
+
+.btn-delete {
   background-color: #e74c3c;
   color: white;
   border: none;
@@ -333,8 +378,73 @@ onMounted(() => {
   border-radius: 4px;
   cursor: pointer;
 }
+.btn-delete:hover {
+  background-color: #c0392b;
+}
 
-/* Modal */
+.table-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th,
+td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+th {
+  background-color: #f8f9fa;
+  font-weight: bold;
+  color: #444;
+}
+.text-center {
+  text-align: center;
+}
+.bio-cell {
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #666;
+}
+
+.avatar-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #eee;
+  background-size: cover;
+  background-position: center;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: #999;
+}
+
+.badge {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+.published {
+  background: #d4edda;
+  color: #155724;
+}
+.draft {
+  background: #f8d7da;
+  color: #721c24;
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -343,37 +453,59 @@ onMounted(() => {
   height: 100%;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
-  align-items: center;
   justify-content: center;
-  z-index: 1000;
+  align-items: center;
+  z-index: 2000;
+  padding: 20px;
 }
+
 .modal {
   background: white;
-  border-radius: 8px;
   width: 90%;
-  max-width: 600px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  max-width: 700px;
+  max-height: 90vh;
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
-.modal h3 {
-  margin: 0;
+
+.modal-header {
   padding: 20px;
   border-bottom: 1px solid #eee;
-  background-color: #f8f9fa;
-  border-radius: 8px 8px 0 0;
-}
-.modal-body {
-  padding: 20px;
-}
-.form-cols {
   display: flex;
-  gap: 20px;
+  justify-content: space-between;
+  align-items: center;
 }
-.avatar-section {
+.modal-header h3 {
+  margin: 0;
+  color: #2c3e50;
+}
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: #999;
+}
+
+.modal-body {
+  padding: 30px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.form-row {
+  display: flex;
+  gap: 30px;
+  margin-bottom: 20px;
+}
+.avatar-preview-section {
+  width: 120px;
+  text-align: center;
   flex-shrink: 0;
 }
-.avatar-circle {
+.avatar-preview-circle {
   width: 120px;
   height: 120px;
   border-radius: 50%;
@@ -420,26 +552,44 @@ label {
   justify-content: flex-end;
   gap: 10px;
 }
-.btn-save {
-  padding: 10px 20px;
-  background-color: #28a745;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
 .btn-cancel {
   padding: 10px 20px;
-  background-color: #ccc;
+  background: #ccc;
   color: #333;
   border: none;
   border-radius: 4px;
   cursor: pointer;
 }
-@media (max-width: 600px) {
-  .form-cols {
+.btn-save {
+  padding: 10px 20px;
+  background: #27ae60;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.btn-save:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .header-row {
     flex-direction: column;
-    align-items: center;
+    gap: 15px;
+    height: auto;
+  }
+  .btn-add {
+    position: static;
+    transform: none;
+    margin-top: 10px;
+  }
+  .form-row {
+    flex-direction: column;
+  }
+  .avatar-preview-section {
+    margin: 0 auto 20px auto;
   }
 }
 </style>

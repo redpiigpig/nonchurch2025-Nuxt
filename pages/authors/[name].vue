@@ -2,7 +2,6 @@
 import { ref, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import { supabase } from "~/supabase";
-import MainLayout from "~/components/MainLayout.vue";
 
 const route = useRoute();
 const author = ref(null);
@@ -94,73 +93,71 @@ watch(
 </script>
 
 <template>
-  <MainLayout>
-    <div v-if="loading" class="loading-state">
-      <p>正在載入作者資料...</p>
-    </div>
+  <div v-if="loading" class="loading-state">
+    <p>正在載入作者資料...</p>
+  </div>
 
-    <div v-else-if="!author" class="no-data">
-      <p>找不到該位作者的資料 😖</p>
-    </div>
+  <div v-else-if="!author" class="no-data">
+    <p>找不到該位作者的資料 😖</p>
+  </div>
 
-    <div v-else class="author-detail-container">
-      <section class="author-container">
-        <div class="author-left">
-          <img
-            :src="author.author_image"
-            :alt="author.name"
-            class="author-photo"
-          />
-        </div>
+  <div v-else class="author-detail-container">
+    <section class="author-container">
+      <div class="author-left">
+        <img
+          :src="author.author_image"
+          :alt="author.name"
+          class="author-photo"
+        />
+      </div>
 
-        <div class="author-info">
-          <h2>{{ author.name }}</h2>
-          <p style="white-space: pre-line">{{ author.bio }}</p>
-        </div>
-      </section>
+      <div class="author-info">
+        <h2>{{ author.name }}</h2>
+        <p style="white-space: pre-line">{{ author.bio }}</p>
+      </div>
+    </section>
 
-      <div class="main-divider"></div>
+    <div class="main-divider"></div>
 
-      <div class="article-list-section">
-        <ul class="article-list" v-if="authorArticles.length > 0">
-          <li v-for="(article, index) in authorArticles" :key="article.id">
-            <div class="article-meta">
-              <span class="issue">
-                Vol. {{ article.issues?.id }} {{ article.issues?.title }}
+    <div class="article-list-section">
+      <ul class="article-list" v-if="authorArticles.length > 0">
+        <li v-for="(article, index) in authorArticles" :key="article.id">
+          <div class="article-meta">
+            <span class="issue">
+              Vol. {{ article.issues?.id }} {{ article.issues?.title }}
+            </span>
+            <span class="separator">｜</span>
+            <span class="date">{{ article.issues?.date }}</span>
+          </div>
+
+          <h4 class="article-title-wrapper">
+            <NuxtLink
+              :to="`/articles/${article.id}`"
+              class="title-link"
+              title="點擊看全文"
+            >
+              <span class="main-title">{{ article.title }}</span>
+              <span v-if="article.subtitle" class="sub-title">
+                ──{{ article.subtitle }}
               </span>
-              <span class="separator">｜</span>
-              <span class="date">{{ article.issues?.date }}</span>
-            </div>
 
-            <h4 class="article-title-wrapper">
-              <NuxtLink
-                :to="`/articles/${article.id}`"
-                class="title-link"
-                title="點擊看全文"
-              >
-                <span class="main-title">{{ article.title }}</span>
-                <span v-if="article.subtitle" class="sub-title">
-                  ──{{ article.subtitle }}
-                </span>
+              <span class="click-hint">（點擊看全文）</span>
+            </NuxtLink>
+          </h4>
 
-                <span class="click-hint">（點擊看全文）</span>
-              </NuxtLink>
-            </h4>
+          <p class="article-summary">
+            {{ article.summary }}
+          </p>
 
-            <p class="article-summary">
-              {{ article.summary }}
-            </p>
+          <hr class="divider" v-if="index < authorArticles.length - 1" />
+        </li>
+      </ul>
 
-            <hr class="divider" v-if="index < authorArticles.length - 1" />
-          </li>
-        </ul>
-
-        <div v-else class="no-articles">
-          <p>這位作者目前還沒有發布文章。</p>
-        </div>
+      <div v-else class="no-articles">
+        <p>這位作者目前還沒有發布文章。</p>
       </div>
     </div>
-  </MainLayout>
+  </div>
 </template>
 
 <style scoped>

@@ -2,9 +2,8 @@
 import { ref, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { supabase } from "~/supabase";
-import MainLayout from "~/components/MainLayout.vue";
+import { useEditorMode } from "~/composables/useEditorMode";
 
-// SEO 設定：搜尋頁通常不希望被索引，以免浪費爬蟲預算
 useSeoMeta({
   title: "搜尋 - 無境界者雜誌",
   robots: "noindex, follow",
@@ -12,6 +11,7 @@ useSeoMeta({
 
 const route = useRoute();
 const router = useRouter();
+const { isEditor } = useEditorMode();
 
 const results = ref([]);
 const loading = ref(false);
@@ -28,31 +28,42 @@ const fieldLabels = {
 };
 
 // ----------------------------------------------------------------
-// 1. SSR 資料獲取：隨機關鍵字
+// 1. SSR 資料獲取：隨機關鍵字 (支援後台模式)
 // ----------------------------------------------------------------
-// 將熱門關鍵字改為 SSR，避免 Hydration Mismatch
 const { data: keywordData } = await useAsyncData(
-  "search-hot-keywords",
+  `search-hot-keywords-${isEditor.value}`, // Cache key 加入編輯狀態
   async () => {
     try {
-      // A. 找最新一期
-      const { data: issues } = await supabase
+      // A. 找最新一期 (根據權限決定是否過濾未發布)
+      let issueQuery = supabase
         .from("issues")
         .select("id")
-        .eq("is_published", true)
         .order("id", { ascending: false })
         .limit(1);
+
+      // 如果「不是」管理員，才過濾 published
+      if (!isEditor.value) {
+        issueQuery = issueQuery.eq("is_published", true);
+      }
+
+      const { data: issues } = await issueQuery;
 
       if (!issues || issues.length === 0)
         return { issueId: null, keywords: [] };
       const targetIssueId = issues[0].id;
 
       // B. 找該期文章關鍵字
-      const { data: articles } = await supabase
+      let articleQuery = supabase
         .from("articles")
         .select("keyword")
-        .eq("issue", targetIssueId)
-        .eq("is_published", true);
+        .eq("issue", targetIssueId);
+
+      // 同樣，不是管理員才過濾
+      if (!isEditor.value) {
+        articleQuery = articleQuery.eq("is_published", true);
+      }
+
+      const { data: articles } = await articleQuery;
 
       if (!articles) return { issueId: targetIssueId, keywords: [] };
 
@@ -89,6 +100,9 @@ const { data: keywordData } = await useAsyncData(
       console.error("載入關鍵字失敗:", err);
       return { issueId: null, keywords: [] };
     }
+  },
+  {
+    watch: [isEditor], // 當模式切換時重抓
   }
 );
 
@@ -96,7 +110,7 @@ const latestIssueId = computed(() => keywordData.value?.issueId);
 const hotKeywords = computed(() => keywordData.value?.keywords || []);
 
 // ----------------------------------------------------------------
-// 2. 搜尋功能 (維持 Client-Side)
+// 2. 搜尋功能 (Client-Side)
 // ----------------------------------------------------------------
 
 const clickTag = (tag) => {
@@ -108,7 +122,7 @@ const clickTag = (tag) => {
 const handleSearch = () => {
   if (!inputQuery.value.trim()) return;
   router.push({
-    name: "search",
+    name: "search", // 這樣會自動保留目前的 admin 狀態 (如果是在 /admin/search 就會留在那)
     query: {
       q: inputQuery.value,
       type: inputType.value,
@@ -132,6 +146,10 @@ const fetchResults = async () => {
 
   loading.value = true;
   try {
+    // 注意：原本的 RPC search_articles 可能只會搜尋「已發布」的文章
+    // 如果您希望後台能搜尋到草稿，您需要在 Supabase 資料庫修改這個 function，
+    // 讓它接受一個 is_published 參數，或者建立一個 search_articles_admin。
+    // 目前這裡維持原樣，但至少介面已經是後台模式了。
     const { data, error } = await supabase.rpc("search_articles", {
       search_text: q,
       field: type,
@@ -146,9 +164,9 @@ const fetchResults = async () => {
   }
 };
 
-// ----------------------------------------------------------------
-// 3. 反白與格式處理 (Helper Functions)
-// ----------------------------------------------------------------
+// ... (以下 highlightFull, highlightSnippet, renderMarkers 等輔助函式保持不變) ...
+// 為節省篇幅，這裡省略，請保留您原本檔案中的這些函式
+// ...
 
 const highlightFull = (content, searchTerm) => {
   if (!content) return "";
@@ -215,154 +233,131 @@ const renderMarkers = (text) => {
 watch(() => route.query, fetchResults);
 
 onMounted(() => {
-  // 這裡不需要再 fetchLatestKeywords 了，因為已經用 useAsyncData 做完了
   fetchResults();
 });
 </script>
 
 <template>
-  <MainLayout>
-    <div class="search-page-container">
-      <div class="search-header-section">
-        <h1 class="page-title"><span class="search-icon">🔍</span> 搜尋</h1>
+  <div class="search-page-container">
+    <div class="search-header-section">
+      <h1 class="page-title"><span class="search-icon">🔍</span> 搜尋</h1>
 
-        <div class="hot-keywords-section" v-if="hotKeywords.length > 0">
-          <span class="hot-label">第 {{ latestIssueId }} 期關鍵字：</span>
-          <div class="tags-wrapper">
-            <a
-              v-for="tag in hotKeywords"
-              :key="tag"
-              href="#"
-              class="keyword-tag"
-              @click.prevent="clickTag(tag)"
-            >
-              #{{ tag }}
-            </a>
-          </div>
-        </div>
+      <div class="hot-keywords-section" v-if="hotKeywords.length > 0">
+        <span class="hot-label">第 {{ latestIssueId }} 期關鍵字：</span>
+        <span v-if="isEditor" style="font-size: 0.8em; color: red"
+          >(包含草稿)</span
+        >
 
-        <div class="search-box">
-          <select v-model="inputType" class="search-select">
-            <option value="title">搜尋文章標題</option>
-            <option value="author">搜尋作者</option>
-            <option value="content">搜尋文章全文</option>
-            <option value="keyword">搜尋關鍵字</option>
-          </select>
-
-          <input
-            v-model="inputQuery"
-            @keyup.enter="handleSearch"
-            type="text"
-            placeholder="請輸入搜尋內容..."
-            class="search-input"
-          />
-
-          <button @click="handleSearch" class="btn">搜尋</button>
-        </div>
-
-        <div class="hint-text">
-          💡 提示：支援模糊搜尋，請選擇欄位並輸入關鍵字。
+        <div class="tags-wrapper">
+          <a
+            v-for="tag in hotKeywords"
+            :key="tag"
+            href="#"
+            class="keyword-tag"
+            @click.prevent="clickTag(tag)"
+          >
+            #{{ tag }}
+          </a>
         </div>
       </div>
 
-      <hr class="divider" />
+      <div class="search-box">
+        <select v-model="inputType" class="search-select">
+          <option value="title">搜尋文章標題</option>
+          <option value="author">搜尋作者</option>
+          <option value="content">搜尋文章全文</option>
+          <option value="keyword">搜尋關鍵字</option>
+        </select>
 
-      <div v-if="currentKeyword">
-        <div class="result-status">
-          <h2>
-            用 <span class="query-tag">「{{ currentKeyword }}」</span> 搜尋{{
-              fieldLabels[currentField]
-            }}的結果
-            <span class="count-tag">{{ results.length }} 筆</span>
-          </h2>
-        </div>
+        <input
+          v-model="inputQuery"
+          @keyup.enter="handleSearch"
+          type="text"
+          placeholder="請輸入搜尋內容..."
+          class="search-input"
+        />
 
-        <div v-if="loading" class="loading-state">搜尋中🕊️...</div>
+        <button @click="handleSearch" class="btn">搜尋</button>
+      </div>
 
-        <div v-else-if="results.length === 0" class="no-result">
-          找不到相關內容，請嘗試其他關鍵字。
-        </div>
+      <div class="hint-text">
+        💡 提示：支援模糊搜尋，請選擇欄位並輸入關鍵字。
+      </div>
+    </div>
 
-        <div v-else class="results-list">
-          <div
-            v-for="article in results"
-            :key="article.id"
-            class="result-card"
-            title="點擊觀看文章全文"
-          >
-            <NuxtLink :to="`/articles/${article.id}`" class="card-link">
-              <div class="meta-info">
-                第{{ article.issue }}期：{{ article.issue_title }}
-              </div>
+    <hr class="divider" />
 
-              <div class="title-row">
-                <h3 class="article-title-group">
-                  <span
-                    v-html="highlightFull(article.title, currentKeyword)"
-                  ></span>
-                  <span v-if="article.subtitle" class="title-separator"
-                    >──</span
-                  >
-                  <span
-                    v-if="article.subtitle"
-                    class="article-subtitle"
-                    v-html="highlightFull(article.subtitle, currentKeyword)"
-                  ></span>
-                </h3>
+    <div v-if="currentKeyword">
+      <div class="result-status">
+        <h2>
+          用 <span class="query-tag">「{{ currentKeyword }}」</span> 搜尋{{
+            fieldLabels[currentField]
+          }}的結果
+          <span class="count-tag">{{ results.length }} 筆</span>
+        </h2>
+      </div>
 
-                <div class="article-author">
-                  作者：<span
-                    v-html="highlightFull(article.author, currentKeyword)"
-                  ></span>
-                </div>
-              </div>
+      <div v-if="loading" class="loading-state">搜尋中🕊️...</div>
 
-              <div
-                v-if="currentField === 'keyword' && article.keyword"
-                class="keyword-row"
-              >
-                🌿 關鍵字：<span
-                  v-html="highlightFull(article.keyword, currentKeyword)"
+      <div v-else-if="results.length === 0" class="no-result">
+        找不到相關內容，請嘗試其他關鍵字。
+      </div>
+
+      <div v-else class="results-list">
+        <div
+          v-for="article in results"
+          :key="article.id"
+          class="result-card"
+          title="點擊觀看文章全文"
+        >
+          <NuxtLink :to="`/articles/${article.id}`" class="card-link">
+            <div class="meta-info">
+              第{{ article.issue }}期：{{ article.issue_title }}
+            </div>
+
+            <div class="title-row">
+              <h3 class="article-title-group">
+                <span
+                  v-html="highlightFull(article.title, currentKeyword)"
+                ></span>
+                <span v-if="article.subtitle" class="title-separator">──</span>
+                <span
+                  v-if="article.subtitle"
+                  class="article-subtitle"
+                  v-html="highlightFull(article.subtitle, currentKeyword)"
+                ></span>
+              </h3>
+
+              <div class="article-author">
+                作者：<span
+                  v-html="highlightFull(article.author, currentKeyword)"
                 ></span>
               </div>
+            </div>
 
-              <div
-                class="article-snippet"
-                v-html="highlightSnippet(article.content, currentKeyword)"
-              ></div>
-            </NuxtLink>
-          </div>
+            <div
+              v-if="currentField === 'keyword' && article.keyword"
+              class="keyword-row"
+            >
+              🌿 關鍵字：<span
+                v-html="highlightFull(article.keyword, currentKeyword)"
+              ></span>
+            </div>
+
+            <div
+              class="article-snippet"
+              v-html="highlightSnippet(article.content, currentKeyword)"
+            ></div>
+          </NuxtLink>
         </div>
       </div>
     </div>
-  </MainLayout>
+  </div>
 </template>
 
-<style>
-/* CSS 樣式保持不變，請保留你原本檔案中的這部分 */
-.highlight-text {
-  color: #003366;
-  font-weight: bold;
-  background-color: rgba(255, 255, 0, 0.3);
-  padding: 0 2px;
-  border-radius: 2px;
-}
-.snippet-header {
-  display: block;
-  font-weight: bold;
-  font-size: 1.1em;
-  margin: 10px 0 5px 0;
-  color: #222;
-  border-left: 3px solid #28a745;
-  padding-left: 8px;
-}
-.snippet-kaiti {
-  font-family: "BiaoKai", "KaiTi", "標楷體", serif;
-}
-</style>
-
 <style scoped>
-/* 請保留你原本 search.vue 裡的所有 CSS，這裡完全沿用 */
+/* CSS 保持原本的即可，不用更動 */
+/* 這裡請貼上原本的 style 區塊 */
 .search-page-container {
   max-width: 800px;
   margin: 40px auto;

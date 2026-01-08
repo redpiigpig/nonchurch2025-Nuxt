@@ -9,17 +9,15 @@ const route = useRoute();
 const { isEditor } = useEditorMode();
 const adminSelectedIssue = ref("");
 
-// ----------------------------------------------------------------
-// 1. SSR 資料獲取 (核心改動)
-// ----------------------------------------------------------------
+// 1. SSR 資料獲取
 const { data: pageData, pending: loading } = await useAsyncData(
   `submit-theme-${isEditor.value}`,
   async () => {
-    // A. 抓取徵稿主題 (預設抓最新一期有設定 cfp_title 的)
+    // 抓取最新的徵稿主題
     let query = supabase
       .from("issues")
       .select("id, title, date, cfp_title, cfp_theme, cfp_deadline, cfp_image")
-      .not("cfp_title", "is", null) // 確保有徵稿標題
+      .not("cfp_title", "is", null)
       .order("id", { ascending: false })
       .limit(1);
 
@@ -30,7 +28,7 @@ const { data: pageData, pending: loading } = await useAsyncData(
     const { data: themeData, error: themeError } = await query;
     if (themeError) throw themeError;
 
-    // B. 抓取所有期數 (僅供管理員切換用)
+    // 抓取所有期數 (供管理員切換用)
     let allIssues = [];
     if (isEditor.value) {
       const { data: issuesData } = await supabase
@@ -46,7 +44,7 @@ const { data: pageData, pending: loading } = await useAsyncData(
     };
   },
   {
-    watch: [isEditor], // 當編輯模式切換時自動重抓
+    watch: [isEditor],
   }
 );
 
@@ -54,29 +52,19 @@ const currentTheme = computed(() => pageData.value?.theme);
 const allIssues = computed(() => pageData.value?.allIssues || []);
 
 // ----------------------------------------------------------------
-// 2. SEO 設定 (分享時顯示徵稿主題與圖片)
+// 2. SEO 設定 (修正：標題固定，不再隨主題變動)
 // ----------------------------------------------------------------
 useSeoMeta({
-  title: () =>
-    currentTheme.value
-      ? `徵稿主題：${currentTheme.value.cfp_title} - 投稿資訊`
-      : "投稿資訊 - 無境界者雜誌",
+  // ⭐ 這裡改回固定標題
+  title: "投稿資訊 - 無境界者雜誌",
+  ogTitle: "投稿資訊 - 無境界者雜誌",
+
+  // 描述與圖片保持動態 (分享時比較漂亮)，若您希望這也固定請告訴我
   description: () =>
     currentTheme.value?.cfp_theme ||
     "歡迎投稿至無境界者雜誌，本刊物是一個不以教會為本位的自由信仰論述平台。",
-
-  // Open Graph
-  ogTitle: () =>
-    currentTheme.value
-      ? `徵稿：${currentTheme.value.cfp_title}`
-      : "投稿資訊 - 無境界者雜誌",
-  ogDescription: () => {
-    if (!currentTheme.value) return "歡迎投稿！";
-    const deadline = currentTheme.value.cfp_deadline || "詳見內文";
-    const desc = currentTheme.value.cfp_theme?.substring(0, 60) || "";
-    return `📌 截稿日期：${deadline}。${desc}...`;
-  },
-  // ⭐ 關鍵：如果有設定徵稿圖片，就用那張；否則用系統預設圖
+  ogDescription: () =>
+    currentTheme.value?.cfp_theme || "歡迎投稿至無境界者雜誌...",
   ogImage: () =>
     currentTheme.value?.cfp_image ||
     "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/default_cover.jpg",
@@ -93,7 +81,6 @@ const themeParagraphs = computed(() => {
     .filter((p) => p.trim() !== "");
 });
 
-// 初始化管理員選單
 watch(
   currentTheme,
   (newVal) => {
@@ -108,7 +95,7 @@ const handleAdminIssueChange = () => {
 </script>
 
 <template>
-  <MainLayout>
+  <div>
     <h1 class="page-main-title">
       <span class="emoji">📬</span>投稿資訊<span class="emoji">📬</span>
     </h1>
@@ -269,11 +256,11 @@ const handleAdminIssueChange = () => {
         >我要投稿</a
       >
     </section>
-  </MainLayout>
+  </div>
 </template>
 
 <style scoped>
-/* 請保留你原本 submit.vue 裡的所有 CSS，這裡完全沿用 */
+/* CSS 保持原本的內容 */
 .admin-toolbar {
   background-color: #fff3cd;
   padding: 15px;

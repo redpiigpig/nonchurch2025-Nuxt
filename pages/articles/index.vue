@@ -3,7 +3,6 @@ import { ref, computed, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
-import MainLayout from "~/components/MainLayout.vue";
 
 const { isEditor } = useEditorMode();
 const route = useRoute();
@@ -23,9 +22,9 @@ const selectedYear = ref(initialYear);
 
 // SEO 設定：動態標題
 useSeoMeta({
-  title: () => `${selectedYear.value} 年文章列表 - 無境界者雜誌`,
+  title: () => `文章列表 - 無境界者雜誌`,
   description: "瀏覽無境界者雜誌歷年期刊與文章列表。",
-  ogTitle: () => `${selectedYear.value} 年文章列表 - 無境界者雜誌`,
+  ogTitle: () => `文章列表 - 無境界者雜誌`,
 });
 
 // ----------------------------------------------------------------
@@ -220,143 +219,141 @@ watch(
 </script>
 
 <template>
-  <MainLayout>
-    <div class="article-list-page">
-      <h1 class="page-main-title">
-        <span class="emoji">📚</span>文章列表<span class="emoji">📚</span>
-      </h1>
+  <div class="article-list-page">
+    <h1 class="page-main-title">
+      <span class="emoji">📚</span>文章列表<span class="emoji">📚</span>
+    </h1>
 
-      <div class="main-divider"></div>
+    <div class="main-divider"></div>
 
-      <div class="year-selector-wrapper">
-        <label for="year-select">選擇年份：</label>
-        <div class="custom-select">
-          <select id="year-select" v-model="selectedYear">
-            <option
-              v-for="item in yearOptions"
-              :key="item.value"
-              :value="item.value"
-            >
-              {{ item.label }}
-            </option>
-          </select>
-          <span class="arrow">▼</span>
-        </div>
-      </div>
-
-      <div v-if="loading" class="loading-state">
-        正在載入文章列表 🕊️<span class="loading-dots"></span>
-      </div>
-
-      <div
-        v-else-if="!filteredIssues || filteredIssues.length === 0"
-        class="no-data"
-      >
-        <p>尚無 {{ selectedYear }} 年的雜誌資料，敬請期待。🥺</p>
-      </div>
-
-      <div
-        v-else
-        v-for="(issue, index) in filteredIssues"
-        :key="issue.id"
-        class="magazine-item"
-      >
-        <br />
-        <h2 :id="`issue-${issue.id}`">
-          <span>　　</span>第 {{ issue.id }} 期《{{ issue.title }}》
-          <span class="issue-date">／{{ issue.date }}</span>
-          <span v-if="issue.isDraft" class="draft-badge"> (期數草稿) </span>
-        </h2>
-
-        <div class="content-wrapper">
-          <div class="left-section">
-            <ul>
-              <li v-for="(item, itemIndex) in issue.content" :key="itemIndex">
-                <div v-if="item.section && item.showSectionHeader">
-                  <br />
-                  <div class="title-box">
-                    <h3 class="theme-title">{{ item.section }}</h3>
-                  </div>
-                </div>
-
-                <div v-if="item.is_footer_start">
-                  <br />
-                  <div class="title-box"></div>
-                </div>
-
-                <p>
-                  <span
-                    v-if="item.display_id"
-                    style="font-weight: bold; margin-right: 0.5em"
-                  >
-                    {{ item.display_id }}
-                  </span>
-
-                  <span
-                    v-if="item.category"
-                    class="article-type"
-                    :style="{
-                      color: item.color,
-                      marginRight: '0.5em',
-                      fontSize: '0.8em',
-                    }"
-                  >
-                    {{ item.category }}
-                  </span>
-
-                  <NuxtLink
-                    v-if="item.type !== 'text-only'"
-                    :to="`/articles/${item.routeId}`"
-                    @click="saveScrollPosition(`#issue-${issue.id}`)"
-                  >
-                    {{ item.title }}
-                    <span v-if="item.subtitle">──{{ item.subtitle }}</span>
-
-                    <span
-                      v-if="isEditor && !item.is_published"
-                      style="
-                        color: red;
-                        font-size: 0.8em;
-                        font-weight: bold;
-                        margin-left: 5px;
-                      "
-                    >
-                      (草稿)
-                    </span>
-                  </NuxtLink>
-
-                  <span v-else>
-                    {{ item.title }}
-                  </span>
-
-                  <span v-if="item.author" class="author"
-                    >｜{{ item.author }}</span
-                  >
-                </p>
-              </li>
-            </ul>
-          </div>
-
-          <div class="right-section">
-            <a :href="issue.pdf_link" target="_blank" title="點擊封面下載PDF檔">
-              <img
-                :src="issue.cover_img"
-                :alt="`第${issue.id}期封面`"
-                class="magazine-cover"
-              />
-            </a>
-            <p class="cover-description">點擊封面下載PDF檔</p>
-          </div>
-        </div>
-
-        <br /><br />
-        <div
-          v-if="index !== filteredIssues.length - 1"
-          class="issue-divider"
-        ></div>
+    <div class="year-selector-wrapper">
+      <label for="year-select">選擇年份：</label>
+      <div class="custom-select">
+        <select id="year-select" v-model="selectedYear">
+          <option
+            v-for="item in yearOptions"
+            :key="item.value"
+            :value="item.value"
+          >
+            {{ item.label }}
+          </option>
+        </select>
+        <span class="arrow">▼</span>
       </div>
     </div>
-  </MainLayout>
+
+    <div v-if="loading" class="loading-state">
+      正在載入文章列表 🕊️<span class="loading-dots"></span>
+    </div>
+
+    <div
+      v-else-if="!filteredIssues || filteredIssues.length === 0"
+      class="no-data"
+    >
+      <p>尚無 {{ selectedYear }} 年的雜誌資料，敬請期待。🥺</p>
+    </div>
+
+    <div
+      v-else
+      v-for="(issue, index) in filteredIssues"
+      :key="issue.id"
+      class="magazine-item"
+    >
+      <br />
+      <h2 :id="`issue-${issue.id}`">
+        <span>　　</span>第 {{ issue.id }} 期《{{ issue.title }}》
+        <span class="issue-date">／{{ issue.date }}</span>
+        <span v-if="issue.isDraft" class="draft-badge"> (期數草稿) </span>
+      </h2>
+
+      <div class="content-wrapper">
+        <div class="left-section">
+          <ul>
+            <li v-for="(item, itemIndex) in issue.content" :key="itemIndex">
+              <div v-if="item.section && item.showSectionHeader">
+                <br />
+                <div class="title-box">
+                  <h3 class="theme-title">{{ item.section }}</h3>
+                </div>
+              </div>
+
+              <div v-if="item.is_footer_start">
+                <br />
+                <div class="title-box"></div>
+              </div>
+
+              <p>
+                <span
+                  v-if="item.display_id"
+                  style="font-weight: bold; margin-right: 0.5em"
+                >
+                  {{ item.display_id }}
+                </span>
+
+                <span
+                  v-if="item.category"
+                  class="article-type"
+                  :style="{
+                    color: item.color,
+                    marginRight: '0.5em',
+                    fontSize: '0.8em',
+                  }"
+                >
+                  {{ item.category }}
+                </span>
+
+                <NuxtLink
+                  v-if="item.type !== 'text-only'"
+                  :to="`/articles/${item.routeId}`"
+                  @click="saveScrollPosition(`#issue-${issue.id}`)"
+                >
+                  {{ item.title }}
+                  <span v-if="item.subtitle">──{{ item.subtitle }}</span>
+
+                  <span
+                    v-if="isEditor && !item.is_published"
+                    style="
+                      color: red;
+                      font-size: 0.8em;
+                      font-weight: bold;
+                      margin-left: 5px;
+                    "
+                  >
+                    (草稿)
+                  </span>
+                </NuxtLink>
+
+                <span v-else>
+                  {{ item.title }}
+                </span>
+
+                <span v-if="item.author" class="author"
+                  >｜{{ item.author }}</span
+                >
+              </p>
+            </li>
+          </ul>
+        </div>
+
+        <div class="right-section">
+          <a :href="issue.pdf_link" target="_blank" title="點擊封面下載PDF檔">
+            <img
+              :src="issue.cover_img"
+              :alt="`第${issue.id}期封面`"
+              class="magazine-cover"
+            />
+          </a>
+          <p class="cover-description">點擊封面下載PDF檔</p>
+        </div>
+      </div>
+
+      <br /><br />
+      <div
+        v-if="index !== filteredIssues.length - 1"
+        class="issue-divider"
+      ></div>
+    </div>
+  </div>
 </template>
 
 <style scoped>

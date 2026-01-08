@@ -1,35 +1,32 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { supabase } from "~/supabase"; // 修正路徑
+import { supabase } from "~/supabase";
 
-// ⭐ 新增：指定後台 Layout 與 權限驗證
 definePageMeta({
   layout: "admin",
   middleware: "auth",
 });
 
-useHead({ title: "媒體庫管理 - 後台" });
+useHead({
+  title: "媒體庫管理 - 無境界者後台",
+});
 
 const BUCKET_NAME = "images";
 
-// 狀態管理
 const pathStack = ref([]);
 const files = ref([]);
 const loading = ref(false);
 const uploading = ref(false);
 const fileInput = ref(null);
-const selectedFile = ref(null); // 當前選取的檔案
+const selectedFile = ref(null);
 
-// 計算當前路徑字串
 const currentPath = computed(() => pathStack.value.join("/"));
 
-// 1. 取得公開連結
 const getPublicUrl = (path) => {
   const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
   return data.publicUrl;
 };
 
-// 2. 讀取檔案列表
 const fetchFiles = async () => {
   loading.value = true;
   files.value = [];
@@ -37,132 +34,138 @@ const fetchFiles = async () => {
 
   const searchPath = currentPath.value || "";
 
-  // Supabase 預設只能做基本的字母排序，所以我們抓回來後要在前端自己重排
   const { data, error } = await supabase.storage
     .from(BUCKET_NAME)
     .list(searchPath, {
       limit: 100,
       offset: 0,
-      // 這裡先不用 sort，等抓回來我們自己排
     });
 
   if (error) {
     alert("讀取失敗：" + error.message);
   } else {
-    // 前端排序：資料夾在前，檔案在後
-    files.value = data.sort((a, b) => {
-      // 若一個是資料夾一個是檔案
-      if (!a.metadata && b.metadata) return -1; // a 是資料夾
-      if (a.metadata && !b.metadata) return 1; // b 是資料夾
-      // 同類則照字母排
-      return a.name.localeCompare(b.name);
+    files.value = data
+      .filter((f) => f.name !== ".emptyFolderPlaceholder")
+      .map((file) => ({
+        ...file,
+        isFolder: !file.metadata || file.id === null,
+        fullPath: searchPath ? `${searchPath}/${file.name}` : file.name,
+        type:
+          file.metadata?.mimetype || (file.id === null ? "folder" : "unknown"),
+        size: file.metadata
+          ? (file.metadata.size / 1024).toFixed(1) + " KB"
+          : "-",
+        updated: file.updated_at
+          ? new Date(file.updated_at).toLocaleString()
+          : "-",
+      }));
+
+    files.value.sort((a, b) => {
+      if (a.isFolder !== b.isFolder) {
+        return a.isFolder ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
     });
   }
   loading.value = false;
 };
 
-// 3. 進入資料夾
-const enterFolder = (folderName) => {
-  pathStack.value.push(folderName);
-  fetchFiles();
+const handleRowClick = (file) => {
+  selectedFile.value = file;
 };
 
-// 4. 返回上一層
-const goUp = () => {
-  pathStack.value.pop();
-  fetchFiles();
-};
-
-// 5. 點擊檔案 (顯示預覽)
-const selectFile = (file) => {
-  if (file.metadata) {
-    // 是檔案
-    const fullPath = currentPath.value
-      ? `${currentPath.value}/${file.name}`
-      : file.name;
-    selectedFile.value = {
-      ...file,
-      url: getPublicUrl(fullPath),
-      fullPath: fullPath,
-    };
-  } else {
-    // 是資料夾 -> 進入
-    enterFolder(file.name);
+const handleRowDbClick = (file) => {
+  if (file.isFolder) {
+    pathStack.value.push(file.name);
+    fetchFiles();
   }
 };
 
-// 6. 上傳檔案
-const triggerUpload = () => {
-  fileInput.value.click();
+const goToBreadcrumb = (index) => {
+  if (index === -1) {
+    pathStack.value = [];
+  } else {
+    pathStack.value = pathStack.value.slice(0, index + 1);
+  }
+  fetchFiles();
 };
 
-const handleFileUpload = async (event) => {
+const handleUploadClick = () => fileInput.value.click();
+
+const uploadFile = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
-
   uploading.value = true;
-  const fileName = file.name;
-  const fullPath = currentPath.value
-    ? `${currentPath.value}/${fileName}`
-    : fileName;
-
-  const { error } = await supabase.storage
-    .from(BUCKET_NAME)
-    .upload(fullPath, file, {
-      upsert: true, // 允許覆蓋
-    });
-
-  if (error) {
-    alert("上傳失敗：" + error.message);
-  } else {
-    // alert("上傳成功！");
+  try {
+    const targetPath = currentPath.value
+      ? `${currentPath.value}/${file.name}`
+      : file.name;
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(targetPath, file, {
+        upsert: false,
+      });
+    if (error) throw error;
+    alert("上傳成功！");
     fetchFiles();
+  } catch (err) {
+    alert("上傳失敗：" + err.message);
+  } finally {
+    uploading.value = false;
+    event.target.value = "";
   }
-  uploading.value = false;
-  // 清空 input 避免重複選檔不觸發 change
-  event.target.value = "";
 };
 
-// 7. 刪除檔案
+const renameFile = async () => {
+  if (!selectedFile.value) return;
+  const file = selectedFile.value;
+  const newName = prompt("請輸入新名稱 (請保留副檔名):", file.name);
+  if (!newName || newName === file.name) return;
+  loading.value = true;
+  try {
+    const parent = currentPath.value;
+    const fromPath = parent ? `${parent}/${file.name}` : file.name;
+    const toPath = parent ? `${parent}/${newName}` : newName;
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .move(fromPath, toPath);
+    if (error) throw error;
+    await fetchFiles();
+  } catch (err) {
+    alert("改名失敗：" + err.message);
+  } finally {
+    loading.value = false;
+  }
+};
+
 const deleteFile = async () => {
   if (!selectedFile.value) return;
-  if (!confirm(`確定要刪除 ${selectedFile.value.name} 嗎？`)) return;
-
+  const file = selectedFile.value;
+  if (!confirm(`確定要刪除「${file.name}」嗎？`)) return;
   loading.value = true;
-  const { error } = await supabase.storage
-    .from(BUCKET_NAME)
-    .remove([selectedFile.value.fullPath]);
-
-  if (error) {
-    alert("刪除失敗：" + error.message);
-  } else {
-    selectedFile.value = null;
+  try {
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([file.fullPath]);
+    if (error) throw error;
     fetchFiles();
+  } catch (err) {
+    alert("刪除失敗：" + err.message);
+  } finally {
+    loading.value = false;
   }
-  loading.value = false;
 };
 
-// 8. 複製連結
-const copyLink = () => {
-  if (!selectedFile.value) return;
-  navigator.clipboard.writeText(selectedFile.value.url).then(() => {
-    alert("連結已複製到剪貼簿！");
+const copyLink = (file) => {
+  const target = file || selectedFile.value;
+  if (!target) return;
+  const url = getPublicUrl(target.fullPath);
+  navigator.clipboard.writeText(url).then(() => {
+    alert(`已複製連結！📋\n${target.name}`);
   });
-};
-
-// 9. 格式化檔案大小
-const formatSize = (bytes) => {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-};
-
-// 10. 格式化日期
-const formatDate = (dateStr) => {
-  if (!dateStr) return "-";
-  return new Date(dateStr).toLocaleString();
 };
 
 onMounted(() => {
@@ -171,231 +174,408 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page-container">
-    <h2>🖼️ 媒體庫管理 (Images)</h2>
-
-    <div class="breadcrumb">
-      <button
-        @click="
-          pathStack = [];
-          fetchFiles();
-        "
-        :disabled="pathStack.length === 0"
-      >
-        根目錄
-      </button>
-      <span v-for="(folder, index) in pathStack" :key="index">
-        / {{ folder }}
-      </span>
+  <div class="media-manager">
+    <div class="header">
+      <h2>🖼️ 媒體庫管理</h2>
+      <p class="desc">左側點擊「🔗」可直接複製連結，雙擊資料夾可進入。</p>
     </div>
 
     <div class="toolbar">
-      <button v-if="pathStack.length > 0" @click="goUp" class="btn-up">
-        ⬆ 上一層
-      </button>
-      <div class="upload-box">
-        <input
-          type="file"
-          ref="fileInput"
-          @change="handleFileUpload"
-          style="display: none"
-        />
-        <button @click="triggerUpload" class="btn-upload" :disabled="uploading">
-          {{ uploading ? "上傳中..." : "📤 上傳檔案" }}
+      <div class="breadcrumbs">
+        <span class="crumb root" @click="goToBreadcrumb(-1)">🏠 Home</span>
+        <template v-for="(folder, index) in pathStack" :key="index">
+          <span class="sep">/</span>
+          <span class="crumb" @click="goToBreadcrumb(index)">{{ folder }}</span>
+        </template>
+      </div>
+      <div class="actions">
+        <input type="file" ref="fileInput" hidden @change="uploadFile" />
+        <button
+          class="btn primary"
+          @click="handleUploadClick"
+          :disabled="uploading"
+        >
+          {{ uploading ? "上傳中..." : "☁️ 上傳檔案" }}
         </button>
+        <button class="btn outline" @click="fetchFiles">🔄</button>
       </div>
     </div>
 
-    <div class="media-layout">
-      <div class="file-list">
+    <div class="split-view">
+      <div class="file-list-panel">
         <div v-if="loading" class="loading">載入中...</div>
-        <div
-          v-else
-          v-for="file in files"
-          :key="file.id"
-          class="file-item"
-          :class="{ active: selectedFile && selectedFile.name === file.name }"
-          @click="selectFile(file)"
-        >
-          <div class="icon">
-            {{ file.metadata ? "📄" : "📁" }}
-          </div>
-          <div class="name">{{ file.name }}</div>
+        <div v-else-if="files.length === 0" class="empty-state">
+          此資料夾是空的 🍂
         </div>
-        <div v-if="!loading && files.length === 0" class="empty">
-          此資料夾是空的
-        </div>
+
+        <table v-else class="file-table">
+          <thead>
+            <tr>
+              <th width="40"></th>
+              <th>名稱</th>
+              <th width="50" class="text-center">連結</th>
+              <th width="80" class="mobile-hide">大小</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="file in files"
+              :key="file.id || file.name"
+              :class="{
+                active: selectedFile && selectedFile.name === file.name,
+              }"
+              @click="handleRowClick(file)"
+              @dblclick="handleRowDbClick(file)"
+            >
+              <td class="icon-cell">
+                <span v-if="file.isFolder">📁</span>
+                <span v-else-if="file.name.endsWith('.pdf')">📄</span>
+                <span v-else>🖼️</span>
+              </td>
+              <td class="name-cell" :title="file.name">{{ file.name }}</td>
+
+              <td class="text-center" @click.stop>
+                <button
+                  v-if="!file.isFolder"
+                  class="btn-icon-copy"
+                  title="複製連結"
+                  @click="copyLink(file)"
+                >
+                  🔗
+                </button>
+              </td>
+
+              <td class="meta-cell mobile-hide">{{ file.size }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      <div class="file-preview" v-if="selectedFile">
-        <h3>檔案詳情</h3>
-        <div class="preview-box">
-          <img :src="selectedFile.url" class="preview-img" />
+      <div class="preview-panel">
+        <div v-if="selectedFile" class="preview-content">
+          <div class="preview-header">
+            <h3>檔案詳情</h3>
+            <button class="close-btn" @click="selectedFile = null">×</button>
+          </div>
+
+          <div class="preview-box">
+            <div v-if="selectedFile.isFolder" class="large-icon folder">📁</div>
+            <div
+              v-else-if="selectedFile.name.endsWith('.pdf')"
+              class="large-icon pdf"
+            >
+              📄
+            </div>
+
+            <img
+              v-else
+              :key="selectedFile.fullPath"
+              :src="getPublicUrl(selectedFile.fullPath)"
+              class="preview-img"
+              alt="Preview"
+              @error="
+                (e) =>
+                  (e.target.src =
+                    'https://placehold.co/400x300?text=Image+Load+Error')
+              "
+            />
+          </div>
+
+          <div class="meta-info">
+            <div class="meta-row">
+              <label>名稱</label>
+              <span>{{ selectedFile.name }}</span>
+            </div>
+            <div class="meta-row">
+              <label>大小</label>
+              <span>{{ selectedFile.size }}</span>
+            </div>
+            <div class="meta-row">
+              <label>類型</label>
+              <span>{{ selectedFile.type }}</span>
+            </div>
+            <div class="meta-row">
+              <label>更新時間</label>
+              <span class="date">{{ selectedFile.updated }}</span>
+            </div>
+          </div>
+
+          <div class="action-buttons" v-if="!selectedFile.isFolder">
+            <button class="btn full blue" @click="copyLink(null)">
+              🔗 複製連結
+            </button>
+            <div class="btn-group">
+              <button class="btn outline" @click="renameFile">✎ 改名</button>
+              <button class="btn outline red" @click="deleteFile">
+                🗑️ 刪除
+              </button>
+            </div>
+
+            <a
+              :href="getPublicUrl(selectedFile.fullPath)"
+              target="_blank"
+              class="download-link"
+            >
+              在新分頁開啟原始圖片 ↗
+            </a>
+          </div>
+
+          <div class="action-buttons" v-else>
+            <button class="btn full" @click="handleRowDbClick(selectedFile)">
+              📂 進入資料夾
+            </button>
+            <button
+              class="btn outline red"
+              @click="deleteFile"
+              style="margin-top: 10px"
+            >
+              🗑️ 刪除資料夾
+            </button>
+          </div>
         </div>
 
-        <div class="meta-info">
-          <div class="meta-row">
-            <label>檔名：</label>
-            <span>{{ selectedFile.name }}</span>
-          </div>
-          <div class="meta-row">
-            <label>類型：</label>
-            <span>{{ selectedFile.metadata.mimetype }}</span>
-          </div>
-          <div class="meta-row">
-            <label>大小：</label>
-            <span>{{ formatSize(selectedFile.metadata.size) }}</span>
-          </div>
-          <div class="meta-row">
-            <label>修改時間：</label>
-            <span class="date">{{
-              formatDate(selectedFile.updated_at || selectedFile.created_at)
-            }}</span>
-          </div>
+        <div v-else class="no-selection">
+          <span class="placeholder-icon">👈</span>
+          <p>請從左側列表點選檔案</p>
         </div>
-
-        <div class="action-buttons">
-          <button @click="copyLink" class="btn-copy">📋 複製連結</button>
-          <a :href="selectedFile.url" target="_blank" class="btn-open"
-            >🔗 開啟</a
-          >
-          <button @click="deleteFile" class="btn-del">🗑️ 刪除</button>
-        </div>
-      </div>
-
-      <div class="file-preview empty-state" v-else>
-        <div class="large-icon">👈</div>
-        <p>請選擇左側檔案以檢視詳情</p>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* 請保留 MediaManager.vue 裡的所有 CSS */
-.page-container {
-  padding: 0 10px;
-  height: calc(100vh - 100px);
+.media-manager {
+  padding: 20px;
+  height: calc(100vh - 60px);
   display: flex;
   flex-direction: column;
+  background-color: #f4f6f9;
 }
-h2 {
+.header {
+  text-align: center;
+  margin-bottom: 15px;
+}
+.header h2 {
+  margin: 0;
   color: #2c3e50;
-  margin-bottom: 10px;
 }
-
-.breadcrumb {
-  padding: 10px;
-  background: #f8f9fa;
-  border-radius: 5px;
-  margin-bottom: 10px;
-  font-family: monospace;
-  font-size: 1.1rem;
-}
-.breadcrumb button {
-  background: none;
-  border: none;
-  color: #007bff;
-  cursor: pointer;
-  font-weight: bold;
-  font-size: 1.1rem;
-  padding: 0;
-}
-.breadcrumb button:disabled {
+.desc {
   color: #666;
-  cursor: default;
+  font-size: 1.2rem;
+  margin: 5px 0 0 0;
 }
 
 .toolbar {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-.btn-up,
-.btn-upload {
-  padding: 8px 15px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-}
-.btn-up {
-  background-color: #95a5a6;
-  color: white;
-}
-.btn-upload {
-  background-color: #3498db;
-  color: white;
-}
-
-.media-layout {
-  display: flex;
-  gap: 20px;
-  flex: 1;
-  overflow: hidden; /* 防止撐開 */
-}
-
-/* 左側列表 */
-.file-list {
-  flex: 2;
   background: white;
+  padding: 10px 20px;
   border: 1px solid #ddd;
-  border-radius: 8px;
-  overflow-y: auto;
-  padding: 10px;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
-.file-item {
+.breadcrumbs {
   display: flex;
   align-items: center;
-  padding: 10px;
-  border-bottom: 1px solid #f0f0f0;
+  font-size: 1.2rem;
+  color: #555;
+}
+.crumb {
   cursor: pointer;
-  transition: background 0.2s;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
-.file-item:hover {
-  background-color: #f9f9f9;
+.crumb:hover {
+  background: #eee;
+  color: #000;
 }
-.file-item.active {
-  background-color: #e3f2fd;
-  border-left: 4px solid #2196f3;
+.root {
+  color: #007bff;
+  font-weight: bold;
 }
-.icon {
-  font-size: 1.5rem;
-  margin-right: 15px;
+.sep {
+  color: #999;
+  margin: 0 5px;
 }
-.name {
-  font-size: 1rem;
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: 0.2s;
+}
+.btn.primary {
+  background: #2c3e50;
+  color: white;
+}
+.btn.primary:hover {
+  background: #34495e;
+}
+.btn.outline {
+  background: white;
+  border: 1px solid #ccc;
+  color: #555;
+}
+.btn.outline:hover {
+  background: #f8f9fa;
+  border-color: #bbb;
+}
+.btn.blue {
+  background: #007bff;
+  color: white;
+}
+.btn.blue:hover {
+  background: #0056b3;
+}
+.btn.red {
+  color: #e74c3c;
+  border-color: #e74c3c;
+}
+.btn.red:hover {
+  background: #fff5f5;
+}
+.btn.full {
+  width: 100%;
+}
+.btn-group {
+  display: flex;
+  gap: 10px;
+}
+.btn-group button {
+  flex: 1;
+}
+
+.btn-icon-copy {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  color: #555;
+}
+.btn-icon-copy:hover {
+  background: #2c3e50;
+  color: white;
+  border-color: #2c3e50;
+}
+
+.split-view {
+  flex: 1;
+  display: flex;
+  background: white;
+  border: 1px solid #ddd;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+
+.file-list-panel {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  border-right: 1px solid #eee;
+}
+
+.preview-panel {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.file-table th {
+  background: #f9fafb;
+  padding: 12px 10px;
+  text-align: left;
+  font-size: 0.9rem;
+  color: #666;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.file-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 1.2rem;
+  cursor: pointer;
   color: #333;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: middle;
 }
-.loading,
-.empty {
-  padding: 20px;
+.file-table tr:hover {
+  background: #f8f9fa;
+}
+.file-table tr.active {
+  background: #e7f1ff;
+  border-left: 3px solid #007bff;
+}
+.icon-cell {
   text-align: center;
+  font-size: 1.2rem;
+  width: 40px;
+}
+.text-center {
+  text-align: center;
+}
+.name-cell {
+  font-weight: 500;
+}
+.meta-cell {
+  font-size: 0.85rem;
   color: #888;
 }
 
-/* 右側預覽 */
-.file-preview {
-  flex: 1;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
+.preview-content {
+  padding: 30px;
+  height: 100%;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
-.file-preview.empty-state {
+.preview-header {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  background-color: #f8f9fa;
-  color: #aaa;
+  margin-bottom: 20px;
+}
+.preview-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #333;
+}
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
 }
 
 .preview-box {
+  width: 100%;
+  min-height: 350px;
   flex: 1;
+  background: #f8f9fa;
+  border: 1px solid #eee;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -407,7 +587,7 @@ h2 {
 .preview-img {
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain; /* 保持比例 */
+  object-fit: contain;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
@@ -415,7 +595,6 @@ h2 {
   font-size: 5rem;
 }
 
-/* Metadata */
 .meta-info {
   margin-bottom: 20px;
   border-top: 1px solid #eee;
@@ -443,33 +622,45 @@ h2 {
   font-size: 0.85rem;
 }
 
-.action-buttons {
+.download-link {
+  text-align: center;
+  display: block;
+  margin-top: 15px;
+  color: #007bff;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+.download-link:hover {
+  text-decoration: underline;
+}
+
+.loading,
+.empty-state,
+.no-selection {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  color: #999;
 }
-.btn-copy,
-.btn-open,
-.btn-del {
-  padding: 10px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  text-align: center;
-  text-decoration: none;
-  font-size: 0.95rem;
-  font-weight: bold;
+.placeholder-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+  opacity: 0.3;
 }
-.btn-copy {
-  background-color: #2ecc71;
-  color: white;
-}
-.btn-open {
-  background-color: #34495e;
-  color: white;
-}
-.btn-del {
-  background-color: #e74c3c;
-  color: white;
+
+@media (max-width: 768px) {
+  .split-view {
+    flex-direction: column;
+  }
+  .mobile-hide {
+    display: none;
+  }
+  .preview-panel {
+    border-left: none;
+    border-top: 1px solid #ddd;
+    height: 50vh;
+  }
 }
 </style>

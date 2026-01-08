@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import MainLayout from "~/components/MainLayout.vue";
+
 import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
 
@@ -89,71 +89,69 @@ watch(selectedYear, (newVal) => {
 </script>
 
 <template>
-  <MainLayout>
-    <div class="authors-page">
-      <h1 class="page-main-title">
-        <span class="emoji">✍️</span>專欄作者<span class="emoji">✍️</span>
-      </h1>
+  <div class="authors-page">
+    <h1 class="page-main-title">
+      <span class="emoji">✍️</span>專欄作者<span class="emoji">✍️</span>
+    </h1>
 
-      <div class="main-divider"></div>
+    <div class="main-divider"></div>
 
-      <div class="year-selector-wrapper">
-        <label for="year-select">選擇年份：</label>
-        <div class="custom-select">
-          <select id="year-select" v-model="selectedYear">
-            <option
-              v-for="item in yearOptions"
-              :key="item.value"
-              :value="item.value"
-            >
-              {{ item.label }}
-            </option>
-          </select>
-          <span class="arrow">▼</span>
-        </div>
+    <div class="year-selector-wrapper">
+      <label for="year-select">選擇年份：</label>
+      <div class="custom-select">
+        <select id="year-select" v-model="selectedYear">
+          <option
+            v-for="item in yearOptions"
+            :key="item.value"
+            :value="item.value"
+          >
+            {{ item.label }}
+          </option>
+        </select>
+        <span class="arrow">▼</span>
       </div>
+    </div>
 
-      <div v-if="isLoading" class="loading-state">
-        <p>正在載入作者資料...</p>
-      </div>
+    <div v-if="isLoading" class="loading-state">
+      <p>正在載入作者資料...</p>
+    </div>
 
+    <div
+      v-else-if="!randomizedAuthors || randomizedAuthors.length === 0"
+      class="no-data"
+    >
+      <p>尚無 {{ selectedYear }} 年的專欄作者資料，敬請期待。🥺</p>
+    </div>
+
+    <div v-else class="authors-list">
       <div
-        v-else-if="!randomizedAuthors || randomizedAuthors.length === 0"
-        class="no-data"
+        v-for="author in randomizedAuthors"
+        :key="author.id"
+        class="author-box"
       >
-        <p>尚無 {{ selectedYear }} 年的專欄作者資料，敬請期待。🥺</p>
-      </div>
+        <div v-if="isEditor && !author.is_published" class="draft-badge">
+          隱藏中
+        </div>
 
-      <div v-else class="authors-list">
-        <div
-          v-for="author in randomizedAuthors"
-          :key="author.id"
-          class="author-box"
-        >
-          <div v-if="isEditor && !author.is_published" class="draft-badge">
-            隱藏中
-          </div>
+        <div class="author-info">
+          <div
+            class="author-image"
+            :style="{ backgroundImage: `url(${author.author_image})` }"
+            role="img"
+            :aria-label="author.name"
+          ></div>
+          <h2>{{ author.name }}</h2>
+        </div>
 
-          <div class="author-info">
-            <div
-              class="author-image"
-              :style="{ backgroundImage: `url(${author.author_image})` }"
-              role="img"
-              :aria-label="author.name"
-            ></div>
-            <h2>{{ author.name }}</h2>
-          </div>
-
-          <div class="author-bio">
-            <p>{{ author.bio }}</p>
-            <NuxtLink :to="`/authors/${author.name}`" class="read-more-btn">
-              閱讀此作者文章
-            </NuxtLink>
-          </div>
+        <div class="author-bio">
+          <p>{{ author.bio }}</p>
+          <NuxtLink :to="`/authors/${author.name}`" class="read-more-btn">
+            閱讀此作者文章
+          </NuxtLink>
         </div>
       </div>
     </div>
-  </MainLayout>
+  </div>
 </template>
 
 <style scoped>

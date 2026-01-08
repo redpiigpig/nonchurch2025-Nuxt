@@ -16,7 +16,6 @@ import AppFooter from "~/components/AppFooter.vue";
 </template>
 
 <style scoped>
-/* 把原本 MainLayout.vue 的 CSS 全部搬過來 */
 .site-layout {
   display: flex;
   flex-direction: column;
