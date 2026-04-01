@@ -1,57 +1,77 @@
-﻿nonchurch-nuxt/
-├── app.vue
-├── nuxt.config.ts
-├── package.json
-├── README.md
-├── supabase.js
-├── tsconfig.json
-├── assets/
-│   ├── article.css
-│   ├── main.css
-│   └── shared.css
-├── components/
-│   ├── AppFooter.vue
-│   ├── AppHeader.vue
-│   ├── MainLayout.vue
-│   └── icons/
-│       ├── IconCommunity.vue
-│       ├── IconDocumentation.vue
-│       ├── IconEcosystem.vue
-│       ├── IconSupport.vue
-│       └── IconTooling.vue
-├── composables/
-│   └── useEditorMode.js
-├── data/
-│   ├── authors.js
-│   ├── issues.js
-│   └── submissionThemes.js
-├── pages/
-│   ├── index.vue
-│   ├── login.vue
-│   ├── mission.vue
-│   ├── search.vue
-│   ├── submit.vue
-│   ├── articles/
-│   │   ├── [id].vue
-│   │   └── index.vue
-│   └── authors/
-│       ├── [name].vue
-│       └── index.vue
-└── public/
-    ├── robots.txt
-    ├── articles/
-    │   ├── 5-13話語與肉身.json
-    │   └── 5-13話語與肉身.md
-    ├── images/
+﻿Directory structure:
+└── redpiigpig-nonchurch2025-nust/
+    ├── README.md
+    ├── app.vue
+    ├── nuxt.config.ts
+    ├── package.json
+    ├── supabase.js
+    ├── tree.txt
+    ├── tsconfig.json
+    ├── assets/
+    │   ├── article.css
+    │   ├── main.css
+    │   └── shared.css
+    ├── components/
+    │   ├── AppFooter.vue
+    │   ├── AppHeader.vue
+    │   ├── HomeView.vue
+    │   ├── MainLayout.vue
+    │   └── icons/
+    │       ├── IconCommunity.vue
+    │       ├── IconDocumentation.vue
+    │       ├── IconEcosystem.vue
+    │       ├── IconSupport.vue
+    │       └── IconTooling.vue
+    ├── composables/
+    │   └── useEditorMode.js
+    ├── data/
+    │   ├── authors.js
+    │   ├── issues.js
+    │   └── submissionThemes.js
+    ├── layouts/
+    │   ├── admin.vue
+    │   └── default.vue
+    ├── middleware/
+    │   └── auth.js
+    ├── pages/
+    │   ├── index.vue
+    │   ├── login.vue
+    │   ├── mission.vue
+    │   ├── search.vue
+    │   ├── submit.vue
+    │   ├── admin/
+    │   │   ├── articles_manager.vue
+    │   │   ├── authors_manager.vue
+    │   │   ├── home.vue
+    │   │   ├── index.vue
+    │   │   ├── issues_manager.vue
+    │   │   ├── media_manager.vue
+    │   │   ├── mission.vue
+    │   │   ├── search.vue
+    │   │   ├── submit.vue
+    │   │   ├── articles/
+    │   │   │   ├── [id].vue
+    │   │   │   └── index.vue
+    │   │   ├── authors/
+    │   │   │   ├── [name].vue
+    │   │   │   └── index.vue
+    │   │   ├── editor/
+    │   │   │   └── [[id]].vue
+    │   │   └── home/
+    │   │       ├── index.vue
+    │   │       └── issue/
+    │   │           └── [issueNumber].vue
     │   ├── articles/
-    │   │       ├── issue-1/
-    │   │       ├── issue-2/
-    │   │       ├── issue-3/
-    │   │       ├── issue-4/
-    │   │       ├── issue-5/
-    │   │       └── issue-6/
-    │   └── authors/
-    │   ├── covers/
-    │   ├── system/
-    │   └── topics/
-    └── magazines/
+    │   │   ├── [id].vue
+    │   │   └── index.vue
+    │   ├── authors/
+    │   │   ├── [name].vue
+    │   │   └── index.vue
+    │   └── home/
+    │       └── issue/
+    │           └── [issueNumber].vue
+    └── public/
+        ├── robots.txt
+        └── articles/
+            ├── 5-13話語與肉身.json
+            └── 5-13話語與肉身.md

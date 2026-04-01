@@ -4,24 +4,44 @@ import { useRoute, useRouter } from "vue-router";
 
 import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
+import { useLanguage } from "~/composables/useLanguage";
 
-// 設定頁面 Meta (SEO)
-useHead({
-  title: "專欄作者 - 無境界者雜誌",
-  meta: [
-    {
-      name: "description",
-      content: "無境界者雜誌專欄作者列表，匯集多元觀點的信仰論述。",
-    },
-    { property: "og:title", content: "專欄作者 - 無境界者雜誌" },
-    {
-      property: "og:description",
-      content: "無境界者雜誌專欄作者列表，匯集多元觀點的信仰論述。",
-    },
-  ],
+const seoMap = {
+  default: {
+    title: "專欄作者 - 無境界者雜誌",
+    desc: "無境界者雜誌專欄作者列表，匯集多元觀點的信仰論述。",
+  },
+  "zh-HK": {
+    title: "專欄作者 - 無境界者雜誌",
+    desc: "無境界者雜誌專欄作者列表，匯集多元觀點嘅信仰論述。",
+  },
+  "zh-CN": {
+    title: "专栏作者 - 无境界者杂志",
+    desc: "无境界者杂志专栏作者列表，汇集多元观点的信仰论述。",
+  },
+  en: {
+    title: "Authors - Faith Without Boundary",
+    desc: "Meet columnists and diverse voices from Faith Without Boundary.",
+  },
+  ja: {
+    title: "執筆者 - 無境界者雑誌",
+    desc: "無境界者雑誌の執筆者一覧。多様な視点の信仰論述を掲載。",
+  },
+  ko: {
+    title: "필진 - 무경계자 매거진",
+    desc: "무경계자 매거진 필진 소개. 다양한 관점의 신앙 담론.",
+  },
+};
+const seo = computed(() => seoMap[currentLang.value] || seoMap.default);
+useSeoMeta({
+  title: () => seo.value.title,
+  description: () => seo.value.desc,
+  ogTitle: () => seo.value.title,
+  ogDescription: () => seo.value.desc,
 });
 
 const { isEditor } = useEditorMode();
+const { currentLang } = useLanguage();
 const route = useRoute();
 const router = useRouter();
 

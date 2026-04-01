@@ -4,9 +4,11 @@ import { useRoute } from "vue-router";
 import MainLayout from "~/components/MainLayout.vue";
 import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
+import { useLanguage } from "~/composables/useLanguage";
 
 const route = useRoute();
 const { isEditor } = useEditorMode();
+const { currentLang } = useLanguage();
 const adminSelectedIssue = ref("");
 
 // 1. SSR 資料獲取
@@ -55,14 +57,44 @@ const allIssues = computed(() => pageData.value?.allIssues || []);
 // 2. SEO 設定 (修正：標題固定，不再隨主題變動)
 // ----------------------------------------------------------------
 useSeoMeta({
-  // ⭐ 這裡改回固定標題
-  title: "投稿資訊 - 無境界者雜誌",
-  ogTitle: "投稿資訊 - 無境界者雜誌",
+  title: () => {
+    const map = {
+      default: "投稿資訊 - 無境界者雜誌",
+      "zh-HK": "投稿資訊 - 無境界者雜誌",
+      "zh-CN": "投稿信息 - 无境界者杂志",
+      en: "Submission - Faith Without Boundary",
+      ja: "投稿情報 - 無境界者雑誌",
+      ko: "투고 안내 - 무경계자 매거진",
+    };
+    return map[currentLang.value] || map.default;
+  },
+  ogTitle: () => {
+    const map = {
+      default: "投稿資訊 - 無境界者雜誌",
+      "zh-HK": "投稿資訊 - 無境界者雜誌",
+      "zh-CN": "投稿信息 - 无境界者杂志",
+      en: "Submission - Faith Without Boundary",
+      ja: "投稿情報 - 無境界者雑誌",
+      ko: "투고 안내 - 무경계자 매거진",
+    };
+    return map[currentLang.value] || map.default;
+  },
 
   // 描述與圖片保持動態 (分享時比較漂亮)，若您希望這也固定請告訴我
   description: () =>
     currentTheme.value?.cfp_theme ||
-    "歡迎投稿至無境界者雜誌，本刊物是一個不以教會為本位的自由信仰論述平台。",
+      ({
+        default:
+          "歡迎投稿至無境界者雜誌，本刊物是一個不以教會為本位的自由信仰論述平台。",
+        "zh-HK":
+          "歡迎投稿至無境界者雜誌，本刊物係一個唔以教會為本位嘅自由信仰論述平台。",
+        "zh-CN":
+          "欢迎投稿至无境界者杂志，本刊物是一个不以教会为本位的自由信仰论述平台。",
+        en: "Submit your writing to Faith Without Boundary, an open platform for theological reflection.",
+        ja: "無境界者雑誌への投稿を歓迎します。教会中心主義にとらわれない信仰論述プラットフォームです。",
+        ko: "무경계자 매거진 투고를 환영합니다. 교회 중심을 넘어선 자유 신앙 담론 플랫폼입니다.",
+      }[currentLang.value] ||
+        "歡迎投稿至無境界者雜誌，本刊物是一個不以教會為本位的自由信仰論述平台。"),
   ogDescription: () =>
     currentTheme.value?.cfp_theme || "歡迎投稿至無境界者雜誌...",
   ogImage: () =>

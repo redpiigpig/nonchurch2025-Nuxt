@@ -1,10 +1,12 @@
 <script setup>
-import { ref, computed, watch, nextTick } from "vue";
+import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
+import { useLanguage } from "~/composables/useLanguage";
 
 const { isEditor } = useEditorMode();
+const { currentLang } = useLanguage();
 const route = useRoute();
 const router = useRouter();
 
@@ -22,9 +24,39 @@ const selectedYear = ref(initialYear);
 
 // SEO 設定：動態標題
 useSeoMeta({
-  title: () => `文章列表 - 無境界者雜誌`,
-  description: "瀏覽無境界者雜誌歷年期刊與文章列表。",
-  ogTitle: () => `文章列表 - 無境界者雜誌`,
+  title: () => {
+    const map = {
+      default: "文章列表 - 無境界者雜誌",
+      "zh-HK": "文章列表 - 無境界者雜誌",
+      "zh-CN": "文章列表 - 无境界者杂志",
+      en: "Articles - Faith Without Boundary",
+      ja: "記事一覧 - 無境界者雑誌",
+      ko: "기사 목록 - 무경계자 매거진",
+    };
+    return map[currentLang.value] || map.default;
+  },
+  description: () => {
+    const map = {
+      default: "瀏覽無境界者雜誌歷年期刊與文章列表。",
+      "zh-HK": "瀏覽無境界者雜誌歷年期刊與文章列表。",
+      "zh-CN": "浏览无境界者杂志历年期刊与文章列表。",
+      en: "Browse issues and article archives from Faith Without Boundary.",
+      ja: "無境界者雑誌の号数と記事一覧を閲覧できます。",
+      ko: "무경계자 매거진의 호별 기사 목록을 살펴보세요.",
+    };
+    return map[currentLang.value] || map.default;
+  },
+  ogTitle: () => {
+    const map = {
+      default: "文章列表 - 無境界者雜誌",
+      "zh-HK": "文章列表 - 無境界者雜誌",
+      "zh-CN": "文章列表 - 无境界者杂志",
+      en: "Articles - Faith Without Boundary",
+      ja: "記事一覧 - 無境界者雑誌",
+      ko: "기사 목록 - 무경계자 매거진",
+    };
+    return map[currentLang.value] || map.default;
+  },
 });
 
 // ----------------------------------------------------------------
@@ -189,33 +221,6 @@ const saveScrollPosition = (selector) => {
   }
 };
 
-// 處理錨點捲動 (例如從首頁點擊 "第X期" 跳轉過來)
-const handleAnchorScroll = async () => {
-  if (route.hash && import.meta.client) {
-    await nextTick();
-    // 稍微延遲確保 DOM 已渲染
-    setTimeout(() => {
-      const targetId = route.hash.substring(1);
-      const element = document.getElementById(targetId);
-      if (element) {
-        element.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }, 500);
-  }
-};
-
-// 進入頁面時嘗試捲動
-if (import.meta.client) {
-  handleAnchorScroll();
-}
-
-// 監聽路由變化 (處理同一頁內切換錨點)
-watch(
-  () => route.hash,
-  () => {
-    handleAnchorScroll();
-  }
-);
 </script>
 
 <template>

@@ -4,10 +4,12 @@ import { useRoute, useRouter } from "vue-router";
 import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { authors } from "~/data/authors.js";
+import { useLanguage } from "~/composables/useLanguage";
 
 const route = useRoute();
 const router = useRouter();
 const { isEditor } = useEditorMode();
+const { currentLang } = useLanguage();
 
 const issuesList = ref([]);
 const currentIssueData = ref(null);
@@ -20,11 +22,29 @@ const searchType = ref("title");
 const emailTooltip = ref("點擊複製 Email");
 
 useSeoMeta({
-  title: "無境界者雜誌",
+  title: () => {
+    const map = {
+      default: "無境界者雜誌",
+      "zh-HK": "無境界者雜誌",
+      "zh-CN": "无境界者杂志",
+      en: "Faith Without Boundary",
+      ja: "無境界者雑誌",
+      ko: "무경계자 매거진",
+    };
+    return map[currentLang.value] || map.default;
+  },
 
   // 描述：使用當期簡介 (introHome)
   description: () =>
-    currentIssue.value?.introHome || "一個不以教會為本位的自由信仰論述平台",
+    currentIssue.value?.introHome ||
+    ({
+      default: "一個不以教會為本位的自由信仰論述平台",
+      "zh-HK": "一個唔以教會為本位嘅自由信仰論述平台",
+      "zh-CN": "一个不以教会为本位的自由信仰论述平台",
+      en: "An open platform for theological reflection beyond church-centered boundaries.",
+      ja: "教会中心主義にとらわれない自由な信仰論述プラットフォーム。",
+      ko: "교회 중심을 넘어선 자유 신앙 담론 플랫폼.",
+    }[currentLang.value] || "一個不以教會為本位的自由信仰論述平台"),
   ogDescription: () =>
     currentIssue.value?.introHome || "一個不以教會為本位的自由信仰論述平台。",
 

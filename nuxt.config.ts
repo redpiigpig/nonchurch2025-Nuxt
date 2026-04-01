@@ -14,8 +14,8 @@ export default defineNuxtConfig({
     },
   },
 
-  // 2. 註冊 Supabase 模組 (記得移除 pinia，只留 supabase)
-  modules: ["@nuxtjs/supabase"],
+  // 2. 註冊模組
+  modules: ["@nuxtjs/supabase", "@pinia/nuxt"],
 
   // 3. 設定 Supabase 模組 (關鍵修正！)
   supabase: {

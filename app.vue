@@ -1,19 +1,63 @@
 <script setup>
-import { watch } from "vue";
+import { watch, computed } from "vue";
 import { useEditorMode } from "~/composables/useEditorMode";
+import { useLanguage } from "~/composables/useLanguage";
 
 // 取得編輯模式狀態
 const { isEditor } = useEditorMode();
+const { currentLang } = useLanguage();
+const route = useRoute();
+
+const localeMap = {
+  default: "zh-TW",
+  "zh-HK": "zh-HK",
+  "zh-CN": "zh-CN",
+  en: "en",
+  ja: "ja",
+  ko: "ko",
+};
+
+const canonicalPath = computed(() => route.path);
+const seoLinks = computed(() => {
+  const base = "https://nonchurch.tw";
+  const langs = ["default", "zh-HK", "zh-CN", "en", "ja", "ko"];
+  const links = [
+    { rel: "canonical", href: `${base}${canonicalPath.value}` },
+    {
+      rel: "alternate",
+      hreflang: "x-default",
+      href: `${base}${canonicalPath.value}`,
+    },
+  ];
+
+  for (const lang of langs) {
+    const url =
+      lang === "default"
+        ? `${base}${canonicalPath.value}`
+        : `${base}${canonicalPath.value}?lang=${encodeURIComponent(lang)}`;
+    links.push({
+      rel: "alternate",
+      hreflang: localeMap[lang].toLowerCase(),
+      href: url,
+    });
+  }
+
+  return links;
+});
 
 // ⭐ 新增：設定預設的地球圖示 (讓網頁一載入就有圖示，程式碼才抓得到)
 useHead({
-  link: [
+  htmlAttrs: {
+    lang: computed(() => localeMap[currentLang.value] || "zh-TW"),
+  },
+  link: computed(() => [
     {
       rel: "icon",
       type: "image/svg+xml",
       href: `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌏</text></svg>`,
     },
-  ],
+    ...seoLinks.value,
+  ]),
 });
 
 // 全站預設 SEO 設定

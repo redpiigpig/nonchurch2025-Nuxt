@@ -3,15 +3,38 @@ import { ref, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
-
-useSeoMeta({
-  title: "搜尋 - 無境界者雜誌",
-  robots: "noindex, follow",
-});
+import { useLanguage } from "~/composables/useLanguage";
 
 const route = useRoute();
 const router = useRouter();
 const { isEditor } = useEditorMode();
+const { currentLang } = useLanguage();
+
+useSeoMeta({
+  title: () => {
+    const map = {
+      default: "搜尋 - 無境界者雜誌",
+      "zh-HK": "搜尋 - 無境界者雜誌",
+      "zh-CN": "搜索 - 无境界者杂志",
+      en: "Search - Faith Without Boundary",
+      ja: "検索 - 無境界者雑誌",
+      ko: "검색 - 무경계자 매거진",
+    };
+    return map[currentLang.value] || map.default;
+  },
+  description: () => {
+    const map = {
+      default: "搜尋無境界者雜誌的文章、作者與關鍵字。",
+      "zh-HK": "搜尋無境界者雜誌嘅文章、作者同關鍵字。",
+      "zh-CN": "搜索无境界者杂志的文章、作者与关键词。",
+      en: "Search articles, authors, and keywords in Faith Without Boundary.",
+      ja: "無境界者雑誌の記事・著者・キーワードを検索できます。",
+      ko: "무경계자 매거진의 기사, 저자, 키워드를 검색하세요.",
+    };
+    return map[currentLang.value] || map.default;
+  },
+  robots: "noindex, follow",
+});
 
 const results = ref([]);
 const loading = ref(false);

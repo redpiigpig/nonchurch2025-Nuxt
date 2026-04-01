@@ -212,7 +212,7 @@ const handlePreview = () => {
       : null,
   };
   localStorage.setItem("preview_article", JSON.stringify(previewData));
-  const routeData = router.resolve({ name: "article-preview" });
+  const routeData = router.resolve({ path: "/preview" });
   window.open(routeData.href, "_blank");
 };
 

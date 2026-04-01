@@ -2,10 +2,65 @@
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { useEditorMode } from "~/composables/useEditorMode"; // 修正引用路徑
+import { useLanguage } from "~/composables/useLanguage";
 
 const route = useRoute();
 const { isEditor } = useEditorMode();
+const { currentLang } = useLanguage();
 const isEditMode = computed(() => isEditor.value);
+
+const navTranslations = {
+  "zh-TW": {
+    home: "首頁",
+    mission: "使命宣言",
+    articles: "文章列表",
+    authors: "專欄作者",
+    subscribe: "線上訂閱",
+    submit: "投稿資訊",
+  },
+  "zh-HK": {
+    home: "首頁",
+    mission: "使命宣言",
+    articles: "文章列表",
+    authors: "專欄作者",
+    subscribe: "線上訂閱",
+    submit: "投稿資訊",
+  },
+  "zh-CN": {
+    home: "首页",
+    mission: "使命宣言",
+    articles: "文章列表",
+    authors: "专栏作者",
+    subscribe: "线上订阅",
+    submit: "投稿资讯",
+  },
+  en: {
+    home: "Home",
+    mission: "Mission",
+    articles: "Articles",
+    authors: "Authors",
+    subscribe: "Subscribe",
+    submit: "Submission",
+  },
+  ja: {
+    home: "ホーム",
+    mission: "ミッション",
+    articles: "記事一覧",
+    authors: "執筆者",
+    subscribe: "オンライン購読",
+    submit: "投稿情報",
+  },
+  ko: {
+    home: "홈",
+    mission: "미션",
+    articles: "기사 목록",
+    authors: "필진",
+    subscribe: "온라인 구독",
+    submit: "투고 안내",
+  },
+};
+
+const t = computed(() => navTranslations[currentLang.value] || navTranslations["zh-TW"]);
 
 // 導覽列連結生成器：前台維持原樣，後台加 /admin
 const getLink = (path) => {
@@ -69,14 +124,25 @@ const editLink = computed(() => {
           >⚙️ 後台管理</NuxtLink
         >
 
-        <NuxtLink :to="getLink('/home')">首頁</NuxtLink>
-        <NuxtLink :to="getLink('/mission')">使命宣言</NuxtLink>
-        <NuxtLink :to="getLink('/articles')">文章列表</NuxtLink>
-        <NuxtLink :to="getLink('/authors')">專欄作者</NuxtLink>
+        <NuxtLink :to="getLink('/home')">{{ t.home }}</NuxtLink>
+        <NuxtLink :to="getLink('/mission')">{{ t.mission }}</NuxtLink>
+        <NuxtLink :to="getLink('/articles')">{{ t.articles }}</NuxtLink>
+        <NuxtLink :to="getLink('/authors')">{{ t.authors }}</NuxtLink>
         <a href="https://forms.gle/aWSBFRfQ74QY13nw8" target="_blank"
-          >線上訂閱</a
+          >{{ t.subscribe }}</a
         >
-        <NuxtLink :to="getLink('/submit')">投稿資訊</NuxtLink>
+        <NuxtLink :to="getLink('/submit')">{{ t.submit }}</NuxtLink>
+
+        <div class="lang-switcher">
+          <select v-model="currentLang" class="lang-select">
+            <option value="default">🌐 繁體中文</option>
+            <option value="zh-HK">🌐 港澳粵語</option>
+            <option value="zh-CN">🌐 中国简体</option>
+            <option value="en">🌐 English</option>
+            <option value="ja">🌐 日本語</option>
+            <option value="ko">🌐 한국어</option>
+          </select>
+        </div>
 
         <NuxtLink :to="getLink('/search')" class="search-icon-btn" title="搜尋">
           <svg
@@ -196,6 +262,19 @@ const editLink = computed(() => {
 
 .menu a:hover {
   color: #1b5e20;
+}
+.lang-switcher {
+  margin-left: 0.5rem;
+}
+.lang-select {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+}
+.lang-select option {
+  color: #111;
 }
 .admin-link {
   background-color: rgba(255, 255, 255, 0.2);

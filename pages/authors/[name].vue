@@ -2,8 +2,10 @@
 import { ref, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import { supabase } from "~/supabase";
+import { useLanguage } from "~/composables/useLanguage";
 
 const route = useRoute();
+const { currentLang } = useLanguage();
 const author = ref(null);
 const authorArticles = ref([]);
 const loading = ref(true);
@@ -12,10 +14,18 @@ const loading = ref(true);
 // 讓 Facebook / Line 分享時能顯示作者大頭貼與簡介
 useSeoMeta({
   // 網頁標題
-  title: () =>
-    author.value
-      ? `${author.value.name} - 無境界者雜誌`
-      : "載入中... - 無境界者雜誌",
+  title: () => {
+    const map = {
+      default: "無境界者雜誌",
+      "zh-HK": "無境界者雜誌",
+      "zh-CN": "无境界者杂志",
+      en: "Faith Without Boundary",
+      ja: "無境界者雑誌",
+      ko: "무경계자 매거진",
+    };
+    const site = map[currentLang.value] || map.default;
+    return author.value ? `${author.value.name} - ${site}` : `載入中... - ${site}`;
+  },
 
   // Open Graph (FB, Line) 設定
   ogTitle: () =>

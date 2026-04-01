@@ -5,33 +5,58 @@ import { marked } from "marked";
 import markedFootnote from "marked-footnote";
 // ⭐ 修改 1: 使用 ~ 符號來代表根目錄，路徑更穩定
 import { supabase } from "~/supabase";
+import { useTempArticlesStore } from "~/stores/tempArticles";
+import { useLanguage } from "~/composables/useLanguage";
 
 // MainLayout 會自動引入，或是像這樣明確引入也可以
 
 marked.use(markedFootnote({ prefixId: "footnote-" }));
 
 const route = useRoute();
+const tempArticlesStore = useTempArticlesStore();
+const { currentLang } = useLanguage();
 const article = ref(null);
 const loading = ref(true);
 const issueImages = ref([]);
 
+const toTranslationKey = (lang) => {
+  if (!lang || lang === "default") return "zh_TW";
+  return lang.replace("-", "_");
+};
+
+const translatedArticle = computed(() => {
+  if (!article.value) return null;
+  const key = toTranslationKey(currentLang.value);
+  const tr = article.value.translations?.[key] || {};
+  return {
+    ...article.value,
+    title: tr.title || article.value.title,
+    subtitle: tr.subtitle || article.value.subtitle,
+    author: tr.author_display || tr.author || article.value.author,
+    authorTitle: tr.author_title || article.value.authorTitle,
+    summary: tr.summary || article.value.summary,
+    keyword: tr.keyword || article.value.keyword,
+    remark: tr.remark || article.value.remark,
+  };
+});
+
 // SEO 資料設定 (Nuxt 專用寫法)
 useHead({
   title: computed(() => {
-    if (!article.value) return "載入中... - 無境界者雜誌";
+    if (!translatedArticle.value) return "載入中... - 無境界者雜誌";
     // 嘗試從 ID 去除標題來取得編號 (例如 "6-1 標題" -> "6-1")
-    const number = article.value.id.replace(article.value.title, "").trim();
-    return `${number} ${article.value.title} - 無境界者雜誌`;
+    const number = translatedArticle.value.id.replace(translatedArticle.value.title, "").trim();
+    return `${number} ${translatedArticle.value.title} - 無境界者雜誌`;
   }),
   meta: computed(() => {
-    if (!article.value || !article.value.seo) return [];
-    const seo = article.value.seo;
+    if (!translatedArticle.value || !translatedArticle.value.seo) return [];
+    const seo = translatedArticle.value.seo;
     const og = seo.og || {};
 
     return [
       { name: "description", content: seo.description },
       { name: "keywords", content: seo.keywords },
-      { name: "author", content: article.value.author },
+      { name: "author", content: translatedArticle.value.author },
       { name: "robots", content: seo.robots },
       { name: "google-site-verification", content: seo.googleVerification },
       // Open Graph
@@ -49,32 +74,32 @@ useHead({
 useSeoMeta({
   // 1. 網頁標題
   title: () =>
-    article.value ? `${article.value.title} - 無境界者雜誌` : "無境界者雜誌",
+    translatedArticle.value ? `${translatedArticle.value.title} - 無境界者雜誌` : "無境界者雜誌",
 
   // 2. Open Graph (FB, Line) 標題
-  ogTitle: () => article.value?.title,
+  ogTitle: () => translatedArticle.value?.title,
 
   // 3. 描述：優先使用 summary (文章摘要)，沒有的話用固定文字
   description: () =>
-    article.value?.summary ||
+    translatedArticle.value?.summary ||
     "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
   ogDescription: () =>
-    article.value?.summary ||
+    translatedArticle.value?.summary ||
     "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
 
   // 4. ⭐ 關鍵圖片設定 ⭐
   // 優先順序：資料庫的 seo_image -> 資料庫的 cover_image -> 系統預設圖
   ogImage: () =>
-    article.value?.seo_image ||
-    article.value?.cover_image ||
+    translatedArticle.value?.seo_image ||
+    translatedArticle.value?.cover_image ||
     "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/default-seo.jpg",
 
   // 5. 其他設定
-  author: () => article.value?.author,
+  author: () => translatedArticle.value?.author,
   twitterCard: "summary_large_image",
-  twitterTitle: () => article.value?.title,
-  twitterDescription: () => article.value?.summary,
-  twitterImage: () => article.value?.seo_image || article.value?.cover_image,
+  twitterTitle: () => translatedArticle.value?.title,
+  twitterDescription: () => translatedArticle.value?.summary,
+  twitterImage: () => translatedArticle.value?.seo_image || translatedArticle.value?.cover_image,
 });
 
 // 處理底部導航點擊 (維持原邏輯)
@@ -110,6 +135,15 @@ const fetchArticleData = async (articleId) => {
   }
 };
 
+const getTempArticleById = (articleId) => {
+  const fallback = tempArticlesStore.getById(articleId);
+  if (!fallback) return null;
+  return {
+    ...fallback,
+    footnotes: fallback.footnotes || [],
+  };
+};
+
 const fetchIssueImages = async (issueNumber) => {
   if (!issueNumber) return;
   const path = `articles/issue-${issueNumber}`;
@@ -130,7 +164,8 @@ watch(
   async (newId, oldId) => {
     if (newId && newId !== oldId) {
       loading.value = true;
-      const fetchedArticle = await fetchArticleData(newId);
+      let fetchedArticle = await fetchArticleData(newId);
+      if (!fetchedArticle) fetchedArticle = getTempArticleById(newId);
       if (fetchedArticle) {
         article.value = fetchedArticle;
         if (article.value.issue) {
@@ -144,22 +179,10 @@ watch(
 
 onMounted(async () => {
   loading.value = true;
-  // 處理預覽模式 (從 localStorage 讀取)
-  if (route.name === "article-preview") {
-    const localData = localStorage.getItem("preview_article");
-    if (localData) {
-      article.value = JSON.parse(localData);
-      if (article.value.issue) {
-        await fetchIssueImages(article.value.issue);
-      }
-      loading.value = false;
-      return;
-    }
-  }
-
-  // 正常載入
+  // 正常載入（預覽流程改由 /preview 頁面處理）
   const articleId = route.params.id;
-  const fetchedArticle = await fetchArticleData(articleId);
+  let fetchedArticle = await fetchArticleData(articleId);
+  if (!fetchedArticle) fetchedArticle = getTempArticleById(articleId);
 
   if (fetchedArticle) {
     article.value = fetchedArticle;
@@ -242,12 +265,12 @@ const htmlContent = computed(() => {
 });
 
 const keywordContent = computed(() => {
-  if (!article.value || !article.value.keyword) return "";
-  return marked.parse(article.value.keyword);
+  if (!translatedArticle.value || !translatedArticle.value.keyword) return "";
+  return marked.parse(translatedArticle.value.keyword);
 });
 
 const categoryColor = computed(() => {
-  if (!article.value || !article.value.category) return "#ff8000";
+  if (!translatedArticle.value || !translatedArticle.value.category) return "#ff8000";
   const colorMap = {
     專題文章: "#8b0000",
     評論與回應: "#ff8000",
@@ -260,16 +283,16 @@ const categoryColor = computed(() => {
     光影時刻: "#7d6c29",
     實驗園地: "#db7093",
   };
-  return colorMap[article.value.category] || "#ff8000";
+  return colorMap[translatedArticle.value.category] || "#ff8000";
 });
 
 const issueLinkParams = computed(() => {
-  if (!article.value || !article.value.issue) return {};
-  const year = 2025 + Math.floor((article.value.issue - 1) / 6);
+  if (!translatedArticle.value || !translatedArticle.value.issue) return {};
+  const year = 2025 + Math.floor((translatedArticle.value.issue - 1) / 6);
   return {
     path: "/articles",
     query: { year: year },
-    hash: `#issue-${article.value.issue}`,
+    hash: `#issue-${translatedArticle.value.issue}`,
   };
 });
 </script>
@@ -287,21 +310,21 @@ const issueLinkParams = computed(() => {
   <article v-else class="article-content">
     <div class="title-header">
       <div
-        v-if="article.category"
+        v-if="translatedArticle.category"
         class="featured-box"
         :style="{ backgroundColor: categoryColor }"
       >
-        {{ article.category }}
+        {{ translatedArticle.category }}
       </div>
 
       <h1
         class="main-title"
-        v-html="formatTextWithFootnote(article.title)"
+        v-html="formatTextWithFootnote(translatedArticle.title)"
       ></h1>
       <h1
-        v-if="article.subtitle"
+        v-if="translatedArticle.subtitle"
         class="sub-title"
-        v-html="'──' + formatTextWithFootnote(article.subtitle)"
+        v-html="'──' + formatTextWithFootnote(translatedArticle.subtitle)"
       ></h1>
     </div>
 
@@ -311,21 +334,21 @@ const issueLinkParams = computed(() => {
 
     <div class="author-info">
       <p class="author-name">
-        <span v-html="formatTextWithFootnote(article.author)"></span>
+        <span v-html="formatTextWithFootnote(translatedArticle.author)"></span>
         <span
           class="author-title"
-          v-html="formatTextWithFootnote(article.authorTitle)"
+          v-html="formatTextWithFootnote(translatedArticle.authorTitle)"
         ></span>
         <span
-          v-if="article.remark"
+          v-if="translatedArticle.remark"
           class="author-remark"
-          v-html="formatTextWithFootnote(article.remark)"
+          v-html="formatTextWithFootnote(translatedArticle.remark)"
         ></span>
       </p>
     </div>
 
     <div
-      v-if="article.keyword"
+      v-if="translatedArticle.keyword"
       class="keyword-section"
       v-html="keywordContent"
     ></div>
@@ -334,37 +357,37 @@ const issueLinkParams = computed(() => {
 
     <div class="article-navigation">
       <div class="nav-item">
-        <template v-if="article.prev">
+        <template v-if="translatedArticle.prev">
           <strong>閱讀上一篇文章</strong>
           <NuxtLink
-            v-if="article.prev.id"
-            :to="`/articles/${article.prev.id}`"
+            v-if="translatedArticle.prev.id"
+            :to="`/articles/${translatedArticle.prev.id}`"
             @click="handleNavClick"
           >
-            {{ article.prev.title }}
+            {{ translatedArticle.prev.title }}
           </NuxtLink>
-          <span v-else>{{ article.prev.title }}</span>
+          <span v-else>{{ translatedArticle.prev.title }}</span>
         </template>
       </div>
 
       <div class="nav-item">
         <strong>回到本期雜誌目錄</strong>
         <NuxtLink :to="issueLinkParams" @click="handleNavClick">
-          第{{ article.issue }}期：{{ article.issueTitle }}
+          第{{ translatedArticle.issue }}期：{{ translatedArticle.issueTitle }}
         </NuxtLink>
       </div>
 
       <div class="nav-item">
-        <template v-if="article.next">
+        <template v-if="translatedArticle.next">
           <strong>閱讀下一篇文章</strong>
           <NuxtLink
-            v-if="article.next.id"
-            :to="`/articles/${article.next.id}`"
+            v-if="translatedArticle.next.id"
+            :to="`/articles/${translatedArticle.next.id}`"
             @click="handleNavClick"
           >
-            {{ article.next.title }}
+            {{ translatedArticle.next.title }}
           </NuxtLink>
-          <span v-else>{{ article.next.title }}</span>
+          <span v-else>{{ translatedArticle.next.title }}</span>
         </template>
       </div>
     </div>
