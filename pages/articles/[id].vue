@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, defineAsyncComponent, onMounted, watch } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import { useRoute } from "vue-router";
 import { marked } from "marked";
 import markedFootnote from "marked-footnote";
@@ -14,9 +14,91 @@ const route = useRoute();
 const { currentLang } = useLanguage();
 const { isEditor } = useEditorMode();
 const tempArticlesStore = useTempArticlesStore();
-const article = ref(null);
-const loading = ref(true);
-const issueImages = ref([]);
+
+// ─── 資料抓取 (使用 useAsyncData 支援 SSR SEO) ────────────────────────
+const getArticleOrder = (idStr) => {
+  if (!idStr) return 0;
+  const match = idStr.match(/-(\d+)/);
+  return match ? parseInt(match[1]) : parseInt(idStr) || 0;
+};
+
+const { data: asyncData, pending: loading } = await useAsyncData(
+  `article-${route.params.id}`,
+  async () => {
+    const articleId = route.params.id;
+    try {
+      // 1. 抓取當前文章
+      const { data: currentArt, error } = await supabase
+        .from("articles")
+        .select("*, issues(id, title, translations)")
+        .eq("id", articleId)
+        .single();
+      if (error) throw error;
+
+      // 2. 抓取同期文章以計算 上一篇 / 下一篇
+      const { data: issueArticles } = await supabase
+        .from("articles")
+        .select("id, title, translations")
+        .eq("issue", currentArt.issue);
+
+      let prev = null,
+        next = null;
+      if (issueArticles) {
+        issueArticles.sort(
+          (a, b) => getArticleOrder(a.id) - getArticleOrder(b.id),
+        );
+        const idx = issueArticles.findIndex((a) => a.id === articleId);
+        if (idx > 0) prev = issueArticles[idx - 1];
+        if (idx !== -1 && idx < issueArticles.length - 1)
+          next = issueArticles[idx + 1];
+      }
+
+      // 3. 抓取該期圖片
+      let fetchedImages = [];
+      if (currentArt.issue) {
+        const { data: imgData, error: imgErr } = await supabase.storage
+          .from("images")
+          .list(`articles/issue-${currentArt.issue}`, {
+            limit: 1000,
+            offset: 0,
+            sortBy: { column: "name", order: "asc" },
+          });
+        if (!imgErr && imgData) fetchedImages = imgData;
+      }
+
+      return {
+        article: {
+          ...currentArt,
+          authorTitle: currentArt.author_title,
+          issueTitle: currentArt.issue_title,
+          dynamicPrev: prev,
+          dynamicNext: next,
+          footnotes: currentArt.footnotes || [],
+          media_data: currentArt.media_data || {},
+        },
+        issueImages: fetchedImages,
+      };
+    } catch (err) {
+      console.error(`載入文章 ${articleId} 失敗:`, err.message);
+      return null;
+    }
+  },
+  { watch: [() => route.params.id] }, // 當路由改變時重新觸發
+);
+
+// 提取資料並設置預覽模式 fallback
+const article = computed(() => {
+  if (asyncData.value?.article) return asyncData.value.article;
+  if (import.meta.client) {
+    const fallback = tempArticlesStore.getById(route.params.id);
+    return fallback
+      ? { ...fallback, footnotes: fallback.footnotes || [] }
+      : null;
+  }
+  return null;
+});
+
+const issueImages = computed(() => asyncData.value?.issueImages || []);
 
 // ─── UI 多語字典 ──────────────────────────────────────────────────
 const contentTrans = {
@@ -201,7 +283,6 @@ const displayArticle = computed(() => {
 });
 
 // ─── Special 元件對照表（type === 'special' 的文章掛載專屬元件）────
-// ⚠️ page-flip 直接操作 DOM，必須透過 <ClientOnly> 包住避免 SSR 錯誤
 const specialComponentsMap = {
   "7-6 In 是 Siáng？（他們是誰？）": defineAsyncComponent(
     () => import("~/components/feature_articles/Article7_6.vue"),
@@ -217,7 +298,6 @@ const currentSpecialComponent = computed(() => {
 });
 
 // ─── SEO（page 層）────────────────────────────────────────────────
-// displayArticle 已套用 translations，title/summary/keyword 自動對應當前語言
 useSeoMeta({
   title: () =>
     displayArticle.value
@@ -230,11 +310,9 @@ useSeoMeta({
   ogDescription: () =>
     displayArticle.value?.summary ||
     "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
-  // 直接從 article.value.seo.image 讀取，不走 displayArticle（seo 欄位不需翻譯）
   ogImage: () =>
     article.value?.seo?.image ||
     "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
-  // keywords 使用翻譯後的關鍵字，讓各語言搜尋引擎都能索引
   keywords: () =>
     (displayArticle.value?.keyword || "")
       .replace(/🌿/g, "")
@@ -288,72 +366,6 @@ const issueLinkParams = computed(() => {
   };
 });
 
-// ─── 資料抓取 ─────────────────────────────────────────────────────
-const getArticleOrder = (idStr) => {
-  if (!idStr) return 0;
-  const match = idStr.match(/-(\d+)/);
-  return match ? parseInt(match[1]) : parseInt(idStr) || 0;
-};
-
-const fetchArticleData = async (articleId) => {
-  try {
-    const { data: currentArt, error } = await supabase
-      .from("articles")
-      .select("*, issues(id, title, translations)")
-      .eq("id", articleId)
-      .single();
-    if (error) throw error;
-
-    let artQuery = supabase
-      .from("articles")
-      .select("id, title, translations")
-      .eq("issue", currentArt.issue);
-    if (!isEditor.value) artQuery = artQuery.eq("is_published", true);
-    const { data: issueArticles } = await artQuery;
-
-    let prev = null,
-      next = null;
-    if (issueArticles) {
-      issueArticles.sort(
-        (a, b) => getArticleOrder(a.id) - getArticleOrder(b.id),
-      );
-      const idx = issueArticles.findIndex((a) => a.id === articleId);
-      if (idx > 0) prev = issueArticles[idx - 1];
-      if (idx !== -1 && idx < issueArticles.length - 1)
-        next = issueArticles[idx + 1];
-    }
-
-    return {
-      ...currentArt,
-      authorTitle: currentArt.author_title,
-      issueTitle: currentArt.issue_title,
-      dynamicPrev: prev,
-      dynamicNext: next,
-      footnotes: currentArt.footnotes || [],
-      media_data: currentArt.media_data || {},
-    };
-  } catch (err) {
-    console.error(`載入文章 ${articleId} 失敗:`, err.message);
-    // fallback to tempArticlesStore
-    const fallback = tempArticlesStore.getById(articleId);
-    return fallback
-      ? { ...fallback, footnotes: fallback.footnotes || [] }
-      : null;
-  }
-};
-
-const fetchIssueImages = async (issueNumber) => {
-  if (!issueNumber) return;
-  const { data, error } = await supabase.storage
-    .from("images")
-    .list(`articles/issue-${issueNumber}`, {
-      limit: 1000,
-      offset: 0,
-      sortBy: { column: "name", order: "asc" },
-    });
-  if (!error && data) issueImages.value = data;
-};
-
 const handleNavClick = () => {
   if (import.meta.client) {
     const state = window.history.state || {};
@@ -403,11 +415,9 @@ const htmlContent = computed(() => {
     return match;
   });
 
-  // footnotes 不附在這裡，由 footnotesHtml 單獨渲染，確保 special 文章的順序正確
   return parsedHtml;
 });
 
-// footnotes 獨立 computed，讓 special 文章可以把它放在元件之後
 const footnotesHtml = computed(() => {
   if (!article.value?.footnotes?.length) return "";
   const listItems = article.value.footnotes
@@ -422,31 +432,6 @@ const footnotesHtml = computed(() => {
 const keywordContent = computed(() => {
   if (!displayArticle.value?.keyword) return "";
   return marked.parse(displayArticle.value.keyword);
-});
-
-watch(
-  () => route.params.id,
-  async (newId, oldId) => {
-    if (newId && newId !== oldId) {
-      loading.value = true;
-      const fetched = await fetchArticleData(newId);
-      if (fetched) {
-        article.value = fetched;
-        if (article.value.issue) await fetchIssueImages(article.value.issue);
-      }
-      loading.value = false;
-    }
-  },
-);
-
-onMounted(async () => {
-  loading.value = true;
-  const fetched = await fetchArticleData(route.params.id);
-  if (fetched) {
-    article.value = fetched;
-    if (article.value.issue) await fetchIssueImages(article.value.issue);
-  }
-  loading.value = false;
 });
 </script>
 
@@ -480,7 +465,6 @@ onMounted(async () => {
       ></h1>
     </div>
 
-    <!-- 翻譯提示：副標題後、粗線前 -->
     <div v-if="showTranslationHint && t.browserTrans" class="translation-hint">
       🌐 {{ t.browserTrans }}
     </div>
@@ -510,13 +494,11 @@ onMounted(async () => {
       v-html="keywordContent"
     ></div>
 
-    <!-- Special 文章：說明文字 → 有聲書元件 → footnotes -->
     <div v-if="displayArticle.type === 'special' && currentSpecialComponent">
       <br />
       <div v-if="htmlContent" class="audiobook-intro">
         <div class="markdown-body" v-html="htmlContent"></div>
       </div>
-      <!-- page-flip 直接操作 DOM，用 ClientOnly 避免 SSR 錯誤 -->
       <ClientOnly>
         <component :is="currentSpecialComponent" :article="displayArticle" />
       </ClientOnly>
@@ -527,7 +509,6 @@ onMounted(async () => {
       ></div>
     </div>
 
-    <!-- 一般文章：內文 → footnotes -->
     <div v-else>
       <br />
       <div class="markdown-body" v-html="htmlContent"></div>

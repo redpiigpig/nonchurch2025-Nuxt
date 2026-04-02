@@ -1,14 +1,11 @@
 <script setup>
-import { ref, computed, watch, onMounted } from "vue";
+import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { supabase } from "~/supabase";
 import { useLanguage } from "~/composables/useLanguage";
 
 const { currentLang } = useLanguage();
 const route = useRoute();
-const author = ref(null);
-const rawAuthorArticles = ref([]);
-const loading = ref(true);
 
 // ─── 多語字典 ─────────────────────────────────────────────────────
 const detailTrans = {
@@ -53,6 +50,54 @@ const t = computed(
   () => detailTrans[currentLang.value] || detailTrans["zh-TW"],
 );
 
+const getArticleOrder = (id) => {
+  const match = (id || "").match(/-(\d+)/);
+  return match ? parseInt(match[1]) : 0;
+};
+
+// ─── 資料抓取 (使用 useAsyncData 支援 SSR SEO) ────────────────────────
+const { data: asyncData, pending: loading } = await useAsyncData(
+  `author-${route.params.name}`,
+  async () => {
+    const authorName = route.params.name;
+    if (!authorName) return null;
+    try {
+      const { data: authorData, error: authorError } = await supabase
+        .from("authors")
+        .select("*")
+        .eq("name", authorName)
+        .single();
+      if (authorError) throw authorError;
+
+      const { data: articlesData, error: articlesError } = await supabase
+        .from("articles")
+        .select(
+          `id, title, subtitle, summary, author, category, issue, translations, issues (id, title, date, translations)`,
+        )
+        .or(
+          `author.ilike.%${authorData.name}%,author_display.ilike.%${authorData.name}%`,
+        )
+        .neq("title", "編輯室報告");
+      if (articlesError) throw articlesError;
+
+      const sorted = (articlesData || []).sort((a, b) => {
+        if ((a.issue || 0) !== (b.issue || 0))
+          return (b.issue || 0) - (a.issue || 0);
+        return getArticleOrder(a.id) - getArticleOrder(b.id);
+      });
+
+      return { author: authorData, articles: sorted };
+    } catch (err) {
+      console.error("Error:", err.message);
+      return null;
+    }
+  },
+  { watch: [() => route.params.name] }, // 當路由改變時重新觸發
+);
+
+const author = computed(() => asyncData.value?.author || null);
+const rawAuthorArticles = computed(() => asyncData.value?.articles || []);
+
 // displayAuthor：套用 Supabase translations
 const displayAuthor = computed(() => {
   if (!author.value) return null;
@@ -89,7 +134,7 @@ const displayArticles = computed(() => {
   });
 });
 
-// ─── SEO ─────────────────────────────────────────────────────────
+// ─── SEO (page 層) ─────────────────────────────────────────────────────────
 useSeoMeta({
   title: () =>
     displayAuthor.value
@@ -107,51 +152,6 @@ useSeoMeta({
     "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
   twitterCard: "summary_large_image",
 });
-
-// ─── 資料抓取 ─────────────────────────────────────────────────────
-const getArticleOrder = (id) => {
-  const match = (id || "").match(/-(\d+)/);
-  return match ? parseInt(match[1]) : 0;
-};
-
-const fetchData = async () => {
-  const authorName = route.params.name;
-  if (!authorName) return;
-  try {
-    loading.value = true;
-    const { data: authorData, error: authorError } = await supabase
-      .from("authors")
-      .select("*")
-      .eq("name", authorName)
-      .single();
-    if (authorError) throw authorError;
-    author.value = authorData;
-
-    const { data: articlesData, error: articlesError } = await supabase
-      .from("articles")
-      .select(
-        `id, title, subtitle, summary, author, category, issue, translations, issues (id, title, date, translations)`,
-      )
-      .or(
-        `author.ilike.%${authorData.name}%,author_display.ilike.%${authorData.name}%`,
-      )
-      .neq("title", "編輯室報告");
-    if (articlesError) throw articlesError;
-
-    rawAuthorArticles.value = (articlesData || []).sort((a, b) => {
-      if ((a.issue || 0) !== (b.issue || 0))
-        return (b.issue || 0) - (a.issue || 0);
-      return getArticleOrder(a.id) - getArticleOrder(b.id);
-    });
-  } catch (err) {
-    console.error("Error:", err.message);
-  } finally {
-    loading.value = false;
-  }
-};
-
-onMounted(fetchData);
-watch(() => route.params.name, fetchData);
 </script>
 
 <template>
