@@ -62,11 +62,25 @@ useHead({
   ]),
 });
 
+// ✅ 方案 B：多語言網站標題
+const siteName = computed(() => {
+  const langTitles = {
+    "zh-TW": "無境界者雜誌",
+    "zh-HK": "無境界者雜誌",
+    "zh-CN": "无境界者杂志",
+    en: "Faith Without Boundary",
+    ja: "無境界者",
+    ko: "무경계자 매거진",
+    default: "無境界者雜誌",
+  };
+  return langTitles[currentLang.value] || langTitles.default;
+});
+
 // 全站預設 SEO
 useSeoMeta({
   titleTemplate: (titleChunk) =>
-    titleChunk ? `${titleChunk} - 無境界者雜誌` : "無境界者雜誌",
-  ogSiteName: "無境界者雜誌",
+    titleChunk ? `${titleChunk} - ${siteName.value}` : siteName.value,
+  ogSiteName: siteName,
   ogImage: "https://res.cloudinary.com/nonchurch2025/image/upload/topic.jpg",
   twitterCard: "summary_large_image",
 });
