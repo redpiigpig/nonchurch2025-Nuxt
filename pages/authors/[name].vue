@@ -1,197 +1,213 @@
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { supabase } from "~/supabase";
 import { useLanguage } from "~/composables/useLanguage";
 
-const route = useRoute();
 const { currentLang } = useLanguage();
+const route = useRoute();
 const author = ref(null);
-const authorArticles = ref([]);
+const rawAuthorArticles = ref([]);
 const loading = ref(true);
 
-// ⭐ 修改重點：完整的 SEO 設定
-// 讓 Facebook / Line 分享時能顯示作者大頭貼與簡介
-useSeoMeta({
-  // 網頁標題
-  title: () => {
-    const map = {
-      default: "無境界者雜誌",
-      "zh-HK": "無境界者雜誌",
-      "zh-CN": "无境界者杂志",
-      en: "Faith Without Boundary",
-      ja: "無境界者雑誌",
-      ko: "무경계자 매거진",
-    };
-    const site = map[currentLang.value] || map.default;
-    return author.value ? `${author.value.name} - ${site}` : `載入中... - ${site}`;
+// ─── 多語字典 ─────────────────────────────────────────────────────
+const detailTrans = {
+  "zh-TW": {
+    loading: "正在載入作者資料...",
+    notFound: "找不到該位作者的資料 😖",
+    clickFull: "（點擊看全文）",
+    noArt: "這位作者目前還沒有發布文章。",
   },
+  "zh-HK": {
+    loading: "載入緊作者資料...",
+    notFound: "搵唔到呢位作者嘅資料 😖",
+    clickFull: "（撳入去睇全文）",
+    noArt: "呢位作者目前仲未發布文章。",
+  },
+  "zh-CN": {
+    loading: "正在载入作者数据...",
+    notFound: "找不到该位作者的数据 😖",
+    clickFull: "（点击看全文）",
+    noArt: "这位作者目前还没有发布文章。",
+  },
+  en: {
+    loading: "Loading...",
+    notFound: "Author not found 😖",
+    clickFull: "(Click to read full)",
+    noArt: "No articles published yet.",
+  },
+  ja: {
+    loading: "読み込み中...",
+    notFound: "執筆者が見つかりません 😖",
+    clickFull: "（クリックして全文を読む）",
+    noArt: "まだ記事がありません。",
+  },
+  ko: {
+    loading: "불러오는 중...",
+    notFound: "작성자를 찾을 수 없습니다 😖",
+    clickFull: "(클릭하여 전문 읽기)",
+    noArt: "아직 작성된 기사가 없습니다.",
+  },
+};
+const t = computed(
+  () => detailTrans[currentLang.value] || detailTrans["zh-TW"],
+);
 
-  // Open Graph (FB, Line) 設定
-  ogTitle: () =>
-    author.value ? `${author.value.name} - 無境界者雜誌` : "無境界者雜誌",
-  description: () => author.value?.bio || "無境界者雜誌專欄作者",
-  ogDescription: () => author.value?.bio || "無境界者雜誌專欄作者",
-
-  // 圖片：優先使用作者大頭貼，沒有則使用全站預設圖
-  ogImage: () =>
-    author.value?.author_image ||
-    "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/default-seo.jpg",
-
-  // Twitter 設定
-  twitterCard: "summary_large_image",
-  twitterTitle: () => author.value?.name,
-  twitterDescription: () => author.value?.bio,
-  twitterImage: () => author.value?.author_image,
+// displayAuthor：套用 Supabase translations
+const displayAuthor = computed(() => {
+  if (!author.value) return null;
+  const langKey =
+    currentLang.value === "default"
+      ? "zh_TW"
+      : currentLang.value.replace("-", "_");
+  const trans = author.value.translations?.[langKey] || {};
+  return {
+    ...author.value,
+    displayName: trans.name || author.value.name,
+    displayBio: trans.bio || author.value.bio,
+  };
 });
 
-// 輔助函式：取得文章排序權重
+// displayArticles：套用文章與期數翻譯
+const displayArticles = computed(() => {
+  const langKey =
+    currentLang.value === "default"
+      ? "zh_TW"
+      : currentLang.value.replace("-", "_");
+  return rawAuthorArticles.value.map((a) => {
+    const tArt = a.translations?.[langKey] || {};
+    const tIss = a.issues?.translations?.[langKey] || {};
+    return {
+      id: a.id,
+      title: tArt.title || a.title,
+      subtitle: tArt.subtitle || a.subtitle,
+      summary: tArt.summary || a.summary,
+      issueId: a.issues?.id,
+      issueTitle: tIss.title || a.issues?.title,
+      issueDate: tIss.date || a.issues?.date,
+    };
+  });
+});
+
+// ─── SEO ─────────────────────────────────────────────────────────
+useSeoMeta({
+  title: () =>
+    displayAuthor.value
+      ? `${displayAuthor.value.displayName} - 無境界者雜誌`
+      : "無境界者雜誌",
+  ogTitle: () =>
+    displayAuthor.value
+      ? `${displayAuthor.value.displayName} - 無境界者雜誌`
+      : "無境界者雜誌",
+  description: () => displayAuthor.value?.displayBio || "無境界者雜誌專欄作者",
+  ogDescription: () =>
+    displayAuthor.value?.displayBio || "無境界者雜誌專欄作者",
+  ogImage: () =>
+    displayAuthor.value?.author_image ||
+    "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
+  twitterCard: "summary_large_image",
+});
+
+// ─── 資料抓取 ─────────────────────────────────────────────────────
 const getArticleOrder = (id) => {
-  if (!id) return 0;
-  const match = id.match(/-(\d+)/);
+  const match = (id || "").match(/-(\d+)/);
   return match ? parseInt(match[1]) : 0;
 };
 
-// 抓取資料邏輯
 const fetchData = async () => {
   const authorName = route.params.name;
   if (!authorName) return;
-
   try {
     loading.value = true;
-
-    // 1. 抓取作者基本資料
     const { data: authorData, error: authorError } = await supabase
       .from("authors")
       .select("*")
       .eq("name", authorName)
       .single();
-
     if (authorError) throw authorError;
     author.value = authorData;
 
-    // 2. 抓取該作者的文章
-    if (authorData) {
-      const { data: articlesData, error: articlesError } = await supabase
-        .from("articles")
-        .select(
-          `
-          id,
-          title,
-          subtitle,
-          summary,
-          author,
-          category,
-          issue,
-          issues (
-            id,
-            title,
-            date
-          )
-        `
-        )
-        // 模糊搜尋作者名稱 (包含 author 欄位或 author_display 欄位)
-        .or(
-          `author.ilike.%${authorData.name}%,author_display.ilike.%${authorData.name}%`
-        )
-        .neq("title", "編輯室報告");
+    const { data: articlesData, error: articlesError } = await supabase
+      .from("articles")
+      .select(
+        `id, title, subtitle, summary, author, category, issue, translations, issues (id, title, date, translations)`,
+      )
+      .or(
+        `author.ilike.%${authorData.name}%,author_display.ilike.%${authorData.name}%`,
+      )
+      .neq("title", "編輯室報告");
+    if (articlesError) throw articlesError;
 
-      if (articlesError) throw articlesError;
-
-      // 排序文章：先按期數(新到舊)，再按文章順序
-      const sortedData = (articlesData || []).sort((a, b) => {
-        const issueA = a.issue || 0;
-        const issueB = b.issue || 0;
-        if (issueA !== issueB) {
-          return issueB - issueA;
-        }
-        const orderA = getArticleOrder(a.id);
-        const orderB = getArticleOrder(b.id);
-        return orderA - orderB;
-      });
-
-      authorArticles.value = sortedData;
-    }
-  } catch (error) {
-    console.error("Error fetching author details:", error.message);
+    rawAuthorArticles.value = (articlesData || []).sort((a, b) => {
+      if ((a.issue || 0) !== (b.issue || 0))
+        return (b.issue || 0) - (a.issue || 0);
+      return getArticleOrder(a.id) - getArticleOrder(b.id);
+    });
+  } catch (err) {
+    console.error("Error:", err.message);
   } finally {
     loading.value = false;
   }
 };
 
-onMounted(() => {
-  fetchData();
-});
-
-watch(
-  () => route.params.name,
-  () => fetchData()
-);
+onMounted(fetchData);
+watch(() => route.params.name, fetchData);
 </script>
 
 <template>
   <div v-if="loading" class="loading-state">
-    <p>正在載入作者資料...</p>
+    <p>{{ t.loading }}</p>
   </div>
-
-  <div v-else-if="!author" class="no-data">
-    <p>找不到該位作者的資料 😖</p>
+  <div v-else-if="!displayAuthor" class="no-data">
+    <p>{{ t.notFound }}</p>
   </div>
 
   <div v-else class="author-detail-container">
     <section class="author-container">
       <div class="author-left">
         <img
-          :src="author.author_image"
-          :alt="author.name"
+          :src="displayAuthor.author_image"
+          :alt="displayAuthor.displayName"
           class="author-photo"
         />
       </div>
-
       <div class="author-info">
-        <h2>{{ author.name }}</h2>
-        <p style="white-space: pre-line">{{ author.bio }}</p>
+        <h2>{{ displayAuthor.displayName }}</h2>
+        <p style="white-space: pre-line">{{ displayAuthor.displayBio }}</p>
       </div>
     </section>
 
     <div class="main-divider"></div>
 
     <div class="article-list-section">
-      <ul class="article-list" v-if="authorArticles.length > 0">
-        <li v-for="(article, index) in authorArticles" :key="article.id">
+      <ul class="article-list" v-if="displayArticles.length > 0">
+        <li v-for="(article, index) in displayArticles" :key="article.id">
           <div class="article-meta">
-            <span class="issue">
-              Vol. {{ article.issues?.id }} {{ article.issues?.title }}
-            </span>
+            <span class="issue"
+              >Vol. {{ article.issueId }} {{ article.issueTitle }}</span
+            >
             <span class="separator">｜</span>
-            <span class="date">{{ article.issues?.date }}</span>
+            <span class="date">{{ article.issueDate }}</span>
           </div>
-
           <h4 class="article-title-wrapper">
             <NuxtLink
               :to="`/articles/${article.id}`"
               class="title-link"
-              title="點擊看全文"
+              :title="t.clickFull"
             >
               <span class="main-title">{{ article.title }}</span>
               <span v-if="article.subtitle" class="sub-title">
                 ──{{ article.subtitle }}
               </span>
-
-              <span class="click-hint">（點擊看全文）</span>
+              <span class="click-hint">{{ t.clickFull }}</span>
             </NuxtLink>
           </h4>
-
-          <p class="article-summary">
-            {{ article.summary }}
-          </p>
-
-          <hr class="divider" v-if="index < authorArticles.length - 1" />
+          <p class="article-summary">{{ article.summary }}</p>
+          <hr class="divider" v-if="index < displayArticles.length - 1" />
         </li>
       </ul>
-
       <div v-else class="no-articles">
-        <p>這位作者目前還沒有發布文章。</p>
+        <p>{{ t.noArt }}</p>
       </div>
     </div>
   </div>
@@ -276,13 +292,12 @@ watch(
   margin: 10px 0;
   line-height: 1.4;
   text-align: left;
-  text-indent: 0;
 }
 .title-link {
   text-decoration: none;
-  transition: color 0.2s ease;
   color: #1e90ff;
   display: inline-block;
+  transition: color 0.2s;
 }
 .title-link:hover {
   text-decoration: underline;
@@ -294,7 +309,7 @@ watch(
   color: #555;
   font-weight: normal;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.3s;
 }
 .title-link:hover .click-hint {
   opacity: 1;

@@ -1,123 +1,184 @@
 <script setup>
-import { ref, watch, computed } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-
 import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { useLanguage } from "~/composables/useLanguage";
-
-const seoMap = {
-  default: {
-    title: "專欄作者 - 無境界者雜誌",
-    desc: "無境界者雜誌專欄作者列表，匯集多元觀點的信仰論述。",
-  },
-  "zh-HK": {
-    title: "專欄作者 - 無境界者雜誌",
-    desc: "無境界者雜誌專欄作者列表，匯集多元觀點嘅信仰論述。",
-  },
-  "zh-CN": {
-    title: "专栏作者 - 无境界者杂志",
-    desc: "无境界者杂志专栏作者列表，汇集多元观点的信仰论述。",
-  },
-  en: {
-    title: "Authors - Faith Without Boundary",
-    desc: "Meet columnists and diverse voices from Faith Without Boundary.",
-  },
-  ja: {
-    title: "執筆者 - 無境界者雑誌",
-    desc: "無境界者雑誌の執筆者一覧。多様な視点の信仰論述を掲載。",
-  },
-  ko: {
-    title: "필진 - 무경계자 매거진",
-    desc: "무경계자 매거진 필진 소개. 다양한 관점의 신앙 담론.",
-  },
-};
-const seo = computed(() => seoMap[currentLang.value] || seoMap.default);
-useSeoMeta({
-  title: () => seo.value.title,
-  description: () => seo.value.desc,
-  ogTitle: () => seo.value.title,
-  ogDescription: () => seo.value.desc,
-});
 
 const { isEditor } = useEditorMode();
 const { currentLang } = useLanguage();
 const route = useRoute();
 const router = useRouter();
 
-const yearOptions = [
-  { value: 2026, label: "2026 年專欄作者" },
-  { value: 2025, label: "2025 年專欄作者" },
-];
+// ─── 多語字典 ─────────────────────────────────────────────────────
+const authorTranslations = {
+  "zh-TW": {
+    title: "專欄作者",
+    selectYear: "選擇年份：",
+    opt2026: "2026 年專欄作者",
+    opt2025: "2025 年專欄作者",
+    loading: "正在載入作者資料...",
+    noData: (y) => `尚無 ${y} 年的專欄作者資料，敬請期待。🥺`,
+    hidden: "隱藏中",
+    readMore: "閱讀此作者文章",
+  },
+  "zh-HK": {
+    title: "專欄作者",
+    selectYear: "揀選年份：",
+    opt2026: "2026 年專欄作者",
+    opt2025: "2025 年專欄作者",
+    loading: "載入緊作者資料...",
+    noData: (y) => `仲未有 ${y} 年嘅專欄作者資料，敬請期待。🥺`,
+    hidden: "隱藏緊",
+    readMore: "閱讀呢位作者嘅文章",
+  },
+  "zh-CN": {
+    title: "专栏作者",
+    selectYear: "选择年份：",
+    opt2026: "2026 年专栏作者",
+    opt2025: "2025 年专栏作者",
+    loading: "正在载入作者数据...",
+    noData: (y) => `尚无 ${y} 年的专栏作者数据，敬请期待。🥺`,
+    hidden: "隐藏中",
+    readMore: "阅读此作者文章",
+  },
+  en: {
+    title: "Authors",
+    selectYear: "Select Year:",
+    opt2026: "2026 Authors",
+    opt2025: "2025 Authors",
+    loading: "Loading authors...",
+    noData: (y) => `No authors for ${y} yet. 🥺`,
+    hidden: "Hidden",
+    readMore: "Read Articles",
+  },
+  ja: {
+    title: "執筆者",
+    selectYear: "年を選択：",
+    opt2026: "2026年 執筆者",
+    opt2025: "2025年 執筆者",
+    loading: "読み込み中...",
+    noData: (y) => `${y}年の執筆者はまだいません。🥺`,
+    hidden: "非表示",
+    readMore: "記事を読む",
+  },
+  ko: {
+    title: "칼럼니스트",
+    selectYear: "연도 선택:",
+    opt2026: "2026년 칼럼니스트",
+    opt2025: "2025년 칼럼니스트",
+    loading: "불러오는 중...",
+    noData: (y) => `${y}년 작성자가 아직 없습니다. 🥺`,
+    hidden: "숨김",
+    readMore: "기사 읽기",
+  },
+};
+const t = computed(
+  () => authorTranslations[currentLang.value] || authorTranslations["zh-TW"],
+);
 
-// 1. 初始化年份：優先讀取網址參數，否則預設 2025
-const initialYear = parseInt(route.query.year);
-const isValidYear = yearOptions.some((opt) => opt.value === initialYear);
-const selectedYear = ref(isValidYear ? initialYear : 2025);
+const yearOptions = computed(() => [
+  { value: 2026, label: t.value.opt2026 },
+  { value: 2025, label: t.value.opt2025 },
+]);
 
-// ----------------------------------------------------------------
-// 2. SSR 資料獲取 + 隨機排序 (核心改動)
-// ----------------------------------------------------------------
-const {
-  data: randomizedAuthors,
-  pending: isLoading,
-  refresh,
-} = await useAsyncData(
-  `authors-list-${selectedYear.value}-${isEditor.value}`, // Cache Key 包含年份和編輯狀態
-  async () => {
-    // A. 查詢資料
+// ─── SEO ─────────────────────────────────────────────────────────
+useSeoMeta({
+  title: () => t.value.title + " - 無境界者雜誌",
+  ogTitle: () => t.value.title + " - 無境界者雜誌",
+  description: () =>
+    ({
+      "zh-TW": "無境界者雜誌專欄作者列表，匯集多元觀點的信仰論述。",
+      "zh-HK": "無境界者雜誌專欄作者列表，匯集多元觀點嘅信仰論述。",
+      "zh-CN": "无境界者杂志专栏作者列表，汇集多元观点的信仰论述。",
+      en: "Authors of Faith Without Boundary.",
+      ja: "無境界者雑誌の執筆者一覧。",
+      ko: "무경계자 매거진 칼럼니스트 목록.",
+    })[currentLang.value] || "無境界者雜誌專欄作者列表",
+});
+
+// ─── 資料 ─────────────────────────────────────────────────────────
+const selectedYear = ref(2026);
+const allAuthors = ref([]);
+const randomizedAuthors = ref([]);
+const isLoading = ref(true);
+
+const initYear = () => {
+  const queryYear = parseInt(route.query.year);
+  if (yearOptions.value.some((o) => o.value === queryYear))
+    selectedYear.value = queryYear;
+};
+
+const fetchAuthors = async () => {
+  try {
+    isLoading.value = true;
     let query = supabase
       .from("authors")
       .select("*")
       .order("id", { ascending: true });
-
-    // 如果不是編輯模式，只抓已發布的
-    if (!isEditor.value) {
-      query = query.eq("is_published", true);
-    }
-
+    if (!isEditor.value) query = query.eq("is_published", true);
     const { data, error } = await query;
     if (error) throw error;
-    if (!data) return [];
-
-    // B. 過濾年份
-    const filtered = data.filter(
-      (a) => a.years && a.years.includes(selectedYear.value)
-    );
-
-    // C. 隨機排序 (在伺服器端就排好，傳給瀏覽器直接用，避免不一致)
-    const newArr = [...filtered];
-    for (let i = newArr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+    if (data) {
+      allAuthors.value = data;
+      updateAuthors();
     }
-
-    return newArr;
-  },
-  {
-    watch: [selectedYear, isEditor], // 當年份或編輯模式改變時，自動重新抓取
+  } catch (err) {
+    console.error("Error:", err.message);
+  } finally {
+    isLoading.value = false;
   }
-);
+};
 
-// ----------------------------------------------------------------
-// 3. 監聽與互動
-// ----------------------------------------------------------------
-watch(selectedYear, (newVal) => {
-  // 更新網址，但不需手動呼叫 refresh，因為 useAsyncData 已經 watch 了 selectedYear
-  router.replace({ query: { ...route.query, year: newVal } });
+const updateAuthors = () => {
+  const filtered = allAuthors.value.filter((a) =>
+    a.years?.includes(selectedYear.value),
+  );
+  const arr = [...filtered];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  randomizedAuthors.value = arr;
+};
+
+// displayAuthors：套用 Supabase translations 翻譯
+const displayAuthors = computed(() => {
+  const langKey =
+    currentLang.value === "default"
+      ? "zh_TW"
+      : currentLang.value.replace("-", "_");
+  return randomizedAuthors.value.map((a) => {
+    const trans = a.translations?.[langKey] || {};
+    return {
+      ...a,
+      displayName: trans.name || a.name,
+      displayBio: trans.bio || a.bio,
+    };
+  });
+});
+
+watch(selectedYear, (v) => {
+  router.replace({ query: { ...route.query, year: v } });
+  updateAuthors();
+});
+watch(isEditor, fetchAuthors);
+
+onMounted(() => {
+  initYear();
+  fetchAuthors();
 });
 </script>
 
 <template>
   <div class="authors-page">
     <h1 class="page-main-title">
-      <span class="emoji">✍️</span>專欄作者<span class="emoji">✍️</span>
+      <span class="emoji">✍️</span>{{ t.title }}<span class="emoji">✍️</span>
     </h1>
-
     <div class="main-divider"></div>
 
     <div class="year-selector-wrapper">
-      <label for="year-select">選擇年份：</label>
+      <label for="year-select">{{ t.selectYear }}</label>
       <div class="custom-select">
         <select id="year-select" v-model="selectedYear">
           <option
@@ -133,41 +194,30 @@ watch(selectedYear, (newVal) => {
     </div>
 
     <div v-if="isLoading" class="loading-state">
-      <p>正在載入作者資料...</p>
+      <p>{{ t.loading }}</p>
     </div>
-
-    <div
-      v-else-if="!randomizedAuthors || randomizedAuthors.length === 0"
-      class="no-data"
-    >
-      <p>尚無 {{ selectedYear }} 年的專欄作者資料，敬請期待。🥺</p>
+    <div v-else-if="displayAuthors.length === 0" class="no-data">
+      <p>{{ t.noData(selectedYear) }}</p>
     </div>
 
     <div v-else class="authors-list">
-      <div
-        v-for="author in randomizedAuthors"
-        :key="author.id"
-        class="author-box"
-      >
+      <div v-for="author in displayAuthors" :key="author.id" class="author-box">
         <div v-if="isEditor && !author.is_published" class="draft-badge">
-          隱藏中
+          {{ t.hidden }}
         </div>
-
         <div class="author-info">
-          <div
+          <img
+            :src="author.author_image"
+            :alt="author.displayName"
             class="author-image"
-            :style="{ backgroundImage: `url(${author.author_image})` }"
-            role="img"
-            :aria-label="author.name"
-          ></div>
-          <h2>{{ author.name }}</h2>
+          />
+          <h2>{{ author.displayName }}</h2>
         </div>
-
         <div class="author-bio">
-          <p>{{ author.bio }}</p>
-          <NuxtLink :to="`/authors/${author.name}`" class="read-more-btn">
-            閱讀此作者文章
-          </NuxtLink>
+          <p>{{ author.displayBio }}</p>
+          <NuxtLink :to="`/authors/${author.name}`" class="read-more-btn">{{
+            t.readMore
+          }}</NuxtLink>
         </div>
       </div>
     </div>
@@ -175,7 +225,6 @@ watch(selectedYear, (newVal) => {
 </template>
 
 <style scoped>
-/* 這裡請直接貼上你原本檔案中的 CSS，完全不需要改動 */
 .loading-state {
   text-align: center;
   font-size: 1.2rem;
@@ -197,7 +246,9 @@ watch(selectedYear, (newVal) => {
   border-radius: 10px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
   max-width: 900px;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
   position: relative;
 }
 .author-box:hover {
@@ -214,7 +265,6 @@ watch(selectedYear, (newVal) => {
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 0.8rem;
-  z-index: 10;
 }
 .author-info {
   display: flex;
@@ -226,9 +276,8 @@ watch(selectedYear, (newVal) => {
   height: 160px;
   border-radius: 50%;
   margin-right: 20px;
-  background-color: #e0e0e0;
-  background-size: cover;
-  background-position: center;
+  object-fit: cover;
+  flex-shrink: 0;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 .author-info h2 {
@@ -238,7 +287,8 @@ watch(selectedYear, (newVal) => {
   padding-right: 40px;
   font-weight: bold;
   font-family: "Times New Roman", serif;
-  white-space: nowrap;
+  word-break: break-word;
+  max-width: 250px;
 }
 .author-bio {
   flex: 1;
@@ -263,12 +313,31 @@ watch(selectedYear, (newVal) => {
   color: #4caf50;
   text-decoration: none;
   font-weight: bold;
-  font-family: "Times New Roman", serif;
   transition: color 0.3s;
 }
 .read-more-btn:hover {
   color: #2e7d32;
   text-decoration: underline;
+}
+@media (max-width: 1024px) {
+  .author-box {
+    align-items: flex-start;
+  }
+  .author-info {
+    flex-direction: column;
+    align-items: center;
+    width: 180px;
+    margin-right: 30px;
+  }
+  .author-image {
+    margin-right: 0;
+    margin-bottom: 15px;
+  }
+  .author-info h2 {
+    padding-right: 0;
+    text-align: center;
+    width: 100%;
+  }
 }
 @media (max-width: 768px) {
   .author-box {
@@ -294,7 +363,6 @@ watch(selectedYear, (newVal) => {
   .author-info h2 {
     padding-right: 0;
     font-size: 1.6rem;
-    white-space: normal;
   }
   .author-bio {
     width: 100%;

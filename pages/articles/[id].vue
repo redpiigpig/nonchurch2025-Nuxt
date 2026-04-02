@@ -1,277 +1,269 @@
 <script setup>
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, defineAsyncComponent, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import { marked } from "marked";
 import markedFootnote from "marked-footnote";
-// ⭐ 修改 1: 使用 ~ 符號來代表根目錄，路徑更穩定
 import { supabase } from "~/supabase";
 import { useTempArticlesStore } from "~/stores/tempArticles";
 import { useLanguage } from "~/composables/useLanguage";
-
-// MainLayout 會自動引入，或是像這樣明確引入也可以
+import { useEditorMode } from "~/composables/useEditorMode";
 
 marked.use(markedFootnote({ prefixId: "footnote-" }));
 
 const route = useRoute();
-const tempArticlesStore = useTempArticlesStore();
 const { currentLang } = useLanguage();
+const { isEditor } = useEditorMode();
+const tempArticlesStore = useTempArticlesStore();
 const article = ref(null);
 const loading = ref(true);
 const issueImages = ref([]);
 
-const toTranslationKey = (lang) => {
-  if (!lang || lang === "default") return "zh_TW";
-  return lang.replace("-", "_");
+// ─── UI 多語字典 ──────────────────────────────────────────────────
+const contentTrans = {
+  "zh-TW": {
+    prev: "閱讀上一篇文章",
+    next: "閱讀下一篇文章",
+    backToToc: "回到本期雜誌目錄",
+    issuePrefix: "第",
+    issueSuffix: "期：",
+    browserTrans: "",
+  },
+  "zh-HK": {
+    prev: "閱讀上一篇文章",
+    next: "閱讀下一篇文章",
+    backToToc: "返去今期雜誌目錄",
+    issuePrefix: "第",
+    issueSuffix: "期：",
+    browserTrans:
+      "本文內容係用台灣繁體寫嘅，如果你偏好用粵語閱讀，可以使用瀏覽器翻譯功能。",
+  },
+  "zh-CN": {
+    prev: "阅读上一篇文章",
+    next: "阅读下一篇文章",
+    backToToc: "回到本期杂志目录",
+    issuePrefix: "第",
+    issueSuffix: "期：",
+    browserTrans:
+      "原文为繁体中文，建议使用浏览器的翻译功能以获得最佳阅读体验。",
+  },
+  en: {
+    prev: "Previous Article",
+    next: "Next Article",
+    backToToc: "Back to Table of Contents",
+    issuePrefix: "Vol.",
+    issueSuffix: ": ",
+    browserTrans:
+      "The original text is in Traditional Chinese. Please use your browser's translation feature to read.",
+  },
+  ja: {
+    prev: "前の記事を読む",
+    next: "次の記事を読む",
+    backToToc: "目次に戻る",
+    issuePrefix: "第",
+    issueSuffix: "号：",
+    browserTrans:
+      "原文は繁体字中国語です。ブラウザの翻訳機能を利用してご覧ください。",
+  },
+  ko: {
+    prev: "이전 기사 읽기",
+    next: "다음 기사 읽기",
+    backToToc: "목차로 돌아가기",
+    issuePrefix: "제",
+    issueSuffix: "호: ",
+    browserTrans:
+      "원문은 번체 중국어입니다. 브라우저의 번역 기능을 사용하여 읽어주시기 바랍니다.",
+  },
 };
-
-const translatedArticle = computed(() => {
-  if (!article.value) return null;
-  const key = toTranslationKey(currentLang.value);
-  const tr = article.value.translations?.[key] || {};
-  return {
-    ...article.value,
-    title: tr.title || article.value.title,
-    subtitle: tr.subtitle || article.value.subtitle,
-    author: tr.author_display || tr.author || article.value.author,
-    authorTitle: tr.author_title || article.value.authorTitle,
-    summary: tr.summary || article.value.summary,
-    keyword: tr.keyword || article.value.keyword,
-    remark: tr.remark || article.value.remark,
-  };
-});
-
-// SEO 資料設定 (Nuxt 專用寫法)
-useHead({
-  title: computed(() => {
-    if (!translatedArticle.value) return "載入中... - 無境界者雜誌";
-    // 嘗試從 ID 去除標題來取得編號 (例如 "6-1 標題" -> "6-1")
-    const number = translatedArticle.value.id.replace(translatedArticle.value.title, "").trim();
-    return `${number} ${translatedArticle.value.title} - 無境界者雜誌`;
-  }),
-  meta: computed(() => {
-    if (!translatedArticle.value || !translatedArticle.value.seo) return [];
-    const seo = translatedArticle.value.seo;
-    const og = seo.og || {};
-
-    return [
-      { name: "description", content: seo.description },
-      { name: "keywords", content: seo.keywords },
-      { name: "author", content: translatedArticle.value.author },
-      { name: "robots", content: seo.robots },
-      { name: "google-site-verification", content: seo.googleVerification },
-      // Open Graph
-      { property: "og:title", content: og.title },
-      { property: "og:description", content: og.description },
-      { property: "og:image", content: og.image },
-      { property: "og:url", content: og.url },
-      { property: "og:type", content: og.type },
-      { property: "og:site_name", content: og.site_name },
-      { property: "og:locale", content: og.locale },
-    ];
-  }),
-});
-
-useSeoMeta({
-  // 1. 網頁標題
-  title: () =>
-    translatedArticle.value ? `${translatedArticle.value.title} - 無境界者雜誌` : "無境界者雜誌",
-
-  // 2. Open Graph (FB, Line) 標題
-  ogTitle: () => translatedArticle.value?.title,
-
-  // 3. 描述：優先使用 summary (文章摘要)，沒有的話用固定文字
-  description: () =>
-    translatedArticle.value?.summary ||
-    "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
-  ogDescription: () =>
-    translatedArticle.value?.summary ||
-    "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
-
-  // 4. ⭐ 關鍵圖片設定 ⭐
-  // 優先順序：資料庫的 seo_image -> 資料庫的 cover_image -> 系統預設圖
-  ogImage: () =>
-    translatedArticle.value?.seo_image ||
-    translatedArticle.value?.cover_image ||
-    "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/default-seo.jpg",
-
-  // 5. 其他設定
-  author: () => translatedArticle.value?.author,
-  twitterCard: "summary_large_image",
-  twitterTitle: () => translatedArticle.value?.title,
-  twitterDescription: () => translatedArticle.value?.summary,
-  twitterImage: () => translatedArticle.value?.seo_image || translatedArticle.value?.cover_image,
-});
-
-// 處理底部導航點擊 (維持原邏輯)
-const handleNavClick = () => {
-  if (import.meta.client) {
-    // 確保只在瀏覽器端執行
-    const currentState = window.history.state || {};
-    window.history.replaceState({ ...currentState, forceTop: true }, "");
-  }
-};
-
-const fetchArticleData = async (articleId) => {
-  try {
-    const { data, error } = await supabase
-      .from("articles")
-      .select("*")
-      .eq("id", articleId)
-      .single();
-
-    if (error) throw error;
-
-    return {
-      ...data,
-      authorTitle: data.author_title,
-      issueTitle: data.issue_title,
-      prev: data.prev_article,
-      next: data.next_article,
-      footnotes: data.footnotes || [],
-    };
-  } catch (error) {
-    console.error(`載入文章 ${articleId} 失敗:`, error.message);
-    return null;
-  }
-};
-
-const getTempArticleById = (articleId) => {
-  const fallback = tempArticlesStore.getById(articleId);
-  if (!fallback) return null;
-  return {
-    ...fallback,
-    footnotes: fallback.footnotes || [],
-  };
-};
-
-const fetchIssueImages = async (issueNumber) => {
-  if (!issueNumber) return;
-  const path = `articles/issue-${issueNumber}`;
-  const { data, error } = await supabase.storage.from("images").list(path, {
-    limit: 1000,
-    offset: 0,
-    sortBy: { column: "name", order: "asc" },
-  });
-
-  if (!error && data) {
-    issueImages.value = data;
-  }
-};
-
-// 監聽路由變化 (當使用者點上一篇/下一篇時)
-watch(
-  () => route.params.id,
-  async (newId, oldId) => {
-    if (newId && newId !== oldId) {
-      loading.value = true;
-      let fetchedArticle = await fetchArticleData(newId);
-      if (!fetchedArticle) fetchedArticle = getTempArticleById(newId);
-      if (fetchedArticle) {
-        article.value = fetchedArticle;
-        if (article.value.issue) {
-          await fetchIssueImages(article.value.issue);
-        }
-      }
-      loading.value = false;
-    }
-  }
+const t = computed(
+  () => contentTrans[currentLang.value] || contentTrans["zh-TW"],
 );
 
-onMounted(async () => {
-  loading.value = true;
-  // 正常載入（預覽流程改由 /preview 頁面處理）
-  const articleId = route.params.id;
-  let fetchedArticle = await fetchArticleData(articleId);
-  if (!fetchedArticle) fetchedArticle = getTempArticleById(articleId);
-
-  if (fetchedArticle) {
-    article.value = fetchedArticle;
-    if (article.value.issue) {
-      await fetchIssueImages(article.value.issue);
-    }
-  }
-  loading.value = false;
-});
-
-// 輔助函式：處理註腳連結
-const formatTextWithFootnote = (text) => {
-  if (!text) return "";
-  return text.replace(/\[\^(\d+)\]/g, (match, id) => {
-    return `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`;
-  });
+const categoryTranslations = {
+  "zh-TW": {
+    專題文章: "專題文章",
+    評論與回應: "評論與回應",
+    人物專訪: "人物專訪",
+    生命故事: "生命故事",
+    時事感想: "時事感想",
+    文藝創作: "文藝創作",
+    公告與剪影: "公告與剪影",
+    封面故事: "封面故事",
+    光影時刻: "光影時刻",
+    實驗園地: "實驗園地",
+    文獻與翻譯: "文獻與翻譯",
+  },
+  "zh-HK": {
+    專題文章: "專題文章",
+    評論與回應: "評論與回應",
+    人物專訪: "人物專訪",
+    生命故事: "生命故事",
+    時事感想: "時事感想",
+    文藝創作: "文藝創作",
+    公告與剪影: "公告與剪影",
+    封面故事: "封面故事",
+    光影時刻: "光影時刻",
+    實驗園地: "實驗園地",
+    文獻與翻譯: "文獻與翻譯",
+  },
+  "zh-CN": {
+    專題文章: "专题文章",
+    評論與回應: "评论与回应",
+    人物專訪: "人物专访",
+    生命故事: "生命故事",
+    時事感想: "时事感想",
+    文藝創作: "文艺创作",
+    公告與剪影: "公告与剪影",
+    封面故事: "封面故事",
+    光影時刻: "光影时刻",
+    實驗園地: "实验园地",
+    文獻與翻譯: "文献与翻译",
+  },
+  en: {
+    專題文章: "Feature",
+    評論與回應: "Review",
+    人物專訪: "Interview",
+    生命故事: "Life Story",
+    時事感想: "Current Affairs",
+    文藝創作: "Literature",
+    公告與剪影: "Notice",
+    封面故事: "Cover Story",
+    光影時刻: "Moments",
+    實驗園地: "Experimental",
+    文獻與翻譯: "Documents & Translation",
+  },
+  ja: {
+    專題文章: "特集記事",
+    評論與回應: "評論と応答",
+    人物專訪: "インタビュー",
+    生命故事: "ライフストーリー",
+    時事感想: "時事コラム",
+    文藝創作: "文芸創作",
+    公告與剪影: "お知らせ",
+    封面故事: "カバーストーリー",
+    光影時刻: "光影の時",
+    實驗園地: "実験的創作",
+    文獻與翻譯: "文献と翻訳",
+  },
+  ko: {
+    專題文章: "특집 기사",
+    評論與回應: "평론 및 응답",
+    人物專訪: "인터뷰",
+    生命故事: "삶의 이야기",
+    時事感想: "시사 칼럼",
+    文藝創作: "문예 창작",
+    公告與剪影: "공지사항",
+    封面故事: "커버 스토리",
+    光影時刻: "포토 스토리",
+    實驗園地: "실험적 창작",
+    文獻與翻譯: "문헌 및 번역",
+  },
 };
 
-// Markdown 解析
-const htmlContent = computed(() => {
-  if (!article.value || !article.value.content) return "";
-  let fullText = article.value.content;
+// ─── displayArticle：套用 Supabase translations 翻譯 ───────────────
+const displayArticle = computed(() => {
+  if (!article.value) return null;
+  const langKey =
+    currentLang.value === "default"
+      ? "zh_TW"
+      : currentLang.value.replace("-", "_");
+  const tArt = article.value.translations?.[langKey] || {};
+  const tIss = article.value.issues?.translations?.[langKey] || {};
 
-  // 替換註腳引用
-  fullText = fullText.replace(/\[\^(\d+)\]/g, (match, id) => {
-    return `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`;
-  });
-
-  let parsedHtml = marked.parse(fullText, { gfm: true, breaks: true });
-
-  // 替換圖片路徑 (Supabase Storage)
-  parsedHtml = parsedHtml.replace(/src="([^"]+)"/g, (match, srcValue) => {
-    if (
-      srcValue.startsWith("http") ||
-      srcValue.startsWith("data:") ||
-      srcValue.startsWith("//")
-    ) {
-      return match;
-    }
-    if (!issueImages.value || issueImages.value.length === 0) {
-      return match;
-    }
-    // 嘗試比對檔名
-    const matchedFile = issueImages.value.find((file) => {
-      const nameWithoutExt =
-        file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
-      return file.name === srcValue || nameWithoutExt === srcValue;
-    });
-
-    if (matchedFile) {
-      const fullPath = `articles/issue-${article.value.issue}/${matchedFile.name}`;
-      const { data } = supabase.storage.from("images").getPublicUrl(fullPath);
-      return `src="${data.publicUrl}"`;
-    }
-    return match;
-  });
-
-  // 產生註腳列表
-  if (article.value.footnotes && article.value.footnotes.length > 0) {
-    const listItems = article.value.footnotes
-      .map((note) => {
-        return `<li id="footnote-${note.id}">
-          <p>
-            ${note.text}
-            <a href="#footnote-ref-${note.id}" class="footnote-backref">↩</a>
-          </p>
-        </li>`;
-      })
-      .join("");
-
-    parsedHtml += `
-      <div class="footnotes">
-        <hr />
-        <ol>${listItems}</ol>
-      </div>
-    `;
+  let displayPrev = null;
+  if (article.value.dynamicPrev) {
+    const pTrans = article.value.dynamicPrev.translations?.[langKey] || {};
+    displayPrev = {
+      id: article.value.dynamicPrev.id,
+      title: pTrans.title || article.value.dynamicPrev.title,
+    };
+  }
+  let displayNext = null;
+  if (article.value.dynamicNext) {
+    const nTrans = article.value.dynamicNext.translations?.[langKey] || {};
+    displayNext = {
+      id: article.value.dynamicNext.id,
+      title: nTrans.title || article.value.dynamicNext.title,
+    };
   }
 
-  return parsedHtml;
+  return {
+    ...article.value,
+    title: tArt.title || article.value.title,
+    subtitle: tArt.subtitle || article.value.subtitle,
+    author: tArt.author_display || tArt.author || article.value.author,
+    authorTitle: tArt.author_title || article.value.authorTitle,
+    keyword: tArt.keyword || article.value.keyword,
+    remark: tArt.remark || article.value.remark,
+    issueTitle: tIss.title || article.value.issueTitle,
+    displayPrev,
+    displayNext,
+  };
 });
 
-const keywordContent = computed(() => {
-  if (!translatedArticle.value || !translatedArticle.value.keyword) return "";
-  return marked.parse(translatedArticle.value.keyword);
+// ─── Special 元件對照表（type === 'special' 的文章掛載專屬元件）────
+// ⚠️ page-flip 直接操作 DOM，必須透過 <ClientOnly> 包住避免 SSR 錯誤
+const specialComponentsMap = {
+  "7-6 In 是 Siáng？（他們是誰？）": defineAsyncComponent(
+    () => import("~/components/feature_articles/Article7_6.vue"),
+  ),
+};
+
+const currentSpecialComponent = computed(() => {
+  if (!article.value || article.value.type !== "special") return null;
+  const matchKey = Object.keys(specialComponentsMap).find((key) =>
+    article.value.id.includes(key),
+  );
+  return matchKey ? specialComponentsMap[matchKey] : null;
 });
+
+// ─── SEO（page 層）────────────────────────────────────────────────
+// displayArticle 已套用 translations，title/summary/keyword 自動對應當前語言
+useSeoMeta({
+  title: () =>
+    displayArticle.value
+      ? `${displayArticle.value.title} - 無境界者雜誌`
+      : "無境界者雜誌",
+  ogTitle: () => displayArticle.value?.title || "無境界者雜誌",
+  description: () =>
+    displayArticle.value?.summary ||
+    "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
+  ogDescription: () =>
+    displayArticle.value?.summary ||
+    "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
+  // 直接從 article.value.seo.image 讀取，不走 displayArticle（seo 欄位不需翻譯）
+  ogImage: () =>
+    article.value?.seo?.image ||
+    "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
+  // keywords 使用翻譯後的關鍵字，讓各語言搜尋引擎都能索引
+  keywords: () =>
+    (displayArticle.value?.keyword || "")
+      .replace(/🌿/g, "")
+      .replace(/(關鍵字|关键字|Keywords|キーワード|키워드)\s*[:：]/gi, "")
+      .trim(),
+  author: () => displayArticle.value?.author,
+  twitterCard: "summary_large_image",
+  twitterTitle: () => displayArticle.value?.title,
+  twitterDescription: () => displayArticle.value?.summary,
+  twitterImage: () =>
+    article.value?.seo?.image ||
+    "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
+});
+
+const translatedCategory = computed(() => {
+  if (!displayArticle.value?.category) return "";
+  const lang = currentLang.value === "default" ? "zh-TW" : currentLang.value;
+  return (
+    categoryTranslations[lang]?.[displayArticle.value.category] ||
+    displayArticle.value.category
+  );
+});
+
+const showTranslationHint = computed(
+  () => currentLang.value !== "zh-TW" && currentLang.value !== "default",
+);
 
 const categoryColor = computed(() => {
-  if (!translatedArticle.value || !translatedArticle.value.category) return "#ff8000";
-  const colorMap = {
+  const map = {
     專題文章: "#8b0000",
     評論與回應: "#ff8000",
     人物專訪: "#f0e137",
@@ -283,17 +275,178 @@ const categoryColor = computed(() => {
     光影時刻: "#7d6c29",
     實驗園地: "#db7093",
   };
-  return colorMap[translatedArticle.value.category] || "#ff8000";
+  return map[displayArticle.value?.category] || "#ff8000";
 });
 
 const issueLinkParams = computed(() => {
-  if (!translatedArticle.value || !translatedArticle.value.issue) return {};
-  const year = 2025 + Math.floor((translatedArticle.value.issue - 1) / 6);
+  if (!displayArticle.value?.issue) return {};
+  const year = 2025 + Math.floor((displayArticle.value.issue - 1) / 6);
   return {
     path: "/articles",
-    query: { year: year },
-    hash: `#issue-${translatedArticle.value.issue}`,
+    query: { year },
+    hash: `#issue-${displayArticle.value.issue}`,
   };
+});
+
+// ─── 資料抓取 ─────────────────────────────────────────────────────
+const getArticleOrder = (idStr) => {
+  if (!idStr) return 0;
+  const match = idStr.match(/-(\d+)/);
+  return match ? parseInt(match[1]) : parseInt(idStr) || 0;
+};
+
+const fetchArticleData = async (articleId) => {
+  try {
+    const { data: currentArt, error } = await supabase
+      .from("articles")
+      .select("*, issues(id, title, translations)")
+      .eq("id", articleId)
+      .single();
+    if (error) throw error;
+
+    let artQuery = supabase
+      .from("articles")
+      .select("id, title, translations")
+      .eq("issue", currentArt.issue);
+    if (!isEditor.value) artQuery = artQuery.eq("is_published", true);
+    const { data: issueArticles } = await artQuery;
+
+    let prev = null,
+      next = null;
+    if (issueArticles) {
+      issueArticles.sort(
+        (a, b) => getArticleOrder(a.id) - getArticleOrder(b.id),
+      );
+      const idx = issueArticles.findIndex((a) => a.id === articleId);
+      if (idx > 0) prev = issueArticles[idx - 1];
+      if (idx !== -1 && idx < issueArticles.length - 1)
+        next = issueArticles[idx + 1];
+    }
+
+    return {
+      ...currentArt,
+      authorTitle: currentArt.author_title,
+      issueTitle: currentArt.issue_title,
+      dynamicPrev: prev,
+      dynamicNext: next,
+      footnotes: currentArt.footnotes || [],
+      media_data: currentArt.media_data || {},
+    };
+  } catch (err) {
+    console.error(`載入文章 ${articleId} 失敗:`, err.message);
+    // fallback to tempArticlesStore
+    const fallback = tempArticlesStore.getById(articleId);
+    return fallback
+      ? { ...fallback, footnotes: fallback.footnotes || [] }
+      : null;
+  }
+};
+
+const fetchIssueImages = async (issueNumber) => {
+  if (!issueNumber) return;
+  const { data, error } = await supabase.storage
+    .from("images")
+    .list(`articles/issue-${issueNumber}`, {
+      limit: 1000,
+      offset: 0,
+      sortBy: { column: "name", order: "asc" },
+    });
+  if (!error && data) issueImages.value = data;
+};
+
+const handleNavClick = () => {
+  if (import.meta.client) {
+    const state = window.history.state || {};
+    window.history.replaceState({ ...state, forceTop: true }, "");
+  }
+};
+
+const formatTextWithFootnote = (text) => {
+  if (!text) return "";
+  return text.replace(
+    /\[\^(\d+)\]/g,
+    (_, id) =>
+      `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`,
+  );
+};
+
+const htmlContent = computed(() => {
+  if (!article.value?.content) return "";
+  let fullText = article.value.content.replace(
+    /\[\^(\d+)\]/g,
+    (_, id) =>
+      `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`,
+  );
+
+  let parsedHtml = marked.parse(fullText, { gfm: true, breaks: true });
+
+  parsedHtml = parsedHtml.replace(/src="([^"]+)"/g, (match, srcValue) => {
+    if (
+      srcValue.startsWith("http") ||
+      srcValue.startsWith("data:") ||
+      srcValue.startsWith("//")
+    )
+      return match;
+    const matchedFile = issueImages.value.find((file) => {
+      const nameWithoutExt =
+        file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
+      return file.name === srcValue || nameWithoutExt === srcValue;
+    });
+    if (matchedFile) {
+      const { data } = supabase.storage
+        .from("images")
+        .getPublicUrl(
+          `articles/issue-${article.value.issue}/${matchedFile.name}`,
+        );
+      return `src="${data.publicUrl}"`;
+    }
+    return match;
+  });
+
+  // footnotes 不附在這裡，由 footnotesHtml 單獨渲染，確保 special 文章的順序正確
+  return parsedHtml;
+});
+
+// footnotes 獨立 computed，讓 special 文章可以把它放在元件之後
+const footnotesHtml = computed(() => {
+  if (!article.value?.footnotes?.length) return "";
+  const listItems = article.value.footnotes
+    .map(
+      (note) =>
+        `<li id="footnote-${note.id}"><p>${note.text}<a href="#footnote-ref-${note.id}" class="footnote-backref">↩</a></p></li>`,
+    )
+    .join("");
+  return `<div class="footnotes"><hr /><ol>${listItems}</ol></div>`;
+});
+
+const keywordContent = computed(() => {
+  if (!displayArticle.value?.keyword) return "";
+  return marked.parse(displayArticle.value.keyword);
+});
+
+watch(
+  () => route.params.id,
+  async (newId, oldId) => {
+    if (newId && newId !== oldId) {
+      loading.value = true;
+      const fetched = await fetchArticleData(newId);
+      if (fetched) {
+        article.value = fetched;
+        if (article.value.issue) await fetchIssueImages(article.value.issue);
+      }
+      loading.value = false;
+    }
+  },
+);
+
+onMounted(async () => {
+  loading.value = true;
+  const fetched = await fetchArticleData(route.params.id);
+  if (fetched) {
+    article.value = fetched;
+    if (article.value.issue) await fetchIssueImages(article.value.issue);
+  }
+  loading.value = false;
 });
 </script>
 
@@ -310,22 +463,26 @@ const issueLinkParams = computed(() => {
   <article v-else class="article-content">
     <div class="title-header">
       <div
-        v-if="translatedArticle.category"
+        v-if="displayArticle.category"
         class="featured-box"
         :style="{ backgroundColor: categoryColor }"
       >
-        {{ translatedArticle.category }}
+        {{ translatedCategory }}
       </div>
-
       <h1
         class="main-title"
-        v-html="formatTextWithFootnote(translatedArticle.title)"
+        v-html="formatTextWithFootnote(displayArticle.title)"
       ></h1>
       <h1
-        v-if="translatedArticle.subtitle"
+        v-if="displayArticle.subtitle"
         class="sub-title"
-        v-html="'──' + formatTextWithFootnote(translatedArticle.subtitle)"
+        v-html="'──' + formatTextWithFootnote(displayArticle.subtitle)"
       ></h1>
+    </div>
+
+    <!-- 翻譯提示：副標題後、粗線前 -->
+    <div v-if="showTranslationHint && t.browserTrans" class="translation-hint">
+      🌐 {{ t.browserTrans }}
     </div>
 
     <div class="divider-thick"></div>
@@ -334,60 +491,81 @@ const issueLinkParams = computed(() => {
 
     <div class="author-info">
       <p class="author-name">
-        <span v-html="formatTextWithFootnote(translatedArticle.author)"></span>
+        <span v-html="formatTextWithFootnote(displayArticle.author)"></span>
         <span
           class="author-title"
-          v-html="formatTextWithFootnote(translatedArticle.authorTitle)"
+          v-html="formatTextWithFootnote(displayArticle.authorTitle)"
         ></span>
         <span
-          v-if="translatedArticle.remark"
+          v-if="displayArticle.remark"
           class="author-remark"
-          v-html="formatTextWithFootnote(translatedArticle.remark)"
+          v-html="formatTextWithFootnote(displayArticle.remark)"
         ></span>
       </p>
     </div>
 
     <div
-      v-if="translatedArticle.keyword"
+      v-if="displayArticle.keyword"
       class="keyword-section"
       v-html="keywordContent"
     ></div>
-    <br />
-    <div class="markdown-body" v-html="htmlContent"></div>
+
+    <!-- Special 文章：說明文字 → 有聲書元件 → footnotes -->
+    <div v-if="displayArticle.type === 'special' && currentSpecialComponent">
+      <br />
+      <div v-if="htmlContent" class="audiobook-intro">
+        <div class="markdown-body" v-html="htmlContent"></div>
+      </div>
+      <!-- page-flip 直接操作 DOM，用 ClientOnly 避免 SSR 錯誤 -->
+      <ClientOnly>
+        <component :is="currentSpecialComponent" :article="displayArticle" />
+      </ClientOnly>
+      <div
+        v-if="footnotesHtml"
+        class="markdown-body"
+        v-html="footnotesHtml"
+      ></div>
+    </div>
+
+    <!-- 一般文章：內文 → footnotes -->
+    <div v-else>
+      <br />
+      <div class="markdown-body" v-html="htmlContent"></div>
+      <div
+        v-if="footnotesHtml"
+        class="markdown-body"
+        v-html="footnotesHtml"
+      ></div>
+    </div>
 
     <div class="article-navigation">
       <div class="nav-item">
-        <template v-if="translatedArticle.prev">
-          <strong>閱讀上一篇文章</strong>
+        <template v-if="displayArticle.displayPrev">
+          <strong>{{ t.prev }}</strong>
           <NuxtLink
-            v-if="translatedArticle.prev.id"
-            :to="`/articles/${translatedArticle.prev.id}`"
+            :to="`/articles/${displayArticle.displayPrev.id}`"
             @click="handleNavClick"
           >
-            {{ translatedArticle.prev.title }}
+            {{ displayArticle.displayPrev.title }}
           </NuxtLink>
-          <span v-else>{{ translatedArticle.prev.title }}</span>
         </template>
       </div>
-
       <div class="nav-item">
-        <strong>回到本期雜誌目錄</strong>
+        <strong>{{ t.backToToc }}</strong>
         <NuxtLink :to="issueLinkParams" @click="handleNavClick">
-          第{{ translatedArticle.issue }}期：{{ translatedArticle.issueTitle }}
+          {{ t.issuePrefix }}{{ displayArticle.issue }}{{ t.issueSuffix
+          }}{{ displayArticle.issueTitle }}
         </NuxtLink>
       </div>
-
       <div class="nav-item">
-        <template v-if="translatedArticle.next">
-          <strong>閱讀下一篇文章</strong>
+        <template v-if="displayArticle.displayNext">
+          <strong>{{ t.next }}</strong>
           <NuxtLink
-            v-if="translatedArticle.next.id"
-            :to="`/articles/${translatedArticle.next.id}`"
+            :to="`/articles/${displayArticle.displayNext.id}`"
             @click="handleNavClick"
           >
-            {{ translatedArticle.next.title }}
+            {{ displayArticle.displayNext.title }}
           </NuxtLink>
-          <span v-else>{{ translatedArticle.next.title }}</span>
         </template>
       </div>
     </div>
@@ -395,8 +573,20 @@ const issueLinkParams = computed(() => {
 </template>
 
 <style scoped>
-/* 這裡不需要重寫 markdown-body 的樣式，因為 nuxt.config.ts 已經全域引入了 article.css */
-
+.audiobook-intro {
+  margin-bottom: 3rem;
+  padding-bottom: 2rem;
+  border-bottom: 2px dashed #ccc;
+}
+.translation-hint {
+  background: #fff3cd;
+  border: 1px solid #ffeeba;
+  color: #856404;
+  padding: 10px 15px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 1rem;
+}
 .title-header {
   position: relative;
   margin-bottom: 20px;
@@ -476,10 +666,6 @@ const issueLinkParams = computed(() => {
   margin-top: 20px;
   color: #007bff;
   text-decoration: none;
-  border-bottom: 1px solid transparent;
-}
-.back-link:hover {
-  border-bottom-color: #007bff;
 }
 .article-navigation {
   display: flex;
@@ -546,7 +732,7 @@ const issueLinkParams = computed(() => {
     content: "...";
   }
   60% {
-    content: "....";
+    content: "...";
   }
   75% {
     content: ".....";
@@ -575,9 +761,6 @@ const issueLinkParams = computed(() => {
 :deep(.footnotes li) {
   display: flex;
   align-items: baseline;
-  position: relative;
-  margin-bottom: 0px;
-  padding-left: 0;
   counter-increment: footnote-counter;
   line-height: 1.6;
 }
@@ -588,37 +771,20 @@ const issueLinkParams = computed(() => {
   flex-shrink: 0;
   text-align: right;
   color: #007bff;
-  font-family: "Times New Roman", serif;
-  position: static;
-  cursor: pointer;
-}
-:deep(.footnotes li::before:hover) {
-  color: #0056b3;
-  font-weight: bold;
-  text-decoration: underline;
 }
 :deep(.footnotes li p) {
   margin: 0;
   text-indent: 0 !important;
   flex-grow: 1;
   padding-left: 10px;
-  font-family: "Times New Roman", serif;
   color: #444;
   text-align: justify;
-  min-width: 0;
-  word-wrap: break-word;
-  overflow-wrap: anywhere;
   word-break: break-word;
 }
 :deep(.footnotes .footnote-backref) {
   text-decoration: none;
-  border: none;
   color: #007bff;
   margin-left: 5px;
-  font-family: sans-serif;
-}
-:deep(.footnotes .footnote-backref:hover) {
-  color: #0056b3;
 }
 @media (max-width: 768px) {
   .featured-box {
@@ -629,12 +795,12 @@ const issueLinkParams = computed(() => {
     font-size: 1.2rem;
   }
   .main-title {
-    font-size: 2.5rem;
+    font-size: 2rem;
     clear: both;
     padding-left: 0;
   }
   .sub-title {
-    font-size: 2rem;
+    font-size: 1.5rem;
     padding-left: 0;
   }
   .article-navigation {
@@ -648,12 +814,6 @@ const issueLinkParams = computed(() => {
   }
   .nav-item:last-child {
     border-bottom: none;
-  }
-  .loading-state {
-    text-align: center;
-    padding: 60px;
-    font-size: 1.5rem;
-    color: #444;
   }
 }
 </style>

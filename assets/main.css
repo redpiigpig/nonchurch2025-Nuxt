@@ -17,7 +17,7 @@ body {
   color: #444; /* 全站統一顏色 (深灰) */
 
   /* 背景設定 */
-  background-image: url("https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/background_image.png");
+  background-image: url("https://res.cloudinary.com/nonchurch2025/image/upload/background_image.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

@@ -13,8 +13,12 @@ const props = defineProps({
 // 1. 資料解析與模式控制
 // ==========================================
 const mediaData = computed(() => props.article.media_data || {});
-const bookData = computed(() => mediaData.value.book || { pages: [], audio: "" });
-const slideshowData = computed(() => mediaData.value.slideshow || { slides: [], audio: "" });
+const bookData = computed(
+  () => mediaData.value.book || { pages: [], audio: "" },
+);
+const slideshowData = computed(
+  () => mediaData.value.slideshow || { slides: [], audio: "" },
+);
 const allPages = computed(() => bookData.value.pages || []);
 
 const currentMode = ref("book");
@@ -136,11 +140,14 @@ const interiorPages = computed(() =>
   allPages.value.length < 2 ? [] : allPages.value.slice(1, -1),
 );
 const backCoverPage = computed(() =>
-  allPages.value.length === 0 ? null : allPages.value[allPages.value.length - 1],
+  allPages.value.length === 0
+    ? null
+    : allPages.value[allPages.value.length - 1],
 );
 
 const initPageFlip = () => {
-  if (!bookContainer.value || isMobile.value || currentMode.value !== "book") return;
+  if (!bookContainer.value || isMobile.value || currentMode.value !== "book")
+    return;
   if (pageFlip) pageFlip.destroy();
 
   pageFlip = new PageFlip(bookContainer.value, {
@@ -159,7 +166,8 @@ const initPageFlip = () => {
   pageFlip.loadFromHTML(bookContainer.value.querySelectorAll(".page"));
 
   pageFlip.on("flip", (e) => {
-    const audioUrl = allPages.value[e.data]?.audio || allPages.value[e.data + 1]?.audio;
+    const audioUrl =
+      allPages.value[e.data]?.audio || allPages.value[e.data + 1]?.audio;
     playPageAudio(audioUrl);
   });
 };
@@ -186,7 +194,11 @@ const processedMobilePages = computed(() => {
       next.text &&
       !next.image
     ) {
-      result.push({ ...current, text: next.text, audio: current.audio || next.audio });
+      result.push({
+        ...current,
+        text: next.text,
+        audio: current.audio || next.audio,
+      });
       i++;
     } else {
       result.push(current);
@@ -287,7 +299,11 @@ onUnmounted(() => {
   <div class="media-experience-container">
     <div v-if="!isMobile" class="desktop-wrapper">
       <div class="control-bar">
-        <button class="icon-btn" @click="togglePlay" :title="isPlaying ? '暫停' : '朗讀'">
+        <button
+          class="icon-btn"
+          @click="togglePlay"
+          :title="isPlaying ? '暫停' : '朗讀'"
+        >
           {{ isPlaying ? "⏸" : "▶" }}
         </button>
         <div class="volume-control-group">
@@ -307,7 +323,11 @@ onUnmounted(() => {
           </div>
         </div>
         <div class="mode-switch-group">
-          <span class="mode-label" @click="toggleMode" style="cursor: pointer; background: #555">
+          <span
+            class="mode-label"
+            @click="toggleMode"
+            style="cursor: pointer; background: #555"
+          >
             {{ currentMode === "book" ? "📸 照片回顧" : "📖 有聲繪本" }}
           </span>
         </div>
@@ -318,10 +338,18 @@ onUnmounted(() => {
           <div class="flip-book" ref="bookContainer">
             <div class="page page-cover" data-density="hard">
               <div class="page-content cover-layout">
-                <img v-if="allPages.length > 0" :src="allPages[0].image" class="cover-img-full" />
+                <img
+                  v-if="allPages.length > 0"
+                  :src="allPages[0].image"
+                  class="cover-img-full"
+                />
               </div>
             </div>
-            <div v-for="(page, index) in interiorPages" :key="index" class="page">
+            <div
+              v-for="(page, index) in interiorPages"
+              :key="index"
+              class="page"
+            >
               <div class="page-content interior-page">
                 <div
                   class="page-image-area"
@@ -347,13 +375,18 @@ onUnmounted(() => {
               </div>
             </div>
             <div class="page page-cover" data-density="hard">
-              <div class="page-content cover-layout end-page-box" @click="toggleMode">
+              <div
+                class="page-content cover-layout end-page-box"
+                @click="toggleMode"
+              >
                 <img
                   v-if="backCoverPage && backCoverPage.image"
                   :src="backCoverPage.image"
                   class="cover-img-full"
                 />
-                <div v-else class="back-cover-placeholder"><h3>THE END</h3></div>
+                <div v-else class="back-cover-placeholder">
+                  <h3>THE END</h3>
+                </div>
                 <div class="slideshow-jump-hint">照片回顧 ❯</div>
               </div>
             </div>
@@ -366,7 +399,10 @@ onUnmounted(() => {
           <transition name="fade" mode="out-in">
             <div :key="currentSlideIndex" class="slide-card">
               <div class="slide-img-box">
-                <img :src="slideshowData.slides[currentSlideIndex]?.image" class="slide-main-img" />
+                <img
+                  :src="slideshowData.slides[currentSlideIndex]?.image"
+                  class="slide-main-img"
+                />
               </div>
               <div class="slide-caption">
                 <p v-html="slideshowData.slides[currentSlideIndex]?.text"></p>
@@ -378,7 +414,11 @@ onUnmounted(() => {
               type="range"
               class="slide-range"
               min="0"
-              :max="slideshowData.slides.length > 0 ? slideshowData.slides.length - 1 : 0"
+              :max="
+                slideshowData.slides.length > 0
+                  ? slideshowData.slides.length - 1
+                  : 0
+              "
               v-model.number="currentSlideIndex"
               @input="onSlideSeek"
             />
@@ -392,7 +432,11 @@ onUnmounted(() => {
     <div v-else class="mobile-wrapper">
       <div class="mobile-preview-card" @click="openMobileReader">
         <div class="preview-cover-box">
-          <img v-if="allPages.length > 0" :src="allPages[0].image" class="preview-cover-img" />
+          <img
+            v-if="allPages.length > 0"
+            :src="allPages[0].image"
+            class="preview-cover-img"
+          />
           <div class="play-overlay">
             <span class="play-icon">📖</span>
             <span class="play-text">點擊展開</span>
@@ -404,11 +448,15 @@ onUnmounted(() => {
         <div v-if="showMobileModal" class="mobile-modal-overlay">
           <div class="mobile-header-bar">
             <div class="mobile-audio-controls">
-              <button class="icon-btn" @click="togglePlay">{{ isPlaying ? "⏸" : "▶" }}</button>
+              <button class="icon-btn" @click="togglePlay">
+                {{ isPlaying ? "⏸" : "▶" }}
+              </button>
 
               <div class="volume-control-group">
                 <button class="icon-btn" @click="toggleMute">
-                  {{ isMuted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊" }}
+                  {{
+                    isMuted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"
+                  }}
                 </button>
                 <div class="volume-slider-wrapper">
                   <input
@@ -445,13 +493,15 @@ onUnmounted(() => {
                   class="mobile-img-box"
                   :class="{
                     'has-role-img':
-                      processedMobilePages[mobileCurrentPage].imageClass === 'role-image',
+                      processedMobilePages[mobileCurrentPage].imageClass ===
+                      'role-image',
                   }"
                 >
                   <img
                     :src="processedMobilePages[mobileCurrentPage].image"
                     :class="
-                      processedMobilePages[mobileCurrentPage].imageClass === 'role-image'
+                      processedMobilePages[mobileCurrentPage].imageClass ===
+                      'role-image'
                         ? 'mobile-role-img'
                         : 'mobile-std-img'
                     "
@@ -461,7 +511,8 @@ onUnmounted(() => {
                   class="mobile-text-box"
                   :class="{
                     'role-text':
-                      processedMobilePages[mobileCurrentPage].imageClass === 'role-image',
+                      processedMobilePages[mobileCurrentPage].imageClass ===
+                      'role-image',
                   }"
                   v-html="processedMobilePages[mobileCurrentPage].text"
                 ></div>
@@ -486,7 +537,11 @@ onUnmounted(() => {
                   type="range"
                   class="slide-range"
                   min="0"
-                  :max="slideshowData.slides.length > 0 ? slideshowData.slides.length - 1 : 0"
+                  :max="
+                    slideshowData.slides.length > 0
+                      ? slideshowData.slides.length - 1
+                      : 0
+                  "
                   v-model.number="currentSlideIndex"
                   @input="onSlideSeek"
                   style="width: 100%; margin-top: 30px"
@@ -524,7 +579,11 @@ onUnmounted(() => {
       </transition>
     </div>
 
-    <audio ref="audioRef" @ended="isPlaying = false" @timeupdate="onAudioTimeUpdate"></audio>
+    <audio
+      ref="audioRef"
+      @ended="isPlaying = false"
+      @timeupdate="onAudioTimeUpdate"
+    ></audio>
   </div>
 </template>
 

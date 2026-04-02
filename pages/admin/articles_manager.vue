@@ -85,7 +85,7 @@ watch(selectedIssueId, (newVal) => {
 const filteredArticles = computed(() => {
   if (!selectedIssueId.value) return [];
   const list = editedArticles.value.filter(
-    (a) => a.issue === selectedIssueId.value
+    (a) => a.issue === selectedIssueId.value,
   );
   return list.sort((a, b) => {
     const getOrder = (idStr) => {
@@ -195,7 +195,7 @@ const performUpdate = async (article) => {
 
 const updateOriginalData = (updatedItem) => {
   const index = allArticles.value.findIndex(
-    (item) => item.id === updatedItem.id
+    (item) => item.id === updatedItem.id,
   );
   if (index !== -1) {
     allArticles.value[index] = JSON.parse(JSON.stringify(updatedItem));
@@ -206,7 +206,7 @@ const goToEditor = (id) => {
   if (hasUnsavedChanges.value) {
     if (
       !confirm(
-        "您有未儲存的變更，確定要離開去編輯單一文章嗎？\n(未儲存的變更將會遺失)"
+        "您有未儲存的變更，確定要離開去編輯單一文章嗎？\n(未儲存的變更將會遺失)",
       )
     )
       return;
@@ -217,7 +217,7 @@ const goToEditor = (id) => {
 onBeforeRouteLeave((to, from, next) => {
   if (hasUnsavedChanges.value) {
     const answer = window.confirm(
-      "⚠️ 您有未儲存的變更！\n確定要離開此頁面嗎？"
+      "⚠️ 您有未儲存的變更！\n確定要離開此頁面嗎？",
     );
     if (answer) next();
     else next(false);
@@ -344,15 +344,29 @@ onBeforeUnmount(() => {
               ></textarea>
             </td>
             <td>
+              <!-- 有值：顯示文章連結與預覽圖；無值：可手動輸入 -->
+              <template v-if="article.seo_image">
+                <a :href="article.seo_image" target="_blank" class="seo-link"
+                  >🔗 查看圖片</a
+                >
+                <div class="mini-preview">
+                  <img :src="article.seo_image" alt="preview" />
+                </div>
+                <button
+                  class="btn-clear-seo"
+                  @click="article.seo_image = ''"
+                  title="清除"
+                >
+                  ✕
+                </button>
+              </template>
               <input
+                v-else
                 type="text"
                 v-model="article.seo_image"
                 class="table-input"
                 placeholder="https://..."
               />
-              <div v-if="article.seo_image" class="mini-preview">
-                <img :src="article.seo_image" alt="preview" />
-              </div>
             </td>
 
             <td class="actions-cell">
@@ -581,6 +595,31 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   border: 1px solid #ddd;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.seo-link {
+  display: inline-block;
+  font-size: 0.85rem;
+  color: #007bff;
+  text-decoration: none;
+  margin-bottom: 4px;
+}
+.seo-link:hover {
+  text-decoration: underline;
+}
+.btn-clear-seo {
+  display: block;
+  margin-top: 4px;
+  background: none;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  color: #999;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 1px 6px;
+}
+.btn-clear-seo:hover {
+  color: #c0392b;
+  border-color: #c0392b;
 }
 
 .actions-cell {

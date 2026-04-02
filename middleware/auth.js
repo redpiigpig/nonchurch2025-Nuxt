@@ -1,7 +1,8 @@
-import { supabase } from "~/supabase";
-
-export default defineNuxtRouteMiddleware(async (to, from) => {
+// middleware/auth.js
+export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) return;
+
+  const supabase = useSupabaseClient();
 
   const {
     data: { session },

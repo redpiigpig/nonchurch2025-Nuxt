@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import { useEditorMode } from "~/composables/useEditorMode"; // 修正引用路徑
+import { useEditorMode } from "~/composables/useEditorMode";
 import { useLanguage } from "~/composables/useLanguage";
 
 const route = useRoute();
@@ -60,7 +60,9 @@ const navTranslations = {
   },
 };
 
-const t = computed(() => navTranslations[currentLang.value] || navTranslations["zh-TW"]);
+const t = computed(
+  () => navTranslations[currentLang.value] || navTranslations["zh-TW"],
+);
 
 // 導覽列連結生成器：前台維持原樣，後台加 /admin
 const getLink = (path) => {
@@ -106,12 +108,12 @@ const editLink = computed(() => {
       <div class="logo">
         <NuxtLink :to="isEditMode ? '/admin/home' : '/'">
           <img
-            src="https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/Header_Logo.png"
+            src="https://res.cloudinary.com/nonchurch2025/image/upload/Header_Logo.png"
             alt="Logo"
             class="logo-icon"
           />
           <img
-            src="https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/Header_text.png"
+            src="https://res.cloudinary.com/nonchurch2025/image/upload/Header_text.png"
             alt="無境界者"
             class="logo-text"
           />
@@ -119,18 +121,19 @@ const editLink = computed(() => {
         </NuxtLink>
       </div>
 
-      <div class="menu">
-        <NuxtLink v-if="isEditMode" to="/admin" class="admin-link"
-          >⚙️ 後台管理</NuxtLink
-        >
+      <!-- 後台管理獨立於 menu 之外，緊貼 logo 右側，不壓縮導覽列空間 -->
+      <NuxtLink v-if="isEditMode" to="/admin" class="admin-link"
+        >⚙️ 後台管理</NuxtLink
+      >
 
+      <div class="menu">
         <NuxtLink :to="getLink('/home')">{{ t.home }}</NuxtLink>
         <NuxtLink :to="getLink('/mission')">{{ t.mission }}</NuxtLink>
         <NuxtLink :to="getLink('/articles')">{{ t.articles }}</NuxtLink>
         <NuxtLink :to="getLink('/authors')">{{ t.authors }}</NuxtLink>
-        <a href="https://forms.gle/aWSBFRfQ74QY13nw8" target="_blank"
-          >{{ t.subscribe }}</a
-        >
+        <a href="https://forms.gle/aWSBFRfQ74QY13nw8" target="_blank">{{
+          t.subscribe
+        }}</a>
         <NuxtLink :to="getLink('/submit')">{{ t.submit }}</NuxtLink>
 
         <div class="lang-switcher">
@@ -279,6 +282,16 @@ const editLink = computed(() => {
 .admin-link {
   background-color: rgba(255, 255, 255, 0.2);
   font-weight: bold;
+  text-decoration: none;
+  color: white;
+  padding: 5px 12px;
+  border-radius: 5px;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.admin-link:hover {
+  color: #1b5e20;
 }
 
 .search-icon-btn {
