@@ -11,6 +11,7 @@ from docx.oxml import OxmlElement
 import sys
 import json
 import re
+import html as _html_mod
 import urllib.request
 import io
 from PIL import Image as PILImage
@@ -49,7 +50,7 @@ class ProfessionalDocxGenerator:
         section.footer_distance = Cm(1.0)
 
     def _setup_styles(self):
-        """正文基礎樣式：NSimSun + Times New Roman，1.25 倍行距"""
+        """正文基礎樣式：NSimSun + Times New Roman，1.5 倍行距"""
         style = self.doc.styles['Normal']
         style.font.name = 'Times New Roman'
         style.font.size = Pt(12)
@@ -57,7 +58,7 @@ class ProfessionalDocxGenerator:
         rPr.get_or_add_rFonts().set(qn('w:eastAsia'), 'NSimSun')
         pf = style.paragraph_format
         pf.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
-        pf.line_spacing = 1.25
+        pf.line_spacing = 1.5
         pf.space_before = Pt(0)
         pf.space_after  = Pt(0)
 
@@ -76,13 +77,13 @@ class ProfessionalDocxGenerator:
             pass  # 文件本來就沒有 numbering part，不需要處理
 
     def _add_blank_line(self):
-        """插入一個空行，明確設定 1.25 倍行距（line=300 auto）"""
+        """插入一個空行，明確設定 1.5 倍行距（line=360 auto）"""
         p = self.doc.add_paragraph()
         pPr = p._element.get_or_add_pPr()
         sp = OxmlElement('w:spacing')
         sp.set(qn('w:before'), '0')
         sp.set(qn('w:after'),  '0')
-        sp.set(qn('w:line'),   '300')    # 240 × 1.25 = 300
+        sp.set(qn('w:line'),   '360')    # 240 × 1.5 = 360
         sp.set(qn('w:lineRule'), 'auto')
         pPr.append(sp)
         return p
@@ -722,6 +723,10 @@ class ProfessionalDocxGenerator:
             part = part.strip()
             if not part:
                 continue
+            bullet_m = re.match(r'&#9679;(?:&nbsp;|\u00a0|\s)*', part, re.IGNORECASE)
+            if bullet_m:
+                self._add_bullet_line(part[bullet_m.end():])
+                continue
             p = self.doc.add_paragraph()
             p.paragraph_format.first_line_indent = Pt(0) if no_indent else Pt(24)
             p.paragraph_format.space_before = Pt(0)
@@ -749,7 +754,6 @@ class ProfessionalDocxGenerator:
         bot.set(qn('w:color'), 'AAAAAA')  # 灰色
         pBdr.append(bot)
         pPr.append(pBdr)
-        self._add_blank_line()
 
     def _add_book_quote(self, html):
         """書本引言（.book-quote）：咖啡色左豎線，楷書體，右對齊出處行。"""
@@ -776,24 +780,36 @@ class ProfessionalDocxGenerator:
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after  = Pt(space_after)
             pPr = p._element.get_or_add_pPr()
+            # 行距 1.5 倍
+            sp = OxmlElement('w:spacing')
+            sp.set(qn('w:before'), '0')
+            sp.set(qn('w:after'),  str(int(space_after * 20)))
+            sp.set(qn('w:line'),   '360')   # 240 × 1.5
+            sp.set(qn('w:lineRule'), 'auto')
+            pPr.append(sp)
+            # 左邊線：藍色 3px（18/8 = 2.25pt ≈ 3px）
             pBdr = OxmlElement('w:pBdr')
             left = OxmlElement('w:left')
             left.set(qn('w:val'),   'single')
-            left.set(qn('w:sz'),    '36')      # 4.5pt 咖啡色豎線
+            left.set(qn('w:sz'),    '18')
             left.set(qn('w:space'), '4')
-            left.set(qn('w:color'), '8B4513')
+            left.set(qn('w:color'), '1E6FD9')   # 藍色
             pBdr.append(left)
             pPr.append(pBdr)
             return p
 
         for line in lines:
             p = _bq_para()
-            self._add_inline(p, line, east_font='標楷體')
+            self._add_inline(p, line,
+                             east_font='文鼎粗鋼筆行楷',
+                             ascii_font='Brush Script MT')
 
         if rel_text:
             p_rel = _bq_para(space_after=6)
             p_rel.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-            self._add_inline(p_rel, rel_text, east_font='標楷體')
+            self._add_inline(p_rel, rel_text,
+                             east_font='文鼎粗鋼筆行楷',
+                             ascii_font='Brush Script MT')
 
         self._add_blank_line()  # 後置空行
 
@@ -991,10 +1007,28 @@ class ProfessionalDocxGenerator:
                 return True
         return False
 
+    def _add_bullet_line(self, text):
+        """項目列表行：小圓點 • + 左縮排兩個字（24pt）"""
+        text = _html_mod.unescape(text)
+        p = self.doc.add_paragraph()
+        p.paragraph_format.left_indent       = Pt(24)
+        p.paragraph_format.first_line_indent = Pt(0)
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after  = Pt(0)
+        bullet_run = p.add_run('• ')
+        self._apply_font(bullet_run, 'Times New Roman', 'NSimSun', size=11)
+        self._add_inline(p, text)
+
     def _process_line(self, line):
         """逐行處理正文（跳過空行、處理標題與一般段落）"""
         if not line:
             return  # 略過空行，不插入空段落
+
+        # 偵測 &#9679;（●）開頭的項目列表 → 改為小圓點 + 縮排兩個字
+        bullet_m = re.match(r'&#9679;(?:&nbsp;|\u00a0|\s)*', line, re.IGNORECASE)
+        if bullet_m:
+            self._add_bullet_line(line[bullet_m.end():])
+            return
 
         heading_match = re.match(r'^(#{1,3})\s+(.+)', line)
         if heading_match:
@@ -1053,6 +1087,16 @@ class ProfessionalDocxGenerator:
             p.paragraph_format.space_after  = Pt(12) if i == len(lines) - 1  else Pt(0)
             self._add_inline(p, line, east_font='標楷體')
 
+    def _split_special_chars(self, text):
+        """拆分含 ‧／∕ 的文字為 [(chunk, is_special), ...]，特殊字元用新細明體"""
+        SPECIAL = re.compile(r'([‧／∕]+)')
+        parts = SPECIAL.split(text)
+        result = []
+        for i, part in enumerate(parts):
+            if part:
+                result.append((part, i % 2 == 1))
+        return result if result else [(text, False)]
+
     def _split_emoji(self, text):
         """將文字拆分為 [(chunk, is_emoji), ...] 以便分別套用字型"""
         result = []
@@ -1073,7 +1117,7 @@ class ProfessionalDocxGenerator:
             result.append((current, current_emoji))
         return result
 
-    def _add_inline(self, paragraph, text, east_font='NSimSun'):
+    def _add_inline(self, paragraph, text, east_font='NSimSun', ascii_font='Times New Roman'):
         """
         解析 inline 標記：
           **text**           → 粗體
@@ -1110,16 +1154,16 @@ class ProfessionalDocxGenerator:
 
             if bold_md:
                 run = paragraph.add_run(bold_md.group(1))
-                self._apply_font(run, 'Times New Roman', east_font, size=12, bold=True)
+                self._apply_font(run, ascii_font, east_font, size=12, bold=True)
             elif kaiti_md:
                 run = paragraph.add_run(kaiti_md.group(1))
-                self._apply_font(run, 'Times New Roman', '標楷體', size=12)
+                self._apply_font(run, ascii_font, '標楷體', size=12)
             elif bold_html:
                 run = paragraph.add_run(bold_html.group(1))
-                self._apply_font(run, 'Times New Roman', east_font, size=12, bold=True)
+                self._apply_font(run, ascii_font, east_font, size=12, bold=True)
             elif italic_html:
                 run = paragraph.add_run(italic_html.group(1))
-                self._apply_font(run, 'Times New Roman', east_font, size=12, italic=True)
+                self._apply_font(run, ascii_font, east_font, size=12, italic=True)
             elif br_tag:
                 # 段落內換行（w:br）
                 br_run = paragraph.add_run()
@@ -1136,25 +1180,31 @@ class ProfessionalDocxGenerator:
                 elif 'font-size:1rem' in style_v or 'font-size:0.' in style_v:
                     # 小字體 span
                     run = paragraph.add_run(inner)
-                    self._apply_font(run, 'Times New Roman', east_font, size=10)
+                    self._apply_font(run, ascii_font, east_font, size=10)
                 else:
                     # 其他 span → 以正常字型輸出
                     run = paragraph.add_run(inner)
-                    self._apply_font(run, 'Times New Roman', east_font, size=12)
+                    self._apply_font(run, ascii_font, east_font, size=12)
             elif fn_m:
                 self._add_footnote_ref(paragraph, fn_m.group(1))
             elif html_tag:
                 pass  # 略過其他 HTML 標籤（不輸出原始文字）
             else:
+                # 解碼 HTML 實體（&nbsp; &#9679; 等）
+                seg = _html_mod.unescape(seg)
                 # 折疊編輯器在 ** 前後注入的多餘空格（網頁排版用，Word 不需要）
                 seg = re.sub(r' {2,}', ' ', seg)
-                # 拆分 emoji，用 Segoe UI Symbol（黑白符號字型）
+                # 拆分 emoji，用 Segoe UI Symbol；非 emoji 再拆特殊字元
                 for chunk, is_emoji in self._split_emoji(seg):
-                    run = paragraph.add_run(chunk)
                     if is_emoji:
+                        run = paragraph.add_run(chunk)
                         self._apply_font(run, 'Segoe UI Symbol', 'Segoe UI Symbol', size=12)
                     else:
-                        self._apply_font(run, 'Times New Roman', east_font, size=12)
+                        # 拆分特殊字元 ‧／∕ → 新細明體（PMingLiU）
+                        for sub, is_special in self._split_special_chars(chunk):
+                            r = paragraph.add_run(sub)
+                            ef = 'PMingLiU' if is_special else east_font
+                            self._apply_font(r, ascii_font, ef, size=12)
 
     # ── 頁首頁尾 ────────────────────────────────────────────
 
@@ -1288,6 +1338,13 @@ def generate_article_docx(article_data, output_path):
     category = article_data.get('category', '')
     if category:
         generator.add_category_tag(category, category_colors.get(category, '#000000'))
+    else:
+        # 無欄目時補同高空行（14pt），確保所有文章標題垂直位置一致
+        p = generator.doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after  = Pt(0)
+        run = p.add_run('\u00a0')   # non-breaking space 撐開行高
+        run.font.size = Pt(14)
 
     if article_data.get('title'):
         generator.add_title(article_data['title'])
