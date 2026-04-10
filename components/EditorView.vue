@@ -191,6 +191,7 @@ const exportToWord = async () => {
       category: form.value.category,
       author: form.value.author,
       author_title: form.value.author_title,
+      remark: form.value.remark,
       keyword: form.value.keyword,
       content: form.value.content,
       footnotes: form.value.footnotes,

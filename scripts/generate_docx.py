@@ -601,7 +601,7 @@ class ProfessionalDocxGenerator:
 
         _add_field(author,       'Brush Script MT', '文鼎中行書', 12)
         _add_field(author_title, 'Brush Script MT', '文鼎中行書', 12)
-        _add_field(remark,       'Times New Roman', 'NSimSun',    11)
+        _add_field(remark,       'Brush Script MT', '文鼎中行書', 12)
 
     def add_keywords(self, keywords):
         if not keywords:
