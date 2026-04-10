@@ -331,6 +331,28 @@ class ProfessionalDocxGenerator:
             print(f'Warning: cannot download {src}: {e}')
             return None
 
+    def _download_and_crop_square(self, src):
+        """下載圖片，中心裁切為正方形，回傳 BytesIO 或 None"""
+        try:
+            req = urllib.request.Request(src, headers={'User-Agent': 'Mozilla/5.0'})
+            img_bytes = urllib.request.urlopen(req, timeout=15).read()
+            pil_img = PILImage.open(io.BytesIO(img_bytes))
+            if pil_img.mode not in ('RGB', 'L'):
+                pil_img = pil_img.convert('RGB')
+            w, h = pil_img.size
+            if w != h:
+                size = min(w, h)
+                left = (w - size) // 2
+                top  = (h - size) // 2
+                pil_img = pil_img.crop((left, top, left + size, top + size))
+            clean = io.BytesIO()
+            pil_img.save(clean, format='JPEG', quality=95)
+            clean.seek(0)
+            return clean
+        except Exception as e:
+            print(f'⚠️ 作者圖片載入失敗: {src}: {e}', file=sys.stderr)
+            return None
+
     def _add_figure(self, html):
         src_m = re.search(r'src=["\']([^"\']+)["\']', html)
         alt_m = re.search(r'alt=["\']([^"\']*)["\']', html)
@@ -599,7 +621,7 @@ class ProfessionalDocxGenerator:
 
     def _split_into_segments(self, content):
         """將 HTML 內容切分為 (type, html) segments，正確處理嵌套標籤。"""
-        BLOCK_TAGS = ('figure', 'blockquote', 'table', 'div', 'p')
+        BLOCK_TAGS = ('figure', 'blockquote', 'table', 'div', 'p', 'h1', 'h2', 'h3')
         start_re = re.compile(
             r'<(' + '|'.join(BLOCK_TAGS) + r')(\b[^>]*)?>',
             re.IGNORECASE
@@ -659,6 +681,10 @@ class ProfessionalDocxGenerator:
                 self._add_table(seg_html)
             elif seg_type == 'p':
                 self._add_paragraph_element(seg_html)
+            elif seg_type in ('h1', 'h2', 'h3'):
+                title = re.sub(r'<[^>]+>', '', seg_html).strip()
+                if title:
+                    self._add_section_title(title)
             else:  # text
                 normalized = re.sub(r'<br\s*/?>', '\n', seg_html)
                 for line in normalized.split('\n'):
@@ -706,10 +732,21 @@ class ProfessionalDocxGenerator:
                     self._add_inline(p, line)
 
     def _add_paragraph_element(self, html):
-        """處理 <p> 元素，支援 no-indent 與內部 <br>。
+        """處理 <p> 元素，支援 no-indent、text-align:right 與內部 <br>。
         <p class="no-indent"> 前自動插入一空行。"""
         no_indent = bool(re.search(r'class=["\'][^"\']*no-indent[^"\']*["\']',
                                    html, re.IGNORECASE))
+        # 偵測 text-align: right → 交由 _add_right_aligned 統一處理
+        tag_m = re.match(r'<p\b([^>]*)>', html, re.IGNORECASE)
+        if tag_m:
+            style_m = re.search(r'style=["\']([^"\']*)["\']', tag_m.group(1), re.IGNORECASE)
+            if style_m and 'text-align' in style_m.group(1) and 'right' in style_m.group(1):
+                inner = re.sub(r'^<p[^>]*>', '', html, count=1, flags=re.IGNORECASE)
+                inner = re.sub(r'</p>\s*$', '', inner, flags=re.IGNORECASE).strip()
+                inner = re.sub(r'<[^>]+>', '', inner).strip()
+                if inner:
+                    self._add_right_aligned(inner)
+                return
         inner = re.sub(r'^<p[^>]*>', '', html, count=1, flags=re.IGNORECASE)
         inner = re.sub(r'</p>\s*$',  '', inner, flags=re.IGNORECASE).strip()
         if not inner:
@@ -913,17 +950,117 @@ class ProfessionalDocxGenerator:
         p.add_run().add_picture(img_stream, width=Cm(12.0))
 
     def _add_author_profile(self, html):
-        """作者簡介（.author-profile）：輸出姓名與簡介文字。"""
-        inner = re.sub(r'<[^>]+>', ' ', html).strip()
-        inner = re.sub(r'\s+', ' ', inner)
-        if not inner:
-            return
-        p = self.doc.add_paragraph()
-        p.paragraph_format.first_line_indent = Pt(0)
-        p.paragraph_format.space_before = Pt(6)
-        p.paragraph_format.space_after  = Pt(0)
-        run = p.add_run(inner)
-        self._apply_font(run, 'Times New Roman', 'NSimSun', size=11)
+        """作者簡介（.author-profile）：左圖右文表格排版，符合原版 PDF 格式。
+        左欄：5×5cm 正方形照片（含 2px 邊框）；右欄：粗體姓名 + 簡介段落。"""
+        # 提取圖片網址
+        img_m = re.search(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\']', html, re.IGNORECASE)
+        img_src = img_m.group(1).strip() if img_m else None
+
+        # 提取作者姓名（h3）
+        name_m = re.search(r'<h3[^>]*>(.*?)</h3>', html, re.IGNORECASE | re.DOTALL)
+        name = re.sub(r'<[^>]+>', '', name_m.group(1)).strip() if name_m else ''
+
+        # 提取作者簡介（所有 p 段落）
+        bio_parts = re.findall(r'<p[^>]*>(.*?)</p>', html, re.IGNORECASE | re.DOTALL)
+        bio_lines = [re.sub(r'<[^>]+>', '', b).strip() for b in bio_parts]
+        bio = '\n'.join(l for l in bio_lines if l)
+
+        # 建立 2 欄表格（左欄圖片 5.5cm，右欄文字 8.7cm）
+        tbl = self.doc.add_table(rows=1, cols=2)
+        tbl.style = 'Table Grid'
+
+        # 表格寬度 = 頁面可用寬度 18.2 - 2 - 2 = 14.2cm = 8051 twips，靠左對齊
+        tbl_el = tbl._tbl
+        tblPr = tbl_el.find(qn('w:tblPr'))
+        if tblPr is None:
+            tblPr = OxmlElement('w:tblPr')
+            tbl_el.insert(0, tblPr)
+        for old in tblPr.findall(qn('w:tblW')):
+            tblPr.remove(old)
+        tblW = OxmlElement('w:tblW')
+        tblW.set(qn('w:w'),    '8051')   # 14.2cm in twips
+        tblW.set(qn('w:type'), 'dxa')
+        tblPr.append(tblW)
+        tblLayout = OxmlElement('w:tblLayout')
+        tblLayout.set(qn('w:type'), 'fixed')
+        tblPr.append(tblLayout)
+
+        row = tbl.rows[0]
+        left_cell  = row.cells[0]
+        right_cell = row.cells[1]
+
+        # 設定欄寬（1cm = 567 twips）並在每個 cell 上設邊框顏色（覆蓋 Table Grid 樣式）
+        for cell, w_dxa in ((left_cell, int(5.5 * 567)), (right_cell, int(8.7 * 567))):
+            tcPr = cell._tc.get_or_add_tcPr()
+            for old in tcPr.findall(qn('w:tcW')):
+                tcPr.remove(old)
+            tcW = OxmlElement('w:tcW')
+            tcW.set(qn('w:w'),    str(w_dxa))
+            tcW.set(qn('w:type'), 'dxa')
+            tcPr.append(tcW)
+            # 每格邊框：黑色淺15%（#262626），cell 層級優先於 style
+            for old in tcPr.findall(qn('w:tcBorders')):
+                tcPr.remove(old)
+            tcBorders = OxmlElement('w:tcBorders')
+            for side in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
+                bd = OxmlElement(f'w:{side}')
+                bd.set(qn('w:val'),   'single')
+                bd.set(qn('w:sz'),    '4')
+                bd.set(qn('w:space'), '0')
+                bd.set(qn('w:color'), '262626')   # 黑色淺15%
+                tcBorders.append(bd)
+            tcPr.append(tcBorders)
+
+        # 左欄：垂直置中 + 上下 5px 內距（5px ≈ 75 twips at 96dpi）
+        left_tcPr = left_cell._tc.get_or_add_tcPr()
+        vAlign = OxmlElement('w:vAlign')
+        vAlign.set(qn('w:val'), 'center')
+        left_tcPr.append(vAlign)
+        tcMar = OxmlElement('w:tcMar')
+        for side in ('top', 'bottom'):
+            mar = OxmlElement(f'w:{side}')
+            mar.set(qn('w:w'),    '266')   # 226(15px) + 40(2pt border) = 266 twips
+            mar.set(qn('w:type'), 'dxa')
+            tcMar.append(mar)
+        left_tcPr.append(tcMar)
+
+        # 左欄：照片（5×5cm，正方形裁切，2pt 邊框）
+        lp = left_cell.paragraphs[0]
+        lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        lp.paragraph_format.space_before = Pt(0)
+        lp.paragraph_format.space_after  = Pt(0)
+        if img_src:
+            img_stream = self._download_and_crop_square(img_src)
+            if img_stream:
+                img_run = lp.add_run()
+                img_run.add_picture(img_stream, width=Cm(5.0), height=Cm(5.0))
+                self._add_picture_border(img_run, border_pt=2.0)
+            else:
+                lp.add_run(f'[圖片：{img_src}]')
+
+        # 右欄：作者姓名（粗體）+ 簡介
+        rp_name = right_cell.paragraphs[0]
+        rp_name.paragraph_format.space_before = Pt(6)
+        rp_name.paragraph_format.space_after  = Pt(4)
+        if name:
+            name_run = rp_name.add_run(name)
+            self._apply_font(name_run, 'Times New Roman', 'NSimSun', size=12, bold=True)
+
+        if bio:
+            for bio_line in bio.split('\n'):
+                bio_line = bio_line.strip()
+                if not bio_line:
+                    continue
+                rp_bio = right_cell.add_paragraph()
+                rp_bio.paragraph_format.space_before = Pt(0)
+                rp_bio.paragraph_format.space_after  = Pt(0)
+                bio_run = rp_bio.add_run(bio_line)
+                self._apply_font(bio_run, 'Times New Roman', 'NSimSun', size=12)
+
+        # 簡介後空一行
+        rp_blank = right_cell.add_paragraph()
+        rp_blank.paragraph_format.space_before = Pt(0)
+        rp_blank.paragraph_format.space_after  = Pt(0)
 
     def _add_right_aligned(self, text):
         """置右段落（對應 style="text-align: right"）。"""
@@ -936,7 +1073,14 @@ class ProfessionalDocxGenerator:
             p.paragraph_format.first_line_indent = Pt(0)
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after  = Pt(0)
-            self._add_inline(p, line)
+            # 「作者依照文章先後順序排列」：新細明體 10pt，黑色淺15%（#262626），置右
+            clean_line = re.sub(r'<[^>]+>', '', line).strip()
+            if '作者依照文章先後順序排列' in clean_line:
+                run = p.add_run(clean_line)
+                self._apply_font(run, 'PMingLiU', 'PMingLiU', size=10,
+                                 color=(38, 38, 38))
+            else:
+                self._add_inline(p, line)
 
     def _add_table(self, html):
         """解析並插入 HTML 表格（<table class="data-table">）。"""
@@ -1058,10 +1202,11 @@ class ProfessionalDocxGenerator:
         self._add_inline(p, line)
 
     def _add_section_title(self, title):
-        """段落小標題：14pt 粗體，段前一行空距，段後 6pt，無首行縮排，無列表符號"""
+        """段落小標題：14pt 粗體，前置空行，段後 9pt（0.5 行距），無首行縮排，無列表符號"""
         import unicodedata
-        # 去掉內容前置的符號/標點字元（■ ● ▪ 等）
-        while title and unicodedata.category(title[0]) in (
+        # 去掉內容前置的符號/標點字元（■ ● ▪ 等），但保留裝飾性符號 ☆ ◇ ★ ◆
+        KEEP_SYMBOLS = set('☆◇★◆')
+        while title and title[0] not in KEEP_SYMBOLS and unicodedata.category(title[0]) in (
                 'So','Sm','Sk','Sc','Po','Ps','Pe','Pi','Pf','Pd','Pc','Zs'):
             title = title[1:]
         title = title.strip()
@@ -1071,8 +1216,8 @@ class ProfessionalDocxGenerator:
 
         p = self.doc.add_paragraph()
         p.paragraph_format.first_line_indent = Pt(0)
-        p.paragraph_format.space_before      = Pt(0)
-        p.paragraph_format.space_after       = Pt(6)
+        p.paragraph_format.space_before      = Pt(9)   # 前 0.5 行距（≈9pt）
+        p.paragraph_format.space_after       = Pt(9)   # 後 0.5 行距（≈9pt）
         run = p.add_run(title)
         self._apply_font(run, 'Times New Roman', 'NSimSun', size=14, bold=True)
 
