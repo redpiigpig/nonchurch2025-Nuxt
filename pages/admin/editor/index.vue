@@ -11,7 +11,6 @@ definePageMeta({
 useHead({ title: "新增文章 - 無境界者雜誌" });
 
 const uploadStatus = ref("");
-const useAI = ref(false);
 const apiKeyStatus = ref("檢查中...");
 const showUploadPanel = ref(true);
 
@@ -26,13 +25,12 @@ async function handleFileUpload(event) {
   if (!file) return;
 
   try {
-    uploadStatus.value = useAI.value
-      ? "🤖 AI 分析中（使用 Gemini）..."
-      : "⚡ 快速解析中...";
+    uploadStatus.value = "🤖 AI 分析中（使用 Gemini）...";
 
+    // ✅ AI 判斷預設開啟
     const { articleId, classified } = await parseAndClassifyDocument(
       file,
-      useAI.value,
+      true,
     );
 
     uploadStatus.value = `✅ 上傳成功！文章 ID: ${articleId}`;
@@ -77,75 +75,79 @@ async function handleFileUpload(event) {
           </span>
         </div>
 
-        <!-- 上傳選項 -->
-        <div class="upload-options">
-          <label class="ai-toggle">
-            <input type="checkbox" v-model="useAI" />
-            <span class="toggle-label">
-              使用 Gemini AI 輔助判斷
-              <small>（更準確，95%+ 成功率）</small>
-            </span>
-          </label>
-
-          <div v-if="useAI" class="ai-info">
-            💡 使用 Google Gemini Pro 模型
-            <br />
-            💰 費用：免費額度內（每月 60 次/分鐘）
+        <!-- AI 狀態提示（預設開啟） -->
+        <div class="ai-enabled-notice">
+          <svg viewBox="0 0 24 24" class="ai-icon">
+            <path
+              fill="currentColor"
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+            />
+          </svg>
+          <div>
+            <strong>✅ AI 輔助判斷已啟用</strong>
+            <p>使用 Google Gemini Pro 自動分類文章內容（準確率 95%+）</p>
           </div>
         </div>
 
         <!-- 檔案上傳 -->
-        <input
-          type="file"
-          accept=".docx"
-          @change="handleFileUpload"
-          class="file-input"
-        />
+        <div class="file-upload-area">
+          <input
+            type="file"
+            accept=".docx"
+            @change="handleFileUpload"
+            class="file-input"
+            id="file-upload"
+          />
+          <label for="file-upload" class="file-label">
+            <svg viewBox="0 0 24 24" class="upload-icon">
+              <path
+                fill="currentColor"
+                d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"
+              />
+            </svg>
+            <span class="upload-text">選擇 Word 檔案（.docx）</span>
+            <span class="upload-hint">或拖曳檔案到此處</span>
+          </label>
+        </div>
 
         <!-- 狀態顯示 -->
-        <div v-if="uploadStatus" class="upload-status">
+        <div
+          v-if="uploadStatus"
+          class="upload-status"
+          :class="{
+            'status-success': uploadStatus.includes('✅'),
+            'status-error': uploadStatus.includes('❌'),
+            'status-loading': uploadStatus.includes('🤖'),
+          }"
+        >
           <pre>{{ uploadStatus }}</pre>
         </div>
 
         <!-- 格式說明 -->
         <details class="format-guide">
-          <summary>📋 自動判斷規則說明</summary>
+          <summary>📋 AI 自動判斷規則說明</summary>
 
-          <div class="comparison-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>項目</th>
-                  <th>程式規則</th>
-                  <th>Gemini AI</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>速度</td>
-                  <td>⚡ 極快（&lt;1秒）</td>
-                  <td>🐢 較慢（3-5秒）</td>
-                </tr>
-                <tr>
-                  <td>準確率</td>
-                  <td>📊 75-85%</td>
-                  <td>🎯 95-98%</td>
-                </tr>
-                <tr>
-                  <td>成本</td>
-                  <td>💰 免費</td>
-                  <td>🆓 免費額度內</td>
-                </tr>
-                <tr>
-                  <td>適用場景</td>
-                  <td>格式規範文章</td>
-                  <td>混亂/複雜文章</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="ai-features">
+            <h4>🎯 AI 會自動識別：</h4>
+            <ul>
+              <li><strong>標題</strong> - 主標題、副標題</li>
+              <li><strong>作者</strong> - 作者姓名、職稱</li>
+              <li><strong>內容分類</strong> - 專題、評論、人物專訪等</li>
+              <li><strong>關鍵字</strong> - 自動提取文章關鍵字</li>
+              <li><strong>特殊框</strong> - 引用、書籍介紹等特殊段落</li>
+              <li><strong>腳註</strong> - 註釋編號與內容</li>
+            </ul>
+
+            <h4>⚡ 處理流程：</h4>
+            <ol>
+              <li>上傳 Word 檔案（.docx）</li>
+              <li>AI 自動解析與分類（3-5秒）</li>
+              <li>自動寫入資料庫</li>
+              <li>跳轉到編輯頁面進行微調</li>
+            </ol>
+
+            <p class="guide-note">💡 上傳後仍可在編輯頁面手動調整所有內容</p>
           </div>
-
-          <p class="guide-note">💡 上傳後仍可手動調整分類結果</p>
         </details>
       </div>
     </section>
@@ -171,62 +173,70 @@ async function handleFileUpload(event) {
 
 .upload-section {
   background: #fff;
-  border-radius: 10px;
-  padding: 24px;
+  border-radius: 12px;
+  padding: 30px;
   margin-bottom: 30px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f0f0f0;
 }
 
 .section-header h2 {
   margin: 0;
   color: #2c3e50;
+  font-size: 1.5rem;
 }
 
 .btn-collapse {
   padding: 8px 16px;
-  background: #e0e0e0;
-  border: none;
-  border-radius: 5px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 0.9rem;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  color: #495057;
 }
 
 .btn-collapse:hover {
-  background: #d0d0d0;
-}
-
-.btn-show-upload {
-  width: 100%;
-  padding: 16px;
-  background: #f8f9fa;
-  border: 2px dashed #dee2e6;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1.1rem;
-  color: #495057;
-  transition: all 0.3s;
-  margin-bottom: 20px;
-}
-
-.btn-show-upload:hover {
   background: #e9ecef;
   border-color: #adb5bd;
 }
 
+.btn-show-upload {
+  width: 100%;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 600;
+  transition: all 0.3s;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.btn-show-upload:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
 .divider {
   text-align: center;
-  margin: 30px 0;
+  margin: 40px 0;
   color: #999;
   font-size: 1.1rem;
   position: relative;
+  font-weight: 500;
 }
 
 .divider::before,
@@ -234,9 +244,9 @@ async function handleFileUpload(event) {
   content: "";
   position: absolute;
   top: 50%;
-  width: 40%;
+  width: 42%;
   height: 1px;
-  background: #ddd;
+  background: linear-gradient(to right, transparent, #ddd, transparent);
 }
 
 .divider::before {
@@ -249,15 +259,23 @@ async function handleFileUpload(event) {
 
 .upload-panel {
   background: #f8f9fa;
-  padding: 20px;
-  border-radius: 8px;
+  padding: 24px;
+  border-radius: 10px;
 }
 
 .api-status {
-  padding: 12px;
+  padding: 14px 18px;
   background: #fff;
-  border-radius: 6px;
-  margin-bottom: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid #e9ecef;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.api-status strong {
+  color: #495057;
 }
 
 .status-ok {
@@ -270,119 +288,187 @@ async function handleFileUpload(event) {
   font-weight: bold;
 }
 
-.upload-options {
+.ai-enabled-notice {
+  display: flex;
+  gap: 16px;
+  padding: 18px;
+  background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);
+  border-left: 4px solid #3b82f6;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.ai-icon {
+  width: 28px;
+  height: 28px;
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+.ai-enabled-notice strong {
+  color: #1e40af;
+  display: block;
+  margin-bottom: 4px;
+  font-size: 1rem;
+}
+
+.ai-enabled-notice p {
+  margin: 0;
+  color: #3730a3;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.file-upload-area {
   margin-bottom: 20px;
 }
 
-.ai-toggle {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: #fff;
-  border-radius: 6px;
-  cursor: pointer;
+.file-input {
+  display: none;
 }
 
-.ai-toggle input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
-}
-
-.toggle-label {
+.file-label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.toggle-label small {
-  color: #6b7280;
-  font-size: 0.875rem;
-}
-
-.ai-info {
-  margin-top: 12px;
-  padding: 12px;
-  background: #dbeafe;
-  border-left: 4px solid #3b82f6;
-  border-radius: 4px;
-  font-size: 0.9rem;
-}
-
-.file-input {
-  width: 100%;
-  padding: 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
   background: #fff;
-  border: 2px dashed #dee2e6;
-  border-radius: 8px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
   cursor: pointer;
-  font-size: 1rem;
-  margin-bottom: 16px;
+  transition: all 0.3s;
 }
 
-.file-input:hover {
-  border-color: #adb5bd;
+.file-label:hover {
+  border-color: #3b82f6;
+  background: #f8fafc;
+}
+
+.upload-icon {
+  width: 48px;
+  height: 48px;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+.file-label:hover .upload-icon {
+  color: #3b82f6;
+}
+
+.upload-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.upload-hint {
+  font-size: 0.9rem;
+  color: #94a3b8;
 }
 
 .upload-status {
-  padding: 16px;
+  padding: 16px 20px;
   background: #fff;
-  border-radius: 6px;
-  margin-bottom: 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border-left: 4px solid #94a3b8;
+}
+
+.upload-status.status-success {
+  background: #f0fdf4;
+  border-left-color: #22c55e;
+}
+
+.upload-status.status-error {
+  background: #fef2f2;
+  border-left-color: #ef4444;
+}
+
+.upload-status.status-loading {
+  background: #fffbeb;
+  border-left-color: #f59e0b;
 }
 
 .upload-status pre {
   margin: 0;
   white-space: pre-wrap;
   font-family: inherit;
-  color: #333;
+  color: #334155;
+  font-size: 0.95rem;
 }
 
 .format-guide {
   background: #fff;
-  padding: 16px;
-  border-radius: 6px;
+  padding: 18px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
 }
 
 .format-guide summary {
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
   color: #2c3e50;
   padding: 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
 }
 
 .format-guide summary:hover {
   background: #f8f9fa;
-  border-radius: 4px;
 }
 
-.comparison-table {
-  margin: 16px 0;
-  overflow-x: auto;
+.ai-features {
+  margin-top: 16px;
+  padding: 16px 0;
 }
 
-.comparison-table table {
-  width: 100%;
-  border-collapse: collapse;
+.ai-features h4 {
+  color: #2c3e50;
+  margin-bottom: 12px;
+  font-size: 1rem;
 }
 
-.comparison-table th,
-.comparison-table td {
-  padding: 8px 12px;
-  text-align: left;
-  border-bottom: 1px solid #e5e7eb;
+.ai-features ul,
+.ai-features ol {
+  margin: 0 0 20px 0;
+  padding-left: 24px;
 }
 
-.comparison-table th {
-  background: #f3f4f6;
-  font-weight: 600;
+.ai-features li {
+  margin-bottom: 8px;
+  color: #495057;
+  line-height: 1.6;
+}
+
+.ai-features li strong {
+  color: #2c3e50;
 }
 
 .guide-note {
-  margin: 12px 0 0;
-  padding: 12px;
+  margin: 16px 0 0;
+  padding: 12px 16px;
   background: #fff3cd;
-  border-radius: 4px;
+  border-left: 4px solid #ffc107;
+  border-radius: 6px;
   color: #856404;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .upload-section {
+    padding: 20px;
+  }
+
+  .section-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .btn-collapse {
+    width: 100%;
+  }
 }
 </style>

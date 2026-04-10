@@ -1,0 +1,1348 @@
+"""
+無境界者雜誌 - 專業 Word 排版生成器
+完全符合 form.md 格式規範
+"""
+
+from docx import Document
+from docx.shared import Pt, Cm, RGBColor, Emu
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+import sys
+import json
+import re
+import urllib.request
+import io
+from PIL import Image as PILImage
+
+# 強制 stdout/stderr 使用 UTF-8，避免 Windows CP950 無法輸出 emoji
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
+if sys.stderr.encoding != 'utf-8':
+    sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1)
+
+
+class ProfessionalDocxGenerator:
+
+    def __init__(self):
+        self.doc = Document()
+        self._setup_page()
+        self._setup_styles()
+        self._clear_numbering()  # 清除預設列表定義，防止 keepNext 觸發圓點
+        self._footnotes = []    # [(word_id, text), ...]
+        self._fn_counter = 1
+        self._fn_map = {}       # "[^N]" → text
+        self._img_counter = 1
+
+    # ── 頁面設定 ────────────────────────────────────────────
+
+    def _setup_page(self):
+        section = self.doc.sections[0]
+        section.page_width  = Cm(18.2)
+        section.page_height = Cm(25.7)
+        section.top_margin    = Cm(2.0)
+        section.bottom_margin = Cm(2.0)
+        section.left_margin   = Cm(2.0)
+        section.right_margin  = Cm(2.0)
+        # 頁首距頁頂 0.5cm，頁尾距頁底 1cm
+        section.header_distance = Cm(0.5)
+        section.footer_distance = Cm(1.0)
+
+    def _setup_styles(self):
+        """正文基礎樣式：NSimSun + Times New Roman，1.25 倍行距"""
+        style = self.doc.styles['Normal']
+        style.font.name = 'Times New Roman'
+        style.font.size = Pt(12)
+        rPr = style.element.get_or_add_rPr()
+        rPr.get_or_add_rFonts().set(qn('w:eastAsia'), 'NSimSun')
+        pf = style.paragraph_format
+        pf.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
+        pf.line_spacing = 1.25
+        pf.space_before = Pt(0)
+        pf.space_after  = Pt(0)
+
+    def _clear_numbering(self):
+        """清除文件預設的所有列表編號定義（abstractNum / num）
+        防止 Word 看到 keepNext 時自動套用列表圓點樣式"""
+        try:
+            num_part = self.doc.part.numbering_part
+            if num_part is None:
+                return
+            el = num_part._element
+            for tag in (qn('w:abstractNum'), qn('w:num')):
+                for child in list(el.findall(tag)):
+                    el.remove(child)
+        except AttributeError:
+            pass  # 文件本來就沒有 numbering part，不需要處理
+
+    def _add_blank_line(self):
+        """插入一個空行，明確設定 1.25 倍行距（line=300 auto）"""
+        p = self.doc.add_paragraph()
+        pPr = p._element.get_or_add_pPr()
+        sp = OxmlElement('w:spacing')
+        sp.set(qn('w:before'), '0')
+        sp.set(qn('w:after'),  '0')
+        sp.set(qn('w:line'),   '300')    # 240 × 1.25 = 300
+        sp.set(qn('w:lineRule'), 'auto')
+        pPr.append(sp)
+        return p
+
+    # ── 字型輔助 ────────────────────────────────────────────
+
+    def _apply_font(self, run, ascii_font, east_font=None, size=12,
+                    bold=False, italic=False, color=None, superscript=False):
+        run.font.name  = ascii_font
+        run.font.size  = Pt(size)
+        run.font.bold  = bold
+        run.font.italic = italic
+        if superscript:
+            run.font.superscript = True
+        rPr = run._element.get_or_add_rPr()
+        rf = rPr.get_or_add_rFonts()
+        rf.set(qn('w:ascii'), ascii_font)
+        rf.set(qn('w:hAnsi'), ascii_font)
+        if east_font:
+            rf.set(qn('w:eastAsia'), east_font)
+        if color:
+            run.font.color.rgb = RGBColor(*color)
+
+    def _hex_rgb(self, hex_color):
+        h = hex_color.lstrip('#')
+        return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+    # ── 腳注 ────────────────────────────────────────────────
+
+    def set_footnotes(self, footnotes):
+        self._fn_map = {str(fn.get('id', '')): fn.get('text', '') for fn in (footnotes or [])}
+
+    def _add_footnote_ref(self, paragraph, fn_num_str):
+        """在段落插入 Word 腳注引用標記（右上角小字）"""
+        fn_text  = self._fn_map.get(fn_num_str, f'[腳注 {fn_num_str}]')
+        word_id  = self._fn_counter
+        self._fn_counter += 1
+        self._footnotes.append((word_id, fn_text))
+
+        run = paragraph.add_run()
+        rPr = OxmlElement('w:rPr')
+        # 明確設定上標 + 小字，確保顯示為右上角數字
+        vertAlign = OxmlElement('w:vertAlign')
+        vertAlign.set(qn('w:val'), 'superscript')
+        rPr.append(vertAlign)
+        sz = OxmlElement('w:sz');   sz.set(qn('w:val'), '24')   # 12pt
+        szCs = OxmlElement('w:szCs'); szCs.set(qn('w:val'), '24')
+        rPr.append(sz); rPr.append(szCs)
+        run._element.insert(0, rPr)
+        fnRef = OxmlElement('w:footnoteReference')
+        fnRef.set(qn('w:id'), str(word_id))
+        run._element.append(fnRef)
+
+    def _fn_runs_xml(self, text):
+        """腳注文字轉 Word XML runs。
+        支援 **bold** *kaiti* <b> <i>；<a href="..."> 剝除標籤只保留文字；其他 HTML 略過。"""
+        def esc(s):
+            return (str(s).replace('&','&amp;').replace('<','&lt;')
+                          .replace('>','&gt;').replace('"','&quot;'))
+
+        # 剝離超連結 <a ...>text</a> → text
+        text = re.sub(r'<a\b[^>]*>(.*?)</a>', r'\1',
+                      text, flags=re.IGNORECASE | re.DOTALL)
+
+        BASE_RPR = (
+            '<w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/>'
+            '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"'
+            ' w:eastAsia="PMingLiU"/></w:rPr>'
+        )
+
+        TOKEN = re.compile(
+            r'(\*\*[^*\n]+?\*\*'
+            r'|\*[^*\n]+?\*'
+            r'|<(?:b|strong)>[^<]*</(?:b|strong)>'
+            r'|<(?:i|em)>[^<]*</(?:i|em)>'
+            r'|<[^>]+>)',
+            re.IGNORECASE)
+
+        parts = []
+        for seg in TOKEN.split(text):
+            if not seg:
+                continue
+            bold_md     = re.fullmatch(r'\*\*([^*]+)\*\*', seg)
+            kaiti_md    = re.fullmatch(r'\*([^*]+)\*', seg)
+            bold_html   = re.fullmatch(r'<(?:b|strong)>([^<]*)</(?:b|strong)>', seg, re.IGNORECASE)
+            italic_html = re.fullmatch(r'<(?:i|em)>([^<]*)</(?:i|em)>', seg, re.IGNORECASE)
+            html_tag    = re.fullmatch(r'<[^>]+>', seg)
+
+            if bold_md or bold_html:
+                c = (bold_md or bold_html).group(1)
+                parts.append(
+                    f'<w:r><w:rPr><w:b/><w:sz w:val="20"/><w:szCs w:val="20"/>'
+                    f'<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"'
+                    f' w:eastAsia="PMingLiU"/></w:rPr>'
+                    f'<w:t xml:space="preserve">{esc(c)}</w:t></w:r>'
+                )
+            elif kaiti_md:
+                c = kaiti_md.group(1)
+                parts.append(
+                    f'<w:r><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/>'
+                    f'<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"'
+                    f' w:eastAsia="標楷體"/></w:rPr>'
+                    f'<w:t xml:space="preserve">{esc(c)}</w:t></w:r>'
+                )
+            elif italic_html:
+                c = italic_html.group(1)
+                parts.append(
+                    f'<w:r><w:rPr><w:i/><w:sz w:val="20"/><w:szCs w:val="20"/>'
+                    f'<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"'
+                    f' w:eastAsia="PMingLiU"/></w:rPr>'
+                    f'<w:t xml:space="preserve">{esc(c)}</w:t></w:r>'
+                )
+            elif html_tag:
+                pass  # 略過其他 HTML 標籤
+            else:
+                parts.append(
+                    f'<w:r>{BASE_RPR}'
+                    f'<w:t xml:space="preserve">{esc(seg)}</w:t></w:r>'
+                )
+        return ''.join(parts)
+
+    def _finalize_footnotes(self):
+        """寫入 word/footnotes.xml（Word 原生腳注）"""
+        if not self._footnotes:
+            return
+
+        # 1字元凸排 = 10pt = 200 twips；行距單倍 = line=240 auto
+        lines = [
+            "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>\n",
+            '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n',
+            '<w:footnote w:type="separator" w:id="-1">'
+            '<w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>'
+            '<w:r><w:separator/></w:r></w:p></w:footnote>\n',
+            '<w:footnote w:type="continuationSeparator" w:id="0">'
+            '<w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>'
+            '<w:r><w:continuationSeparator/></w:r></w:p></w:footnote>\n',
+        ]
+        for fn_id, fn_text in self._footnotes:
+            # 前置空格 run（腳注編號後的空格）
+            space_run = (
+                '<w:r><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/>'
+                '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"'
+                ' w:eastAsia="PMingLiU"/></w:rPr>'
+                '<w:t xml:space="preserve"> </w:t></w:r>'
+            )
+            lines.append(
+                f'<w:footnote w:id="{fn_id}">'
+                f'<w:p>'
+                f'<w:pPr>'
+                f'<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>'
+                f'<w:ind w:left="200" w:hanging="200"/>'
+                f'</w:pPr>'
+                f'<w:r>'
+                f'<w:rPr>'
+                f'<w:rStyle w:val="FootnoteReference"/>'
+                f'<w:sz w:val="20"/><w:szCs w:val="20"/>'
+                f'</w:rPr>'
+                f'<w:footnoteRef/>'
+                f'</w:r>'
+                + space_run
+                + self._fn_runs_xml(fn_text) +
+                f'</w:p>'
+                f'</w:footnote>\n'
+            )
+        lines.append('</w:footnotes>')
+
+        from docx.opc.part import Part
+        from docx.opc.packuri import PackURI
+        doc_part = self.doc.part
+        fn_part = Part(
+            PackURI('/word/footnotes.xml'),
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml',
+            ''.join(lines).encode('utf-8'),
+            doc_part.package,
+        )
+        FOOTNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes'
+        doc_part.relate_to(fn_part, FOOTNOTES_REL)
+
+    # ── 浮動圖片 ────────────────────────────────────────────
+
+    def _insert_float_image(self, paragraph, img_stream, width_cm, float_dir='right'):
+        WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'
+        A  = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        run = paragraph.add_run()
+        run.add_picture(img_stream, width=Cm(width_cm))
+
+        drawing = run._r.find(qn('w:drawing'))
+        if drawing is None:
+            return
+        inline = drawing.find(f'{{{WP}}}inline')
+        if inline is None:
+            return
+
+        extent      = inline.find(f'{{{WP}}}extent')
+        docPr       = inline.find(f'{{{WP}}}docPr')
+        cNvGrfFrmPr = inline.find(f'{{{WP}}}cNvGraphicFramePr')
+        graphic     = inline.find(f'{{{A}}}graphic')
+
+        cx = extent.get('cx') if extent is not None else str(int(Cm(width_cm)))
+        cy = extent.get('cy') if extent is not None else str(int(Cm(width_cm) * 1.4))
+
+        img_id = self._img_counter; self._img_counter += 1
+        if docPr is not None:
+            docPr.set('id', str(img_id))
+            docPr.set('name', f'Picture {img_id}')
+
+        anchor = OxmlElement('wp:anchor')
+        for k, v in [('distT','114300'),('distB','114300'),('distL','114300'),
+                     ('distR','114300'),('simplePos','0'),('relativeHeight','251658240'),
+                     ('behindDoc','0'),('locked','0'),('layoutInCell','1'),('allowOverlap','1')]:
+            anchor.set(k, v)
+
+        sp = OxmlElement('wp:simplePos'); sp.set('x','0'); sp.set('y','0'); anchor.append(sp)
+        posH = OxmlElement('wp:positionH'); posH.set('relativeFrom','margin')
+        al = OxmlElement('wp:align'); al.text = float_dir; posH.append(al); anchor.append(posH)
+        posV = OxmlElement('wp:positionV'); posV.set('relativeFrom','paragraph')
+        po = OxmlElement('wp:posOffset'); po.text = '0'; posV.append(po); anchor.append(posV)
+        ext = OxmlElement('wp:extent'); ext.set('cx', cx); ext.set('cy', cy); anchor.append(ext)
+        ef = OxmlElement('wp:effectExtent')
+        for a in ('l','t','r','b'): ef.set(a,'0')
+        anchor.append(ef)
+        wrap = OxmlElement('wp:wrapSquare'); wrap.set('wrapText','bothSides'); anchor.append(wrap)
+        if docPr       is not None: anchor.append(docPr)
+        if cNvGrfFrmPr is not None: anchor.append(cNvGrfFrmPr)
+        if graphic     is not None: anchor.append(graphic)
+
+        drawing.remove(inline)
+        drawing.append(anchor)
+
+    # ── 圖片段落 ────────────────────────────────────────────
+
+    def _download_image(self, src):
+        """下載圖片並清除 EXIF，回傳 BytesIO 或 None"""
+        try:
+            req = urllib.request.Request(src, headers={'User-Agent': 'Mozilla/5.0'})
+            img_bytes = urllib.request.urlopen(req, timeout=15).read()
+            pil_img = PILImage.open(io.BytesIO(img_bytes))
+            clean = io.BytesIO()
+            fmt = (pil_img.format or 'JPEG').upper()
+            pil_img.save(clean, format='JPEG' if fmt in ('JPEG','JPG') else 'PNG', quality=95)
+            clean.seek(0)
+            return clean
+        except Exception as e:
+            print(f'Warning: cannot download {src}: {e}')
+            return None
+
+    def _add_figure(self, html):
+        src_m = re.search(r'src=["\']([^"\']+)["\']', html)
+        alt_m = re.search(r'alt=["\']([^"\']*)["\']', html)
+        cap_m = re.search(r'<figcaption>(.*?)</figcaption>', html, re.DOTALL)
+
+        src     = src_m.group(1).strip() if src_m else ''
+        alt     = alt_m.group(1).strip() if alt_m else ''
+        caption_lines = []
+        if cap_m:
+            raw = cap_m.group(1)
+            for part in re.split(r'<br\s*/?>', raw):
+                part = re.sub(r'<[^>]+>', '', part).strip()
+                if part:
+                    caption_lines.append(part)
+
+        float_dir = None
+        if 'img-right' in html: float_dir = 'right'
+        elif 'img-left' in html: float_dir = 'left'
+
+        width_m  = re.search(r'px-(\d+)', html)
+        px       = int(width_m.group(1)) if width_m else 250
+        width_cm = min(px * 0.02, 6.0) if float_dir else min(px * 0.02, 14.2)
+
+        # 偵測人物照片雙框線樣式（CSS border + outline）
+        img_style_m = re.search(r'<img\b[^>]*style=["\']([^"\']*)["\']', html, re.IGNORECASE)
+        has_portrait_border = bool(
+            img_style_m and
+            'outline' in img_style_m.group(1).lower() and
+            'border'  in img_style_m.group(1).lower()
+        )
+
+        img_stream = self._download_image(src) if src else None
+
+        if not img_stream:
+            p = self.doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p.add_run(f'[圖片：{alt or src or "（未知）"}]')
+            self._apply_font(run, 'Times New Roman', 'NSimSun', size=10, color=(0x80,0x80,0x80))
+            return
+
+        if float_dir:
+            # 浮動圖（左/右）→ 用浮動表格呈現
+            self._add_figure_textbox(img_stream, width_cm, caption_lines, float_dir,
+                                     portrait_border=has_portrait_border)
+        else:
+            # 置中行內圖（img-bottom）→ 前後各空一行
+            self._add_blank_line()
+            p = self.doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after  = Pt(0)
+            run = p.add_run()
+            run.add_picture(img_stream, width=Cm(width_cm))
+            if caption_lines:
+                pc = self.doc.add_paragraph()
+                pc.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                pc.paragraph_format.space_before = Pt(0)
+                pc.paragraph_format.space_after  = Pt(0)
+                self._add_caption_runs(pc, caption_lines)
+            self._add_blank_line()   # 圖說之後空一行
+
+    def _add_figure_textbox(self, img_stream, width_cm, caption_lines, float_dir,
+                            portrait_border=False):
+        """浮動表格：圖片＋圖說組成矩形群組，整體文繞圖
+        portrait_border=True 時加人物照片單層3px粗框（DrawingML，與行內圖一致）"""
+        width_dxa = int(width_cm * 567)   # cm → twips
+
+        tbl = self.doc.add_table(rows=1, cols=1)
+
+        # ── tblPr ──
+        tblPr = tbl._element.find(qn('w:tblPr'))
+        if tblPr is None:
+            tblPr = OxmlElement('w:tblPr')
+            tbl._element.insert(0, tblPr)
+
+        # 浮動定位
+        tblpPr = OxmlElement('w:tblpPr')
+        tblpPr.set(qn('w:leftFromText'),  '170')
+        tblpPr.set(qn('w:rightFromText'), '170')
+        tblpPr.set(qn('w:topFromText'),    '0')
+        tblpPr.set(qn('w:bottomFromText'), '0')
+        tblpPr.set(qn('w:vertAnchor'),  'text')
+        tblpPr.set(qn('w:horzAnchor'), 'margin')
+        tblpPr.set(qn('w:tblpXSpec'), float_dir)   # 'right' or 'left'
+        tblPr.insert(0, tblpPr)
+
+        # 表格寬度
+        tblW = tblPr.find(qn('w:tblW'))
+        if tblW is None:
+            tblW = OxmlElement('w:tblW')
+            tblPr.append(tblW)
+        tblW.set(qn('w:w'),    str(width_dxa))
+        tblW.set(qn('w:type'), 'dxa')
+
+        # 表格框線（全部清除；portrait 的外框設在 tcBorders）
+        tblBorders = OxmlElement('w:tblBorders')
+        for side in ('top','left','bottom','right','insideH','insideV'):
+            b = OxmlElement(f'w:{side}')
+            b.set(qn('w:val'), 'none')
+            b.set(qn('w:sz'), '0')
+            b.set(qn('w:space'), '0')
+            b.set(qn('w:color'), 'auto')
+            tblBorders.append(b)
+        tblPr.append(tblBorders)
+
+        # 表格層級：強制 cellSpacing=0 + cellMargin=0，防止 Word 預設留白影響框線位置
+        tblCellSpacing = OxmlElement('w:tblCellSpacing')
+        tblCellSpacing.set(qn('w:w'), '0')
+        tblCellSpacing.set(qn('w:type'), 'dxa')
+        tblPr.append(tblCellSpacing)
+
+        tblCellMar = OxmlElement('w:tblCellMar')
+        for side in ('top', 'left', 'bottom', 'right'):
+            m = OxmlElement(f'w:{side}')
+            m.set(qn('w:w'), '0')
+            m.set(qn('w:type'), 'dxa')
+            tblCellMar.append(m)
+        tblPr.append(tblCellMar)
+
+        # ── 儲存格 ──
+        cell = tbl.rows[0].cells[0]
+        tcPr = cell._tc.find(qn('w:tcPr'))
+        if tcPr is None:
+            tcPr = OxmlElement('w:tcPr')
+            cell._tc.insert(0, tcPr)
+
+        tcW = tcPr.find(qn('w:tcW'))
+        if tcW is None:
+            tcW = OxmlElement('w:tcW')
+            tcPr.append(tcW)
+        tcW.set(qn('w:w'),    str(width_dxa))
+        tcW.set(qn('w:type'), 'dxa')
+
+        tcBorders = OxmlElement('w:tcBorders')
+        for side in ('top','left','bottom','right'):
+            b = OxmlElement(f'w:{side}')
+            b.set(qn('w:val'), 'none')
+            b.set(qn('w:sz'), '0')
+            b.set(qn('w:space'), '0')
+            b.set(qn('w:color'), 'auto')
+            tcBorders.append(b)
+        tcPr.append(tcBorders)
+
+        # 儲存格 margin：全部 0，圖片緊貼框線
+        tcMar = OxmlElement('w:tcMar')
+        for side in ('top', 'left', 'bottom', 'right'):
+            m = OxmlElement(f'w:{side}')
+            m.set(qn('w:w'),    '0')
+            m.set(qn('w:type'), 'dxa')
+            tcMar.append(m)
+        tcPr.append(tcMar)
+
+        # 圖片（第 1 段）— 消除段前/後距，讓圖片貼緊儲存格邊界
+        img_para = cell.paragraphs[0]
+        img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        img_para.paragraph_format.space_before = Pt(0)
+        img_para.paragraph_format.space_after  = Pt(0)
+        img_run = img_para.add_run()
+        img_run.add_picture(img_stream, width=Cm(width_cm))
+
+        # 圖說（第 2 段，支援 <br> 換行）
+        if caption_lines:
+            cap_para = cell.add_paragraph()
+            cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            cap_para.paragraph_format.space_before = Pt(0)
+            cap_para.paragraph_format.space_after  = Pt(0)
+            self._add_caption_runs(cap_para, caption_lines)
+
+    def _add_caption_runs(self, paragraph, lines):
+        """將圖說多行（原 <br> 分割）加入段落，行間用 w:br 換行"""
+        for i, line in enumerate(lines):
+            if i > 0:
+                br_run = paragraph.add_run()
+                br = OxmlElement('w:br')
+                br_run._element.append(br)
+            run = paragraph.add_run(line)
+            self._apply_font(run, 'Times New Roman', 'PMingLiU', size=10, color=(0x59,0x59,0x59))
+
+    # ── 結構元件 ─────────────────────────────────────────────
+
+    def add_category_tag(self, category, color_hex):
+        """欄目標籤：靠右，14pt，非粗體，無段前段後間距"""
+        p = self.doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after  = Pt(0)
+        run = p.add_run(f'【{category}】')
+        self._apply_font(run, 'Times New Roman', '文鼎中行書', size=14, bold=False,
+                         color=self._hex_rgb(color_hex))
+
+    def add_title(self, title):
+        p = self.doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after  = Pt(0)
+        run = p.add_run(title)
+        self._apply_font(run, 'Times New Roman', '華康中黑體', size=24, bold=True)
+
+    def add_subtitle(self, subtitle):
+        if not subtitle:
+            return
+        if not subtitle.startswith('──'):
+            subtitle = f'──{subtitle}'
+        subtitle = f'\u3000\u3000{subtitle}'   # 前置兩個全形空格
+        p = self.doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after  = Pt(0)
+        run = p.add_run(subtitle)
+        self._apply_font(run, 'Times New Roman', '華康中黑體', size=16, bold=True)
+
+    def add_decoration_line(self):
+        """裝飾線：單段落，上框 3px（粗）＋下框 1px（細），行高 1pt 讓兩線間距約 1px"""
+        p = self.doc.add_paragraph()
+        pPr = p._element.get_or_add_pPr()
+        sp = OxmlElement('w:spacing')
+        sp.set(qn('w:before'), '0'); sp.set(qn('w:after'), '0')
+        sp.set(qn('w:line'), '20');  sp.set(qn('w:lineRule'), 'exact')  # 1pt 行高
+        pPr.append(sp)
+        pBdr = OxmlElement('w:pBdr')
+        top = OxmlElement('w:top')
+        top.set(qn('w:val'), 'single'); top.set(qn('w:sz'), '18')   # ~3px
+        top.set(qn('w:space'), '0');    top.set(qn('w:color'), '000000')
+        pBdr.append(top)
+        bot = OxmlElement('w:bottom')
+        bot.set(qn('w:val'), 'single'); bot.set(qn('w:sz'), '6')    # ~1px
+        bot.set(qn('w:space'), '0');    bot.set(qn('w:color'), '000000')
+        pBdr.append(bot)
+        pPr.append(pBdr)
+
+    def add_author(self, author, author_title=None, remark=None):
+        def _add_field(text, ascii_font, east_font, size):
+            if not text:
+                return
+            parts = re.split(r'<br\s*/?>', text, flags=re.IGNORECASE)
+            for part in parts:
+                part = re.sub(r'<[^>]+>', '', part).strip()
+                if not part:
+                    continue
+                p = self.doc.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                p.paragraph_format.space_before = Pt(0)
+                p.paragraph_format.space_after  = Pt(0)
+                run = p.add_run(part)
+                self._apply_font(run, ascii_font, east_font, size=size)
+
+        _add_field(author,       'Brush Script MT', '文鼎中行書', 12)
+        _add_field(author_title, 'Brush Script MT', '文鼎中行書', 12)
+        _add_field(remark,       'Times New Roman', 'NSimSun',    11)
+
+    def add_keywords(self, keywords):
+        if not keywords:
+            return
+        kw = re.sub(r'^[🌿\s]*(關鍵字[：:])?\s*', '', keywords).strip()
+        p = self.doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after  = Pt(0)
+        for chunk, is_emoji in self._split_emoji(f'🌿關鍵字：{kw}'):
+            run = p.add_run(chunk)
+            if is_emoji:
+                self._apply_font(run, 'Segoe UI Symbol', 'Segoe UI Symbol', size=12)
+            else:
+                self._apply_font(run, 'Times New Roman', 'NSimSun', size=12, bold=True)
+
+    # ── 內文解析 ─────────────────────────────────────────────
+
+    def _split_into_segments(self, content):
+        """將 HTML 內容切分為 (type, html) segments，正確處理嵌套標籤。"""
+        BLOCK_TAGS = ('figure', 'blockquote', 'table', 'div', 'p')
+        start_re = re.compile(
+            r'<(' + '|'.join(BLOCK_TAGS) + r')(\b[^>]*)?>',
+            re.IGNORECASE
+        )
+        segments = []
+        pos = 0
+        while pos < len(content):
+            m = start_re.search(content, pos)
+            if not m:
+                tail = content[pos:].strip()
+                if tail:
+                    segments.append(('text', tail))
+                break
+            before = content[pos:m.start()].strip()
+            if before:
+                segments.append(('text', before))
+            tag = m.group(1).lower()
+            end_abs = self._find_close_tag(content, m.end(), tag)
+            segments.append((tag, content[m.start():end_abs]))
+            pos = end_abs
+        return segments
+
+    def _find_close_tag(self, content, from_pos, tag):
+        """找到對應的關閉標籤位置（處理嵌套），回傳關閉標籤結束後的位置。"""
+        open_re  = re.compile(r'<'  + re.escape(tag) + r'\b', re.IGNORECASE)
+        close_re = re.compile(r'</' + re.escape(tag) + r'\s*>', re.IGNORECASE)
+        depth = 1
+        pos   = from_pos
+        while pos < len(content) and depth > 0:
+            om = open_re.match(content, pos)
+            cm = close_re.match(content, pos)
+            if om:
+                depth += 1
+                gt = content.find('>', pos)
+                pos = (gt + 1) if gt != -1 else pos + 1
+            elif cm:
+                depth -= 1
+                pos = cm.end()
+            else:
+                pos += 1
+        return pos
+
+    def add_content(self, content):
+        if not content:
+            return
+        content = re.sub(r'(\s*<br\s*/?>)+\s*$', '', content.strip())
+        for seg_type, seg_html in self._split_into_segments(content):
+            if seg_type == 'figure':
+                self._add_figure(seg_html)
+            elif seg_type == 'blockquote':
+                inner = re.sub(r'<[^>]+>', '', seg_html, flags=re.DOTALL).strip()
+                if inner:
+                    self._add_blockquote(inner)
+            elif seg_type == 'div':
+                self._dispatch_div(seg_html)
+            elif seg_type == 'table':
+                self._add_table(seg_html)
+            elif seg_type == 'p':
+                self._add_paragraph_element(seg_html)
+            else:  # text
+                normalized = re.sub(r'<br\s*/?>', '\n', seg_html)
+                for line in normalized.split('\n'):
+                    self._process_line(line.strip())
+
+    def _dispatch_div(self, html):
+        """依 class 屬性將 <div> 派發至對應處理器。"""
+        outer_class = ''
+        m = re.match(r'<div\b[^>]*class=["\']([^"\']*)["\']', html, re.IGNORECASE)
+        if m:
+            outer_class = m.group(1)
+
+        if 'custom-divider' in outer_class:
+            self._add_custom_divider()
+        elif 'book-quote' in outer_class:
+            self._add_book_quote(html)
+        elif 'book-box' in outer_class:
+            self._add_book_box(html)
+        elif 'reference-box' in outer_class:
+            self._add_reference_box(html)
+        elif 'theme-image' in outer_class:
+            self._add_theme_image(html)
+        elif 'author-profile' in outer_class:
+            self._add_author_profile(html)
+        elif 'footnotes' in outer_class:
+            pass  # 腳注由 _finalize_footnotes 處理
+        else:
+            # 一般 div：strip 所有 HTML，取出文字後輸出段落
+            style_m = re.search(r'style=["\']([^"\']+)["\']', html, re.IGNORECASE)
+            inner = re.sub(r'<br\s*/?>', '\n', html)
+            inner = re.sub(r'<[^>]+>', '', inner, flags=re.DOTALL).strip()
+            if not inner:
+                return
+            if style_m and 'text-align' in style_m.group(1).lower():
+                if 'right' in style_m.group(1).lower():
+                    self._add_right_aligned(inner)
+                    return
+            for line in inner.split('\n'):
+                line = line.strip()
+                if line:
+                    p = self.doc.add_paragraph()
+                    p.paragraph_format.first_line_indent = Pt(24)
+                    p.paragraph_format.space_before = Pt(0)
+                    p.paragraph_format.space_after  = Pt(0)
+                    self._add_inline(p, line)
+
+    def _add_paragraph_element(self, html):
+        """處理 <p> 元素，支援 no-indent 與內部 <br>。
+        <p class="no-indent"> 前自動插入一空行。"""
+        no_indent = bool(re.search(r'class=["\'][^"\']*no-indent[^"\']*["\']',
+                                   html, re.IGNORECASE))
+        inner = re.sub(r'^<p[^>]*>', '', html, count=1, flags=re.IGNORECASE)
+        inner = re.sub(r'</p>\s*$',  '', inner, flags=re.IGNORECASE).strip()
+        if not inner:
+            return
+        # <p class="no-indent"> 前空一行
+        # —— 但前面已是空行或小標題時跳過，避免重複
+        if no_indent and not self._should_skip_blank_before():
+            self._add_blank_line()
+        parts = re.split(r'<br\s*/?>', inner, flags=re.IGNORECASE)
+        for part in parts:
+            part = part.strip()
+            if not part:
+                continue
+            p = self.doc.add_paragraph()
+            p.paragraph_format.first_line_indent = Pt(0) if no_indent else Pt(24)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after  = Pt(0)
+            self._add_inline(p, part)
+
+    def _add_custom_divider(self):
+        """灰色水平分隔線，對應 CSS .custom-divider（3px gray）。
+        前後各一空行；前面已是空行或小標題時略過前置空行。"""
+        if not self._should_skip_blank_before():
+            self._add_blank_line()
+        p = self.doc.add_paragraph()
+        pPr = p._element.get_or_add_pPr()
+        sp_el = OxmlElement('w:spacing')
+        sp_el.set(qn('w:before'), '0')
+        sp_el.set(qn('w:after'),  '0')
+        sp_el.set(qn('w:line'),   '40')
+        sp_el.set(qn('w:lineRule'), 'exact')
+        pPr.append(sp_el)
+        pBdr = OxmlElement('w:pBdr')
+        bot = OxmlElement('w:bottom')
+        bot.set(qn('w:val'),   'single')
+        bot.set(qn('w:sz'),    '18')      # 18/8 = 2.25pt ≈ 3px
+        bot.set(qn('w:space'), '0')
+        bot.set(qn('w:color'), 'AAAAAA')  # 灰色
+        pBdr.append(bot)
+        pPr.append(pBdr)
+        self._add_blank_line()
+
+    def _add_book_quote(self, html):
+        """書本引言（.book-quote）：咖啡色左豎線，楷書體，右對齊出處行。"""
+        rel_m = re.search(r'<div[^>]*book-quote-rel[^>]*>(.*?)</div>',
+                          html, re.DOTALL | re.IGNORECASE)
+        rel_text = ''
+        if rel_m:
+            rel_text = re.sub(r'<[^>]+>', '', rel_m.group(1)).strip()
+            html = html[:rel_m.start()] + html[rel_m.end():]
+
+        inner = re.sub(r'^<div[^>]*>', '', html, count=1, flags=re.IGNORECASE).strip()
+        inner = re.sub(r'</div>\s*$',  '', inner, flags=re.IGNORECASE).strip()
+        inner = re.sub(r'<br\s*/?>', '\n', inner, flags=re.IGNORECASE)
+        lines = [re.sub(r'<[^>]+>', '', l).strip() for l in inner.split('\n')]
+        lines = [l for l in lines if l]
+
+        self._add_blank_line()  # 前置空行
+
+        def _bq_para(space_after=0):
+            p = self.doc.add_paragraph()
+            p.paragraph_format.left_indent       = Pt(24)
+            p.paragraph_format.right_indent      = Pt(24)
+            p.paragraph_format.first_line_indent = Pt(0)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after  = Pt(space_after)
+            pPr = p._element.get_or_add_pPr()
+            pBdr = OxmlElement('w:pBdr')
+            left = OxmlElement('w:left')
+            left.set(qn('w:val'),   'single')
+            left.set(qn('w:sz'),    '36')      # 4.5pt 咖啡色豎線
+            left.set(qn('w:space'), '4')
+            left.set(qn('w:color'), '8B4513')
+            pBdr.append(left)
+            pPr.append(pBdr)
+            return p
+
+        for line in lines:
+            p = _bq_para()
+            self._add_inline(p, line, east_font='標楷體')
+
+        if rel_text:
+            p_rel = _bq_para(space_after=6)
+            p_rel.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            self._add_inline(p_rel, rel_text, east_font='標楷體')
+
+        self._add_blank_line()  # 後置空行
+
+    def _add_book_box(self, html):
+        """書籍簡介框（.book-box）：綠色左豎線，書籍資訊文字。"""
+        info_m = re.search(r'<div[^>]*book-info[^>]*>(.*?)</div>',
+                           html, re.DOTALL | re.IGNORECASE)
+        if not info_m:
+            return
+        info_html = re.sub(r'<br\s*/?>', '\n', info_m.group(1))
+        info_text = re.sub(r'<[^>]+>', '', info_html).strip()
+        if not info_text:
+            return
+
+        self._add_blank_line()
+
+        def _bb_para():
+            p = self.doc.add_paragraph()
+            p.paragraph_format.left_indent       = Pt(24)
+            p.paragraph_format.first_line_indent = Pt(0)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after  = Pt(0)
+            pPr = p._element.get_or_add_pPr()
+            pBdr = OxmlElement('w:pBdr')
+            left = OxmlElement('w:left')
+            left.set(qn('w:val'),   'single')
+            left.set(qn('w:sz'),    '36')
+            left.set(qn('w:space'), '4')
+            left.set(qn('w:color'), '378B13')
+            pBdr.append(left)
+            pPr.append(pBdr)
+            return p
+
+        for line in info_text.split('\n'):
+            line = line.strip()
+            if line:
+                p = _bb_para()
+                run = p.add_run(line)
+                self._apply_font(run, 'Times New Roman', 'NSimSun', size=12)
+
+        self._add_blank_line()
+
+    def _add_reference_box(self, html):
+        """參考資料框（.reference-box）：綠色左豎線，條列來源。"""
+        strong_m = re.search(r'<strong>(.*?)</strong>', html, re.DOTALL | re.IGNORECASE)
+        title_text = re.sub(r'<[^>]+>', '', strong_m.group(1)).strip() if strong_m else '參考資料'
+
+        inner = html
+        if strong_m:
+            inner = inner[:strong_m.start()] + inner[strong_m.end():]
+        inner = re.sub(r'^<div[^>]*>', '', inner, count=1, flags=re.IGNORECASE).strip()
+        inner = re.sub(r'</div>\s*$',  '', inner, flags=re.IGNORECASE).strip()
+        inner = re.sub(r'<br\s*/?>', '\n', inner)
+        body_text = re.sub(r'<[^>]+>', '', inner).strip()
+
+        self._add_blank_line()
+
+        def _ref_para():
+            p = self.doc.add_paragraph()
+            p.paragraph_format.left_indent       = Pt(24)
+            p.paragraph_format.first_line_indent = Pt(0)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after  = Pt(0)
+            pPr = p._element.get_or_add_pPr()
+            pBdr = OxmlElement('w:pBdr')
+            left = OxmlElement('w:left')
+            left.set(qn('w:val'),   'single')
+            left.set(qn('w:sz'),    '36')
+            left.set(qn('w:space'), '4')
+            left.set(qn('w:color'), '378B13')
+            pBdr.append(left)
+            pPr.append(pBdr)
+            return p
+
+        p_title = _ref_para()
+        run = p_title.add_run(title_text)
+        self._apply_font(run, 'Times New Roman', 'NSimSun', size=13, bold=True)
+
+        for line in body_text.split('\n'):
+            line = line.strip()
+            if line:
+                p = _ref_para()
+                run = p.add_run('• ' + line)
+                self._apply_font(run, 'Times New Roman', 'NSimSun', size=11)
+
+        self._add_blank_line()
+
+    def _add_theme_image(self, html):
+        """主題圖片（.theme-image）：置中大圖，無圖說。"""
+        src_m = re.search(r'src=["\']([^"\']+)["\']', html)
+        if not src_m:
+            return
+        src = src_m.group(1).strip()
+        img_stream = self._download_image(src)
+        if not img_stream:
+            return
+        p = self.doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(6)
+        p.paragraph_format.space_after  = Pt(6)
+        p.add_run().add_picture(img_stream, width=Cm(12.0))
+
+    def _add_author_profile(self, html):
+        """作者簡介（.author-profile）：輸出姓名與簡介文字。"""
+        inner = re.sub(r'<[^>]+>', ' ', html).strip()
+        inner = re.sub(r'\s+', ' ', inner)
+        if not inner:
+            return
+        p = self.doc.add_paragraph()
+        p.paragraph_format.first_line_indent = Pt(0)
+        p.paragraph_format.space_before = Pt(6)
+        p.paragraph_format.space_after  = Pt(0)
+        run = p.add_run(inner)
+        self._apply_font(run, 'Times New Roman', 'NSimSun', size=11)
+
+    def _add_right_aligned(self, text):
+        """置右段落（對應 style="text-align: right"）。"""
+        for line in text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            p = self.doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            p.paragraph_format.first_line_indent = Pt(0)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after  = Pt(0)
+            self._add_inline(p, line)
+
+    def _add_table(self, html):
+        """解析並插入 HTML 表格（<table class="data-table">）。"""
+        rows_html = re.findall(r'<tr\b[^>]*>(.*?)</tr>', html,
+                               re.DOTALL | re.IGNORECASE)
+        if not rows_html:
+            return
+        first_cells = re.findall(r'<(?:td|th)\b[^>]*>.*?</(?:td|th)>',
+                                 rows_html[0], re.DOTALL | re.IGNORECASE)
+        num_cols = max(len(first_cells), 1)
+        tbl = self.doc.add_table(rows=0, cols=num_cols)
+        tbl.style = 'Table Grid'
+        for row_html in rows_html:
+            cells = re.findall(r'<(td|th)\b[^>]*>(.*?)</(?:td|th)>',
+                               row_html, re.DOTALL | re.IGNORECASE)
+            row = tbl.add_row()
+            for i, (ctag, ccontent) in enumerate(cells[:num_cols]):
+                p = row.cells[i].paragraphs[0]
+                p.paragraph_format.space_before = Pt(0)
+                p.paragraph_format.space_after  = Pt(0)
+                text = re.sub(r'<[^>]+>', '', ccontent).strip()
+                if text:
+                    run = p.add_run(text)
+                    self._apply_font(run, 'Times New Roman', 'NSimSun',
+                                     size=11, bold=(ctag.lower() == 'th'))
+        self._add_blank_line()
+
+    def _add_picture_border(self, run, border_pt=0.75, color='000000'):
+        """在已插入圖片的 run 上加 drawingML 內框線（模擬 CSS border）。"""
+        PIC_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture'
+        A_NS   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+        from lxml import etree as lxml_etree
+
+        drawing = run._r.find(qn('w:drawing'))
+        if drawing is None:
+            return
+        pic_el = drawing.find('.//' + f'{{{PIC_NS}}}pic')
+        if pic_el is None:
+            return
+        spPr_el = pic_el.find(f'{{{PIC_NS}}}spPr')
+        if spPr_el is None:
+            spPr_el = lxml_etree.SubElement(pic_el, f'{{{PIC_NS}}}spPr')
+
+        # 移除舊框線
+        for ln_el in list(spPr_el.findall(f'{{{A_NS}}}ln')):
+            spPr_el.remove(ln_el)
+
+        width_emu = int(border_pt * 12700)  # pt → EMU
+        ln_el = lxml_etree.SubElement(
+            spPr_el, f'{{{A_NS}}}ln',
+            attrib={'w': str(width_emu), 'cap': 'flat', 'cmpd': 'sng', 'algn': 'ctr'})
+        sf_el = lxml_etree.SubElement(ln_el, f'{{{A_NS}}}solidFill')
+        lxml_etree.SubElement(sf_el, f'{{{A_NS}}}srgbClr', attrib={'val': color})
+        lxml_etree.SubElement(ln_el, f'{{{A_NS}}}prstDash', attrib={'val': 'solid'})
+
+    def _should_skip_blank_before(self):
+        """若前一個段落已是空行或小標題，回傳 True，避免重複插入空行。"""
+        paras = self.doc.paragraphs
+        if not paras:
+            return True
+        last = paras[-1]
+        # 前一段是空行（空白或無文字）
+        if not last.text.strip():
+            return True
+        # 前一段是小標題（粗體，字型 ≥ 13pt）
+        for run in last.runs:
+            if run.font.bold and run.font.size and run.font.size >= Pt(13):
+                return True
+        return False
+
+    def _process_line(self, line):
+        """逐行處理正文（跳過空行、處理標題與一般段落）"""
+        if not line:
+            return  # 略過空行，不插入空段落
+
+        heading_match = re.match(r'^(#{1,3})\s+(.+)', line)
+        if heading_match:
+            self._add_section_title(heading_match.group(2))
+            return
+
+        if line.startswith('>'):
+            self._add_blockquote(line[1:].strip())
+            return
+
+        # 偵測 <p class="no-indent"> 包裝 → 無首行縮排 + 前空一行
+        no_indent = False
+        no_indent_m = re.match(
+            r'<p\s[^>]*class=[^>]*no-indent[^>]*>(.*)</p>$',
+            line, re.IGNORECASE | re.DOTALL)
+        if no_indent_m:
+            line = no_indent_m.group(1).strip()
+            no_indent = True
+            # no-indent 段落前空一行（前面已是空行或小標題則跳過）
+            if not self._should_skip_blank_before():
+                self._add_blank_line()
+
+        p = self.doc.add_paragraph()
+        p.paragraph_format.first_line_indent = Pt(0) if no_indent else Pt(24)
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after  = Pt(0)
+        self._add_inline(p, line)
+
+    def _add_section_title(self, title):
+        """段落小標題：14pt 粗體，段前一行空距，段後 6pt，無首行縮排，無列表符號"""
+        import unicodedata
+        # 去掉內容前置的符號/標點字元（■ ● ▪ 等）
+        while title and unicodedata.category(title[0]) in (
+                'So','Sm','Sk','Sc','Po','Ps','Pe','Pi','Pf','Pd','Pc','Zs'):
+            title = title[1:]
+        title = title.strip()
+
+        # 前置空行（比 space_before 可靠，不受 contextualSpacing 影響）
+        self._add_blank_line()
+
+        p = self.doc.add_paragraph()
+        p.paragraph_format.first_line_indent = Pt(0)
+        p.paragraph_format.space_before      = Pt(0)
+        p.paragraph_format.space_after       = Pt(6)
+        run = p.add_run(title)
+        self._apply_font(run, 'Times New Roman', 'NSimSun', size=14, bold=True)
+
+    def _add_blockquote(self, text):
+        """獨立引用：標楷體，左縮排 24pt，首行與末行各空一行，中間行無間距"""
+        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        for i, line in enumerate(lines):
+            p = self.doc.add_paragraph()
+            p.paragraph_format.left_indent       = Pt(24)
+            p.paragraph_format.first_line_indent = Pt(0)
+            p.paragraph_format.space_before = Pt(12) if i == 0               else Pt(0)
+            p.paragraph_format.space_after  = Pt(12) if i == len(lines) - 1  else Pt(0)
+            self._add_inline(p, line, east_font='標楷體')
+
+    def _split_emoji(self, text):
+        """將文字拆分為 [(chunk, is_emoji), ...] 以便分別套用字型"""
+        result = []
+        current = ''
+        current_emoji = False
+        for c in text:
+            cp = ord(c)
+            is_e = (cp > 0xFFFF or (0x2600 <= cp <= 0x27BF) or
+                    (0x1F000 <= cp <= 0x1FFFF) or cp in (0xFE0F, 0x200D))
+            if is_e != current_emoji:
+                if current:
+                    result.append((current, current_emoji))
+                current = c
+                current_emoji = is_e
+            else:
+                current += c
+        if current:
+            result.append((current, current_emoji))
+        return result
+
+    def _add_inline(self, paragraph, text, east_font='NSimSun'):
+        """
+        解析 inline 標記：
+          **text**           → 粗體
+          *text*             → 標楷體（行內引用）
+          <b>/<strong>       → 粗體
+          <i>/<em>           → 斜體
+          <br>               → 段落內換行（w:br）
+          <span style="..."> → 小字體 / 置右等樣式
+          [^N]               → Word 腳注引用
+          其他 <tag>          → 略過（不輸出原始文字）
+          emoji              → Segoe UI Symbol
+        """
+        TOKEN = re.compile(
+            r'(\*\*[^*\n]+?\*\*'
+            r'|\*[^*\n]+?\*'
+            r'|<(?:b|strong)>[^<]*</(?:b|strong)>'
+            r'|<(?:i|em)>[^<]*</(?:i|em)>'
+            r'|<br\s*/?>'
+            r'|<span\b[^>]*>.*?</span>'
+            r'|<[^>]+>'
+            r'|\[\^\d+\])',
+            re.IGNORECASE | re.DOTALL)
+        for seg in TOKEN.split(text):
+            if not seg:
+                continue
+            bold_md     = re.fullmatch(r'\*\*([^*]+)\*\*', seg)
+            kaiti_md    = re.fullmatch(r'\*([^*]+)\*', seg)
+            bold_html   = re.fullmatch(r'<(?:b|strong)>([^<]*)</(?:b|strong)>', seg, re.IGNORECASE)
+            italic_html = re.fullmatch(r'<(?:i|em)>([^<]*)</(?:i|em)>', seg, re.IGNORECASE)
+            br_tag      = re.fullmatch(r'<br\s*/?>', seg, re.IGNORECASE)
+            span_m      = re.fullmatch(r'<span\b([^>]*)>(.*?)</span>', seg, re.IGNORECASE | re.DOTALL)
+            fn_m        = re.fullmatch(r'\[\^(\d+)\]', seg)
+            html_tag    = re.fullmatch(r'<[^>]+>', seg)
+
+            if bold_md:
+                run = paragraph.add_run(bold_md.group(1))
+                self._apply_font(run, 'Times New Roman', east_font, size=12, bold=True)
+            elif kaiti_md:
+                run = paragraph.add_run(kaiti_md.group(1))
+                self._apply_font(run, 'Times New Roman', '標楷體', size=12)
+            elif bold_html:
+                run = paragraph.add_run(bold_html.group(1))
+                self._apply_font(run, 'Times New Roman', east_font, size=12, bold=True)
+            elif italic_html:
+                run = paragraph.add_run(italic_html.group(1))
+                self._apply_font(run, 'Times New Roman', east_font, size=12, italic=True)
+            elif br_tag:
+                # 段落內換行（w:br）
+                br_run = paragraph.add_run()
+                br_run._element.append(OxmlElement('w:br'))
+            elif span_m:
+                attrs   = span_m.group(1)
+                inner   = re.sub(r'<[^>]+>', '', span_m.group(2)).strip()
+                style_v = ''
+                sm = re.search(r'style=["\']([^"\']*)["\']', attrs, re.IGNORECASE)
+                if sm:
+                    style_v = sm.group(1).lower().replace(' ', '')
+                if not inner:
+                    pass
+                elif 'font-size:1rem' in style_v or 'font-size:0.' in style_v:
+                    # 小字體 span
+                    run = paragraph.add_run(inner)
+                    self._apply_font(run, 'Times New Roman', east_font, size=10)
+                else:
+                    # 其他 span → 以正常字型輸出
+                    run = paragraph.add_run(inner)
+                    self._apply_font(run, 'Times New Roman', east_font, size=12)
+            elif fn_m:
+                self._add_footnote_ref(paragraph, fn_m.group(1))
+            elif html_tag:
+                pass  # 略過其他 HTML 標籤（不輸出原始文字）
+            else:
+                # 折疊編輯器在 ** 前後注入的多餘空格（網頁排版用，Word 不需要）
+                seg = re.sub(r' {2,}', ' ', seg)
+                # 拆分 emoji，用 Segoe UI Symbol（黑白符號字型）
+                for chunk, is_emoji in self._split_emoji(seg):
+                    run = paragraph.add_run(chunk)
+                    if is_emoji:
+                        self._apply_font(run, 'Segoe UI Symbol', 'Segoe UI Symbol', size=12)
+                    else:
+                        self._apply_font(run, 'Times New Roman', east_font, size=12)
+
+    # ── 頁首頁尾 ────────────────────────────────────────────
+
+    def add_header_footer(self, issue_number, issue_title, article_id, article_title):
+        section = self.doc.sections[0]
+
+        # 啟用奇偶頁不同
+        sectPr = section._sectPr
+        sectPr.insert(0, OxmlElement('w:evenAndOddHeaders'))
+
+        dark = self._hex_rgb('#262626')
+
+        # 從 article_id 提取文章序號（"7-4" → "04"）
+        id_str = str(article_id) if article_id else '04'
+        num_m  = re.search(r'-(\d+)', id_str)
+        display_num = num_m.group(1).zfill(2) if num_m else id_str.zfill(2)
+
+        # ── 偶數頁（左頁）頁首 ──
+        even_hdr = section.even_page_header
+        for p in even_hdr.paragraphs: p.clear()
+
+        p1 = even_hdr.paragraphs[0]
+        p1.paragraph_format.space_before = Pt(0)
+        p1.paragraph_format.space_after  = Pt(0)
+        r1 = p1.add_run(f'無境界者｜Vol. {issue_number}（2026.02-04）')
+        self._apply_font(r1, 'Times New Roman', '微軟正黑體', size=10, color=dark)
+
+        p2 = even_hdr.add_paragraph()
+        p2.paragraph_format.space_before = Pt(0)
+        p2.paragraph_format.space_after  = Pt(0)
+        # 用 tab stop 讓底線延伸到第一行寬度再多 6 格
+        # 微軟正黑體 10pt：第一行約 3200 twips，再加 6 半形空格（≈600 twips）= 3800
+        pPr2 = p2._element.get_or_add_pPr()
+        tabs2 = OxmlElement('w:tabs')
+        tab2  = OxmlElement('w:tab')
+        tab2.set(qn('w:val'), 'left')
+        tab2.set(qn('w:pos'), '3800')   # twips，可依實際效果微調
+        tabs2.append(tab2)
+        pPr2.append(tabs2)
+        r2 = p2.add_run(issue_title + '\t')   # tab 延伸底線到 tab stop
+        self._apply_font(r2, 'Times New Roman', '微軟正黑體', size=10, color=dark)
+        r2.underline = True
+
+        # ── 奇數頁（右頁）頁首 ──
+        # 第一行空白佔位（與偶數頁第一行等高），第二行才是實際文字
+        # 讓兩者底部對齊在同一高度
+        odd_hdr = section.header
+        for p in odd_hdr.paragraphs: p.clear()
+
+        p3_blank = odd_hdr.paragraphs[0]
+        p3_blank.paragraph_format.space_before = Pt(0)
+        p3_blank.paragraph_format.space_after  = Pt(0)
+        r3_blank = p3_blank.add_run('')
+        self._apply_font(r3_blank, 'Times New Roman', '微軟正黑體', size=10, color=dark)
+
+        p3 = odd_hdr.add_paragraph()
+        p3.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        p3.paragraph_format.space_before = Pt(0)
+        p3.paragraph_format.space_after  = Pt(0)
+        # 奇數頁：前6空白 + 編號 + 標題 + 後1空格，靠右對齊，底線包含後面空格
+        header_text = f'      {display_num} {article_title} '   # 後1個半形空格
+        r3 = p3.add_run(header_text)
+        self._apply_font(r3, 'Times New Roman', '微軟正黑體', size=10, color=dark)
+        # 底線需包住尾端空格：改用段落底框線模擬，或直接設 underline
+        # Word 會裁掉行尾空格的底線；改加一個零寬無破壞空格確保保留
+        r3.underline = True
+        # 加一個不換行空格（U+00A0）確保尾端有底線
+        r3_end = p3.add_run('\u00a0')
+        self._apply_font(r3_end, 'Times New Roman', '微軟正黑體', size=10, color=dark)
+        r3_end.underline = True
+
+        # ── 偶數頁（左頁）頁尾：空行 + 頁碼靠左（10pt）──
+        even_ftr = section.even_page_footer
+        for p in even_ftr.paragraphs: p.clear()
+        efp_blank = even_ftr.paragraphs[0]
+        efp_blank.paragraph_format.space_before = Pt(0)
+        efp_blank.paragraph_format.space_after  = Pt(0)
+        efp = even_ftr.add_paragraph()
+        efp.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        efp.paragraph_format.space_before = Pt(0)
+        efp.paragraph_format.space_after  = Pt(0)
+        self._insert_page_number(efp, size=10)
+
+        # ── 奇數頁（右頁）頁尾：空行 + 頁碼靠右（10pt）──
+        odd_ftr = section.footer
+        for p in odd_ftr.paragraphs: p.clear()
+        ofp_blank = odd_ftr.paragraphs[0]
+        ofp_blank.paragraph_format.space_before = Pt(0)
+        ofp_blank.paragraph_format.space_after  = Pt(0)
+        ofp = odd_ftr.add_paragraph()
+        ofp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        ofp.paragraph_format.space_before = Pt(0)
+        ofp.paragraph_format.space_after  = Pt(0)
+        self._insert_page_number(ofp, size=10)
+
+    def _insert_page_number(self, paragraph, size=10):
+        run = paragraph.add_run()
+        rPr = OxmlElement('w:rPr')
+        sz = OxmlElement('w:sz');   sz.set(qn('w:val'), str(size * 2))
+        szCs = OxmlElement('w:szCs'); szCs.set(qn('w:val'), str(size * 2))
+        rPr.append(sz); rPr.append(szCs)
+        run._element.insert(0, rPr)
+        fc1 = OxmlElement('w:fldChar'); fc1.set(qn('w:fldCharType'), 'begin')
+        ins = OxmlElement('w:instrText')
+        ins.set(qn('xml:space'), 'preserve'); ins.text = ' PAGE '
+        fc2 = OxmlElement('w:fldChar'); fc2.set(qn('w:fldCharType'), 'end')
+        run._element.append(fc1)
+        run._element.append(ins)
+        run._element.append(fc2)
+
+    def save(self, filename):
+        self._finalize_footnotes()
+        self.doc.save(filename)
+        print(f'✅ Word 文件已生成：{filename}')
+
+
+# ════════════════════════════════════════
+# 主程式
+# ════════════════════════════════════════
+
+def generate_article_docx(article_data, output_path):
+    generator = ProfessionalDocxGenerator()
+    generator.set_footnotes(article_data.get('footnotes', []))
+
+    category_colors = {
+        '封面故事': '#833C0B', '專題文章': '#C00000',
+        '人物專訪': '#FFC000', '評論與回應': '#ED7D31',
+        '生命故事': '#00B050', '公告與剪影': '#7030A0',
+        '時事感想': '#0070C0',
+    }
+    category = article_data.get('category', '')
+    if category:
+        generator.add_category_tag(category, category_colors.get(category, '#000000'))
+
+    if article_data.get('title'):
+        generator.add_title(article_data['title'])
+    if article_data.get('subtitle'):
+        generator.add_subtitle(article_data['subtitle'])
+
+    generator.add_decoration_line()
+    generator._add_blank_line()   # 空行（裝飾線與作者之間）
+
+    generator.add_author(
+        article_data.get('author'),
+        article_data.get('author_title'),
+        article_data.get('remark'),
+    )
+    generator._add_blank_line()   # 空行（作者與關鍵字之間）
+
+    if article_data.get('keyword'):
+        generator.add_keywords(article_data['keyword'])
+        generator._add_blank_line()
+
+    if article_data.get('content'):
+        generator.add_content(article_data['content'])
+
+    generator.add_header_footer(
+        article_data.get('issue', 7),
+        article_data.get('issue_title', '火燒島上的《耶穌傳》'),
+        article_data.get('id', '04'),
+        article_data.get('title', '無標題'),
+    )
+
+    generator.save(output_path)
+
+
+# ════════════════════════════════════════
+# 命令列執行
+# ════════════════════════════════════════
+
+if __name__ == '__main__':
+    if len(sys.argv) < 3:
+        print('使用方式：python generate_docx.py <article.json> <output.docx>')
+        sys.exit(1)
+
+    input_json  = sys.argv[1]
+    output_docx = sys.argv[2]
+
+    try:
+        with open(input_json, 'r', encoding='utf-8') as f:
+            article_data = json.load(f)
+        generate_article_docx(article_data, output_docx)
+
+    except FileNotFoundError:
+        print(f'❌ 找不到檔案：{input_json}'); sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f'❌ JSON 格式錯誤：{e}'); sys.exit(1)
+    except Exception as e:
+        print(f'❌ 發生錯誤：{e}')
+        import traceback; traceback.print_exc()
+        sys.exit(1)

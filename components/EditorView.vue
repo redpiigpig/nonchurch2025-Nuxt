@@ -178,6 +178,70 @@ const saveArticle = async () => {
   loading.value = false;
 };
 
+// 💾 下載專業排版 Word 檔案（呼叫 Python API）
+const exportToWord = async () => {
+  try {
+    loading.value = true;
+
+    // 準備文章資料
+    const articleData = {
+      id: form.value.id,
+      title: form.value.title,
+      subtitle: form.value.subtitle,
+      category: form.value.category,
+      author: form.value.author,
+      author_title: form.value.author_title,
+      keyword: form.value.keyword,
+      content: form.value.content,
+      footnotes: form.value.footnotes,
+      issue: form.value.issue,
+      issue_title: form.value.issue_title,
+    };
+
+    console.log("📤 準備下載 Word:", articleData.id);
+
+    // 呼叫 API 生成 Word
+    const response = await fetch("/api/export-word", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(articleData),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      // 將 Base64 轉為 Blob
+      const binaryString = atob(result.file);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      // 下載檔案
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+
+      loading.value = false;
+      alert(`✅ 已下載專業排版：${result.filename}`);
+    } else {
+      throw new Error(result.error || "生成失敗");
+    }
+  } catch (error) {
+    loading.value = false;
+    alert(`❌ 下載失敗：${error.message}`);
+    console.error("Export error:", error);
+  }
+};
+
 const addFootnote = () => {
   const newId = form.value.footnotes.length + 1;
   form.value.footnotes.push({ id: newId, text: "" });
@@ -189,6 +253,191 @@ const removeFootnote = (index) => {
     fn.id = idx + 1;
   });
 };
+
+// ── 工具列：插入 / 包裹文字 ──────────────────────────────────────
+const insertOrWrap = async (
+  prefix,
+  suffix,
+  defaultText = "文字",
+  togglePrefix = null,
+  toggleSuffix = null,
+) => {
+  const textarea = textareaRef.value;
+  if (!textarea) return;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const originalText = form.value.content;
+  const selectedText = originalText.substring(start, end);
+  const checkPrefix = togglePrefix || prefix;
+  const checkSuffix = toggleSuffix || suffix;
+  let newText, newSelectionStart, newSelectionEnd;
+  const isWrapped =
+    originalText.substring(start - checkPrefix.length, start) === checkPrefix &&
+    originalText.substring(end, end + checkSuffix.length) === checkSuffix;
+  if (isWrapped) {
+    newText =
+      originalText.substring(0, start - checkPrefix.length) +
+      selectedText +
+      originalText.substring(end + checkSuffix.length);
+    newSelectionStart = start - checkPrefix.length;
+    newSelectionEnd = newSelectionStart + selectedText.length;
+  } else if (selectedText.length > 0) {
+    newText =
+      originalText.substring(0, start) + prefix + selectedText + suffix + originalText.substring(end);
+    newSelectionStart = start + prefix.length;
+    newSelectionEnd = newSelectionStart + selectedText.length;
+  } else {
+    newText =
+      originalText.substring(0, start) + prefix + defaultText + suffix + originalText.substring(end);
+    newSelectionStart = start + prefix.length;
+    newSelectionEnd = newSelectionStart + defaultText.length;
+  }
+  form.value.content = newText;
+  await nextTick();
+  textarea.focus({ preventScroll: true });
+  textarea.setSelectionRange(newSelectionStart, newSelectionEnd);
+};
+
+const insertBlock = async (template) => {
+  const textarea = textareaRef.value;
+  if (!textarea) return;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const originalText = form.value.content;
+  const newText = originalText.substring(0, start) + template + originalText.substring(end);
+  form.value.content = newText;
+  await nextTick();
+  textarea.focus({ preventScroll: true });
+  textarea.selectionStart = textarea.selectionEnd = start + template.length;
+};
+
+const tools = [
+  { label: "H2 副標", action: () => insertOrWrap("## ", "\n", "輸入標題") },
+  { label: "H3 小標", action: () => insertOrWrap("### ", "\n", "輸入標題") },
+  { label: "粗體", action: () => insertOrWrap(" **", "** ", "粗體文字") },
+  { label: "斜體", action: () => insertOrWrap("<i>", "</i>", "斜體文字") },
+  { label: "楷書體", action: () => insertOrWrap("*", "*", "楷書體文字") },
+  { label: "註腳標碼", action: () => insertOrWrap("[^", "]", "1") },
+  {
+    label: "一般引言",
+    action: () =>
+      insertOrWrap(
+        "<blockquote>\n",
+        '\n<div class="rel">── 出處</div>\n</blockquote>\n',
+        "引用的內容...",
+      ),
+  },
+  { label: "去除縮排", action: () => insertOrWrap('<p class="no-indent">', "</p>", "無縮排文字") },
+  { label: "分隔線", action: () => insertBlock('\n<div class="custom-divider"></div>\n') },
+  {
+    label: "置右",
+    action: () => {
+      const prefix = '<span style="display: block; text-align: right;">';
+      const suffix = "</span>";
+      insertOrWrap(prefix, suffix, "請在此輸入置右文字", prefix, suffix);
+    },
+  },
+  {
+    label: "小字體",
+    action: () => {
+      const prefix = '<span style="font-size: 1rem; font-family: serif;">';
+      const suffix = "</span>";
+      insertOrWrap(prefix, suffix, "請在此輸入小字體文字", prefix, suffix);
+    },
+  },
+];
+
+const editorComponents = [
+  {
+    label: "📚 書籍簡介",
+    action: () =>
+      insertBlock(
+        `\n\n<div class="book-box"><div class="book-info"><strong>書籍資訊</strong><br />《書名》...<br />《作者》...<br />《出版》...</div><div class="book-image"><img src="圖片網址" alt="封面" /></div></div>\n\n`,
+      ),
+  },
+  {
+    label: "✍ 書本引言",
+    action: () =>
+      insertBlock(
+        `\n\n<div class="book-quote">引用的內容...<div class="book-quote-rel"> ──《書名》，頁數 </div></div>\n\n`,
+      ),
+  },
+  {
+    label: "🖼️ 主題圖片",
+    action: () =>
+      insertBlock(`\n\n<div class="theme-image"><img src="圖片網址" alt="主題圖片"></div>\n\n`),
+  },
+  {
+    label: "🖼️ 圖片(左)",
+    action: () =>
+      insertBlock(
+        `\n\n<figure class="img-left px-300"><img src="圖片網址" alt="描述"><figcaption>圖片說明</figcaption></figure>\n\n`,
+      ),
+  },
+  {
+    label: "🖼️ 圖片(中)",
+    action: () =>
+      insertBlock(
+        `\n\n<figure class="img-bottom px-600"><img src="圖片網址" alt="描述"><figcaption>圖片說明文字</figcaption></figure>\n\n`,
+      ),
+  },
+  {
+    label: "🖼️ 圖片(右)",
+    action: () =>
+      insertBlock(
+        `\n\n<figure class="img-right px-300"><img src="圖片網址" alt="描述"><figcaption>圖片說明</figcaption></figure>\n\n`,
+      ),
+  },
+  {
+    label: "🤝 作者簡介",
+    action: () =>
+      insertBlock(
+        `\n\n<div class="author-profile"><img src="圖片網址" alt="作者頭像"><div><h3>作者名稱</h3><p>作者簡介內容...</p></div></div>\n\n`,
+      ),
+  },
+  {
+    label: "ℹ️ 資訊卡片",
+    action: () =>
+      insertBlock(
+        `\n\n<div class="info-card"><div class="info-card-inner"><img src="Logo圖片網址" alt="Logo"><div><h3>標題</h3><div class="info-card-links"><a href="#" target="_blank">連結1</a></div></div></div></div>\n\n`,
+      ),
+  },
+  {
+    label: "📋 參考資料",
+    action: () => {
+      let numRows = prompt("請輸入列數", "2");
+      numRows = parseInt(numRows) || 2;
+      let listItems = "";
+      for (let i = 1; i <= numRows; i++) {
+        listItems += `<div style="text-indent: -1.5rem; padding-left: 1.5rem; margin-bottom: 1rem; line-height: 1.8;">•&nbsp;&nbsp;資料來源${i}...</div>`;
+      }
+      insertBlock(`\n\n<div class="reference-box"><strong>參考資料</strong><div style="margin-top: 1rem; margin-bottom: 1rem;">${listItems}</div></div>\n\n`);
+    },
+  },
+  {
+    label: "📊 表格",
+    action: () => {
+      let sizeInput = prompt("表格尺寸 (欄x列)", "2x5");
+      let cols = 2, rows = 5;
+      if (sizeInput) {
+        const p = sizeInput.toLowerCase().split(/[x*]/);
+        cols = parseInt(p[0]) || 2;
+        rows = parseInt(p[1]) || 5;
+      }
+      let h = "<thead><tr>";
+      for (let i = 1; i <= cols; i++) h += `<th>標題${i}</th>`;
+      h += "</tr></thead>";
+      let b = "<tbody>";
+      for (let r = 1; r <= rows; r++) {
+        b += "<tr>";
+        for (let c = 1; c <= cols; c++) b += `<td>內容 ${r}-${c}</td>`;
+        b += "</tr>";
+      }
+      b += "</tbody>";
+      insertBlock(`\n\n<table class="data-table">\n${h}\n${b}\n</table>\n\n`);
+    },
+  },
+];
 </script>
 
 <template>
@@ -196,6 +445,17 @@ const removeFootnote = (index) => {
     <div class="editor-header">
       <h2>📝 文章編輯器</h2>
       <div class="actions">
+        <!-- ✅ 下載 Word 按鈕（只在編輯模式顯示） -->
+        <button
+          v-if="isEditMode"
+          class="btn btn-download"
+          @click="exportToWord"
+          :disabled="loading"
+          title="下載為專業排版 Word 檔案"
+        >
+          📥 下載 Word
+        </button>
+
         <label class="publish-label">
           <input type="checkbox" v-model="isPublished" />
           公開發布
@@ -297,6 +557,26 @@ const removeFootnote = (index) => {
 
         <div class="form-group">
           <label>內文 (Markdown)</label>
+          <div class="toolbar">
+            <div class="toolbar-group">
+              <button v-for="tool in tools" :key="tool.label" @click="tool.action" class="tool-btn" type="button">
+                {{ tool.label }}
+              </button>
+            </div>
+            <div class="toolbar-divider"></div>
+            <div class="toolbar-group">
+              <span class="group-label">插入元件：</span>
+              <button
+                v-for="comp in editorComponents"
+                :key="comp.label"
+                @click="comp.action"
+                class="tool-btn comp-btn"
+                type="button"
+              >
+                {{ comp.label }}
+              </button>
+            </div>
+          </div>
           <textarea
             v-model="form.content"
             ref="textareaRef"
@@ -428,6 +708,26 @@ const removeFootnote = (index) => {
   color: white;
   margin-left: 10px;
 }
+.btn-download {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+.btn-download:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+.btn-download:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 .editor-layout {
   display: flex;
@@ -494,6 +794,64 @@ input[readonly] {
   cursor: not-allowed;
 }
 
+/* 工具列 */
+.toolbar {
+  background: #f8f9fa;
+  border: 1px solid #ccc;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.toolbar + textarea {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.toolbar-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: #ccc;
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+.group-label {
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: bold;
+  white-space: nowrap;
+}
+.tool-btn {
+  background: white;
+  border: 1px solid #ccc;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.tool-btn:hover {
+  background: #e2e6ea;
+  border-color: #adb5bd;
+}
+.comp-btn {
+  color: #0056b3;
+  background: #f0f7ff;
+  border-color: #cce5ff;
+}
+.comp-btn:hover {
+  background: #d6eaff;
+}
+
 .footnote-item {
   display: flex;
   align-items: center;
@@ -505,7 +863,7 @@ input[readonly] {
   color: #555;
 }
 
-/* 預覽區樣式 (沿用前台樣式) */
+/* 預覽區樣式：與 articles/[id].vue 保持一致 */
 .preview-pane {
   font-family: "Times New Roman", serif;
   color: #444;
@@ -520,18 +878,29 @@ input[readonly] {
   right: 0;
   color: white;
   font-weight: bold;
-  font-size: 1.2rem;
+  font-size: 1.6rem;
   border-radius: 4px;
   padding: 5px 15px;
+  margin-top: -3rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 .main-title {
-  font-size: 2rem;
+  font-family: "Times New Roman", serif;
+  font-size: 2.5rem;
   font-weight: bold;
+  color: #444;
+  text-align: left;
   margin-top: 40px;
+  line-height: 1.4;
   padding-left: 2rem;
 }
 .sub-title {
-  font-size: 1.5rem;
+  font-family: "Times New Roman", serif;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #444;
+  margin-top: 10px;
+  text-align: left;
   padding-left: 6rem;
 }
 .divider-thick {
@@ -551,95 +920,49 @@ input[readonly] {
 .author-info {
   text-align: right;
   margin-bottom: 40px;
+  font-family: "Times New Roman", serif;
 }
 .author-name {
   font-size: 1.2rem;
+  color: #444;
 }
 .author-title,
 .author-remark {
   display: block;
-  font-size: 1rem;
+  font-size: 1.2rem;
+  color: #444;
   margin-top: 4px;
 }
-.keyword-section {
-  background-color: #f7f7f7;
-  padding: 15px;
-  border-left: 4px solid #666;
-  margin-bottom: 40px;
-}
+/* keyword-section 沿用 article.css 的全局樣式，不再覆蓋 */
 .keyword-section :deep(p) {
   margin: 0;
-  font-size: 1.1rem;
 }
 
-/* Markdown 預覽區樣式 */
-.preview-pane .markdown-body {
-  font-size: 1.25rem;
-  text-align: justify;
+/* Markdown 預覽區：覆蓋任何不一致之處，其餘繼承全域 article.css */
+.preview-pane :deep(p) {
+  text-indent: 2em;
+  margin-bottom: 1rem;
+}
+.preview-pane :deep(h2) {
+  font-size: 1.8rem;
+  font-weight: bold;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  text-indent: 0;
+}
+.preview-pane :deep(h3) {
+  font-size: 1.4rem;
+  font-weight: bold;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  text-indent: 0;
 }
 .preview-pane :deep(img) {
   max-width: 100%;
   height: auto;
   display: block;
-  margin: 2rem auto;
-}
-.preview-pane :deep(p) {
-  text-indent: 2.5rem;
-  margin-bottom: 1.5em;
-}
-.preview-pane :deep(h1),
-.preview-pane :deep(h2),
-.preview-pane :deep(h3),
-.preview-pane :deep(h4) {
-  text-indent: 0;
-  text-align: left;
-  display: block;
-  font-size: 1.25rem;
-  margin-bottom: 15px;
-  color: #000;
-  font-weight: bold;
-}
-
-/* 註釋系統 (Footnotes) */
-.preview-pane :deep(.footnotes) {
-  margin-top: 60px;
-  padding-top: 20px;
-  border-top: 2px solid #444;
-  font-size: 1rem;
-  color: #666;
-}
-.preview-pane :deep(.footnotes ol) {
-  padding-left: 0;
-  margin-left: -1rem;
-  list-style: none;
-  counter-reset: footnote-counter;
-}
-.preview-pane :deep(.footnotes li) {
-  display: flex;
-  align-items: baseline;
-  counter-increment: footnote-counter;
-  margin-bottom: 5px;
-}
-.preview-pane :deep(.footnotes li::before) {
-  content: counter(footnote-counter);
-  display: inline-block;
-  width: 2em;
-  flex-shrink: 0;
-  color: #007bff;
-  text-align: right;
-  margin-right: 10px;
-  cursor: pointer;
-}
-.preview-pane :deep(.footnotes li p) {
-  margin: 0;
-  text-indent: 0 !important;
-  flex-grow: 1;
-  text-align: justify;
-}
-.preview-pane :deep(.footnotes .footnote-backref) {
-  text-decoration: none;
-  border: none;
-  color: #007bff;
+  margin: 30px auto;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
 @media (max-width: 1024px) {

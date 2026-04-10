@@ -7,15 +7,18 @@ definePageMeta({
 });
 
 const route = useRoute();
+const articleId = computed(() => route.params.id);
 
 useHead({
-  title: `編輯文章 ${route.params.id} - 無境界者雜誌`,
+  title: computed(() => `編輯文章 ${articleId.value} - 無境界者雜誌`),
 });
 </script>
 
 <template>
   <div class="edit-article-page">
-    <!-- 編輯模式不顯示上傳面板，直接顯示編輯器 -->
+    <!-- 編輯模式：只有編輯器，沒有上傳功能 -->
+    <!-- EditorView 會自動根據 route.params.id 判斷為編輯模式 -->
+    <!-- 編輯模式會顯示「下載 Word」按鈕 -->
     <EditorView />
   </div>
 </template>

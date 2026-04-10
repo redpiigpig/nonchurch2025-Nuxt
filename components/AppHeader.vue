@@ -117,7 +117,6 @@ const editLink = computed(() => {
             alt="無境界者"
             class="logo-text"
           />
-          <span v-if="isEditMode" class="editor-badge">編輯模式</span>
         </NuxtLink>
       </div>
 
@@ -207,13 +206,18 @@ const editLink = computed(() => {
   padding-left: calc(20px);
 }
 
+.header:not(.editor-header) .nav {
+  margin-left: 130px;
+}
+
+
 .nav {
   display: flex;
   justify-content: space-between;
   align-items: center;
   max-width: 1200px;
   width: 100%;
-  margin: 0 auto;
+  margin: 0 auto 0 40px;
 }
 
 .logo {
@@ -221,17 +225,28 @@ const editLink = computed(() => {
   align-items: center;
   justify-content: center;
   gap: 10px;
+  margin-right: 40px;
+}
+.logo a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .logo-icon {
-  width: 70px;
-  height: 70px;
+  width: 60px;
+  height: 65px;
   object-fit: contain;
-  margin-right: -20px;
+  object-position: center;
+  display: block;
+  flex-shrink: 0;
 }
 .logo-text {
-  width: 200px;
-  height: 60px;
+  width: 180px;
+  height: 65px;
   object-fit: contain;
+  object-position: center;
+  display: block;
+  flex-shrink: 0;
 }
 .editor-badge {
   color: #f1c40f;
@@ -242,7 +257,8 @@ const editLink = computed(() => {
   border-radius: 4px;
   margin-left: 5px;
   align-self: start;
-  margin-top: 10px;
+  margin-top: 4px;
+  white-space: nowrap;
 }
 
 .menu {
@@ -261,6 +277,8 @@ const editLink = computed(() => {
   padding: 5px 10px;
   transition: all 0.3s ease;
   border-radius: 5px;
+  white-space: nowrap;
+  letter-spacing: 0.08em;
 }
 
 .menu a:hover {

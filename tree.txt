@@ -1,12 +1,15 @@
-﻿Directory structure:
+Directory structure:
 └── redpiigpig-nonchurch2025-nust/
     ├── README.md
+    ├── MIGRATION_DIFF_CHECKLIST.md
     ├── app.vue
     ├── nuxt.config.ts
     ├── package.json
     ├── supabase.js
     ├── tree.txt
     ├── tsconfig.json
+    ├── app/
+    │   └── router.options.ts
     ├── assets/
     │   ├── article.css
     │   ├── main.css
@@ -14,8 +17,11 @@
     ├── components/
     │   ├── AppFooter.vue
     │   ├── AppHeader.vue
+    │   ├── EditorView.vue
     │   ├── HomeView.vue
     │   ├── MainLayout.vue
+    │   ├── feature_articles/
+    │   │   └── Article7_6.vue
     │   └── icons/
     │       ├── IconCommunity.vue
     │       ├── IconDocumentation.vue
@@ -23,7 +29,8 @@
     │       ├── IconSupport.vue
     │       └── IconTooling.vue
     ├── composables/
-    │   └── useEditorMode.js
+    │   ├── useEditorMode.js
+    │   └── useLanguage.js
     ├── data/
     │   ├── authors.js
     │   ├── issues.js
@@ -37,6 +44,7 @@
     │   ├── index.vue
     │   ├── login.vue
     │   ├── mission.vue
+    │   ├── preview.vue
     │   ├── search.vue
     │   ├── submit.vue
     │   ├── admin/
@@ -56,7 +64,8 @@
     │   │   │   ├── [name].vue
     │   │   │   └── index.vue
     │   │   ├── editor/
-    │   │   │   └── [[id]].vue
+    │   │   │   ├── [[id]].vue
+    │   │   │   └── index.vue
     │   │   └── home/
     │   │       ├── index.vue
     │   │       └── issue/
@@ -70,8 +79,26 @@
     │   └── home/
     │       └── issue/
     │           └── [issueNumber].vue
-    └── public/
-        ├── robots.txt
-        └── articles/
-            ├── 5-13話語與肉身.json
-            └── 5-13話語與肉身.md
+    ├── public/
+    │   ├── robots.txt
+    │   └── articles/
+    │       ├── 5-13話語與肉身.json
+    │       └── 5-13話語與肉身.md
+    ├── scripts/
+    │   └── generate_docx.py
+    ├── server/
+    │   └── api/
+    │       └── export-word.post.js
+    ├── stores/
+    │   ├── form.md
+    │   └── tempArticles.js
+    ├── temp/
+    │   └── 7-4教會外的福音見證者.json
+    ├── templates/
+    │   └── article-template.dotx
+    └── utils/
+        ├── cdn.js
+        ├── contentParser.js
+        ├── formatSpecParser.js
+        ├── formatSpecWatcher.js
+        └── geminiAPI.js
