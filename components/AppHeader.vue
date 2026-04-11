@@ -88,6 +88,10 @@ const editLink = computed(() => {
   if (isEditMode.value && route.path.includes("admin/editor")) {
     return route.params.id ? `/articles/${route.params.id}` : "/articles";
   }
+  // B2. 校對頁 -> 文章詳情
+  if (isEditMode.value && route.path.includes("admin/proofread")) {
+    return route.params.id ? `/articles/${route.params.id}` : "/articles";
+  }
 
   // C. 一般頁面切換
   if (isEditMode.value) {

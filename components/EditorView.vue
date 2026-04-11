@@ -54,6 +54,8 @@ const categoryColor = computed(() => {
 });
 
 const isPublished = ref(false);
+const proofreadAnnotations = ref([]);
+const proofreadStatus = ref("pending");
 
 // 期號 issues 對應表（供 issue 號連動 issue_title 使用）
 const issuesMap = ref({}); // { 8: "地上神國與人間佛教", ... }
@@ -102,6 +104,10 @@ const loadArticle = async (id) => {
 
     seoJson.value = data.seo ? JSON.stringify(data.seo, null, 2) : "{\n}";
     isPublished.value = data.is_published || false;
+    proofreadAnnotations.value = data.proofread_annotations || [];
+    proofreadStatus.value = data.proofread_status || "pending";
+    await nextTick();
+    buildProofreadPreview();
   }
   loading.value = false;
 };
@@ -145,6 +151,113 @@ const keywordContent = computed(() => {
 const contentHtml = computed(() => {
   return generateFootnotesHtml(form.value.content, form.value.footnotes);
 });
+
+// ── 校對標記：文字內嵌高亮 + 標記圖示（同 ProofreadView 的 DOM 注入技術）──
+const injectEditorHighlight = (container, startOff, endOff, color, annId, note) => {
+  let offset = 0;
+  const walk = (node) => {
+    if (offset >= endOff) return;
+    if (node.nodeType === Node.TEXT_NODE) {
+      const len = node.length;
+      const nodeStart = offset;
+      const nodeEnd = offset + len;
+      offset += len;
+      if (nodeEnd <= startOff || nodeStart >= endOff) return;
+      const localStart = Math.max(0, startOff - nodeStart);
+      const localEnd = Math.min(len, endOff - nodeStart);
+      const before = node.textContent.slice(0, localStart);
+      const middle = node.textContent.slice(localStart, localEnd);
+      const after = node.textContent.slice(localEnd);
+      const mark = document.createElement("mark");
+      mark.style.cssText = `background:${color}bb;border-radius:2px;padding:0 1px;`;
+      mark.dataset.annId = String(annId);
+      const parent = node.parentNode;
+      if (before) parent.insertBefore(document.createTextNode(before), node);
+      parent.insertBefore(mark, node);
+      mark.appendChild(document.createTextNode(middle));
+      if (after) parent.insertBefore(document.createTextNode(after), node);
+      parent.removeChild(node);
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      for (const child of Array.from(node.childNodes)) {
+        if (offset >= endOff) break;
+        walk(child);
+      }
+    }
+  };
+  walk(container);
+};
+
+// 預覽用 HTML（含文字高亮 + 標記圖示）
+const proofreadPreviewHtml = ref("");
+
+const buildProofreadPreview = () => {
+  if (!import.meta.client || !form.value.content) {
+    proofreadPreviewHtml.value = "";
+    return;
+  }
+  if (!proofreadAnnotations.value.length) {
+    proofreadPreviewHtml.value = "";
+    return;
+  }
+
+  const paras = form.value.content.split(/\n\n+/).filter((p) => p.trim());
+  let html = paras
+    .map((para, idx) => {
+      const withRefs = para.replace(
+        /\[\^(\d+)\]/g,
+        (_, id) =>
+          `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`,
+      );
+      const base = marked.parse(withRefs, { gfm: true, breaks: true });
+
+      const anns = proofreadAnnotations.value.filter((a) => a.paragraphIndex === idx);
+      if (!anns.length) return base;
+
+      const div = document.createElement("div");
+      div.innerHTML = base;
+
+      // 由大到小注入，避免 offset 偏移
+      const sorted = [...anns].sort((a, b) => b.startOffset - a.startOffset);
+      for (const ann of sorted) {
+        injectEditorHighlight(div, ann.startOffset, ann.endOffset, ann.color, ann.id, ann.note || "");
+        // 在 mark 後插入標記圖示
+        const markEl = div.querySelector(`mark[data-ann-id="${ann.id}"]`);
+        if (markEl) {
+          const icon = document.createElement("span");
+          icon.className = "ann-marker-icon";
+          icon.style.background = ann.color;
+          icon.textContent = "✎";
+          if (ann.note) icon.dataset.note = ann.note;
+          icon.title = ann.note || `校對標記：${(ann.selectedText || "").substring(0, 20)}`;
+          markEl.parentNode.insertBefore(icon, markEl.nextSibling);
+        }
+      }
+      return div.innerHTML;
+    })
+    .join("");
+
+  if (form.value.footnotes?.length) {
+    const items = form.value.footnotes
+      .map(
+        (fn) =>
+          `<li id="footnote-${fn.id}"><p>${fn.text}<a href="#footnote-ref-${fn.id}" class="footnote-backref">↩</a></p></li>`,
+      )
+      .join("");
+    html += `<div class="footnotes"><hr /><ol>${items}</ol></div>`;
+  }
+  proofreadPreviewHtml.value = html;
+};
+
+watch(proofreadAnnotations, () => nextTick(buildProofreadPreview), { deep: true });
+watch(() => form.value.content, () => nextTick(buildProofreadPreview));
+watch(() => form.value.footnotes, () => nextTick(buildProofreadPreview), { deep: true });
+
+// 最終顯示用的 HTML
+const effectivePreviewHtml = computed(() =>
+  proofreadAnnotations.value.length && proofreadPreviewHtml.value
+    ? proofreadPreviewHtml.value
+    : contentHtml.value,
+);
 
 const saveArticle = async () => {
   if (!form.value.id) {
@@ -583,6 +696,16 @@ const editorComponents = [
           📥 下載 Word
         </button>
 
+        <!-- 🔍 文章校對按鈕（只在編輯模式顯示） -->
+        <NuxtLink
+          v-if="isEditMode"
+          :to="`/admin/proofread/${form.id}`"
+          class="btn btn-proofread"
+          title="進入文章校對模式"
+        >
+          🔍 文章校對<span v-if="proofreadAnnotations.length" class="proofread-badge">{{ proofreadAnnotations.length }}</span>
+        </NuxtLink>
+
         <label class="publish-label">
           <input type="checkbox" v-model="isPublished" />
           公開發布
@@ -773,7 +896,13 @@ const editorComponents = [
           ></div>
 
           <br />
-          <div class="markdown-body" v-html="contentHtml"></div>
+          <!-- 校對標記通知列 -->
+          <div v-if="proofreadAnnotations.length" class="proofread-notice">
+            <span class="proofread-notice-icon">🔍</span>
+            <span>有 <strong>{{ proofreadAnnotations.length }}</strong> 條校對標記（{{ proofreadStatus === 'completed' ? '✅ 已校對完成' : proofreadStatus === 'in_progress' ? '🔄 校對中' : '⬜ 待校對' }}）</span>
+            <NuxtLink :to="`/admin/proofread/${form.id}`" class="proofread-notice-link">查看校對頁面 →</NuxtLink>
+          </div>
+          <div class="markdown-body" v-html="effectivePreviewHtml"></div>
         </div>
       </div>
     </div>
@@ -875,6 +1004,96 @@ const editorComponents = [
   opacity: 0.6;
   cursor: not-allowed;
 }
+.btn-proofread {
+  position: relative;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(17, 153, 142, 0.3);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-proofread:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(17, 153, 142, 0.4);
+  color: white;
+}
+.proofread-badge {
+  background: white;
+  color: #11998e;
+  font-size: 0.75rem;
+  font-weight: bold;
+  border-radius: 10px;
+  padding: 1px 6px;
+  min-width: 18px;
+  text-align: center;
+}
+.proofread-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fffbea;
+  border: 1px solid #f5e642;
+  border-radius: 6px;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  color: #555;
+}
+.proofread-notice-icon { font-size: 1rem; }
+.proofread-notice-link {
+  margin-left: auto;
+  color: #11998e;
+  font-weight: bold;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+.proofread-notice-link:hover { text-decoration: underline; }
+/* 校對標記圖示（編輯器預覽用） */
+:deep(mark) { border-radius: 2px; padding: 0 1px; }
+:deep(.ann-marker-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  color: white;
+  font-size: 9px;
+  font-weight: bold;
+  cursor: help;
+  vertical-align: middle;
+  margin: 0 2px;
+  position: relative;
+}
+:deep(.ann-marker-icon::after) {
+  content: attr(data-note);
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2c3e50;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  width: 200px;
+  line-height: 1.5;
+  z-index: 100;
+  pointer-events: none;
+  white-space: normal;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+:deep(.ann-marker-icon:hover::after) { display: block; }
 
 .editor-layout {
   display: flex;

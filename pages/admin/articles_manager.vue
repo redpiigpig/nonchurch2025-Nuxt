@@ -55,18 +55,21 @@ const initData = async () => {
 const fetchArticles = async () => {
   const { data, error } = await supabase
     .from("articles")
-    .select("id, issue, title, subtitle, author, keyword, summary, seo, section, sort_order, page_start")
+    .select("id, issue, title, subtitle, author, keyword, summary, seo, section, sort_order, page_start, proofread_status, proofread_by, proofread_date")
     .order("sort_order", { ascending: true });
   if (error) throw error;
 
   const processed = data.map(a => ({
     ...a,
-    idSuffix:   a.id.replace(/^\d+-/, ""),
-    seo_image:  a.seo?.image || "",
-    section:    SECTION_ORDER.includes(a.section) ? a.section : "主題介紹",
-    sort_order: a.sort_order ?? 0,
-    page_start: a.page_start ?? null,
-    isSaving:   false,
+    idSuffix:        a.id.replace(/^\d+-/, ""),
+    seo_image:       a.seo?.image || "",
+    section:         SECTION_ORDER.includes(a.section) ? a.section : "主題介紹",
+    sort_order:      a.sort_order ?? 0,
+    page_start:      a.page_start ?? null,
+    proofread_status: a.proofread_status || "pending",
+    proofread_by:    a.proofread_by || "",
+    proofread_date:  a.proofread_date || "",
+    isSaving:        false,
   }));
 
   allArticles.value    = processed;
@@ -397,6 +400,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", handleBeforeUnl
             <th width="90">作者</th>
             <th width="110">關鍵字</th>
             <th width="210">摘要</th>
+            <th width="90">校對狀態</th>
             <th width="80">操作</th>
           </tr>
         </thead>
@@ -411,7 +415,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", handleBeforeUnl
               @dragleave="onDragLeave"
               @drop="onDrop($event, section)"
             >
-              <td colspan="9">
+              <td colspan="10">
                 <span class="section-label">{{ SECTION_LABELS[section] }}</span>
                 <span class="section-note" v-if="SECTION_NOTES[section]">{{ SECTION_NOTES[section] }}</span>
                 <span class="section-count">{{ groupedArticles[section]?.length || 0 }} 篇</span>
@@ -456,12 +460,26 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", handleBeforeUnl
               <td><input type="text" v-model="article.author"   class="table-input" /></td>
               <td><input type="text" v-model="article.keyword"  class="table-input" /></td>
               <td><textarea v-model="article.summary" class="table-textarea" rows="2"></textarea></td>
+              <td class="proofread-cell">
+                <span
+                  class="proofread-badge"
+                  :class="{
+                    'badge-pending':   article.proofread_status === 'pending',
+                    'badge-progress':  article.proofread_status === 'in_progress',
+                    'badge-done':      article.proofread_status === 'completed',
+                  }"
+                  :title="article.proofread_status === 'completed' ? `由 ${article.proofread_by} 於 ${article.proofread_date} 完成` : ''"
+                >
+                  {{ article.proofread_status === 'completed' ? '✅ 完成' : article.proofread_status === 'in_progress' ? '🔄 進行中' : '⬜ 待校對' }}
+                </span>
+              </td>
               <td class="actions-cell">
                 <div class="action-buttons">
                   <button class="btn-save" @click="saveRow(article)" :disabled="article.isSaving" title="儲存此列">
                     {{ article.isSaving ? "…" : "💾" }}
                   </button>
                   <button class="btn-edit" @click="goToEditor(article.id)" title="編輯內文">✏️</button>
+                  <NuxtLink :to="`/admin/proofread/${article.id}`" class="btn-proofread" title="進入校對模式">🔍</NuxtLink>
                 </div>
               </td>
             </tr>
@@ -475,7 +493,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", handleBeforeUnl
               @dragleave="onDragLeave"
               @drop="onDrop($event, section)"
             >
-              <td colspan="9">將文章拖曳到此處</td>
+              <td colspan="10">將文章拖曳到此處</td>
             </tr>
 
           </template>
@@ -807,10 +825,24 @@ tr.dragging { opacity: 0.4; }
   min-height: 52px;
 }
 
+/* 校對狀態 */
+.proofread-cell { vertical-align: middle; text-align: center; }
+.proofread-badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: bold;
+  padding: 3px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.badge-pending  { background: #e9ecef; color: #666; }
+.badge-progress { background: #fff3cd; color: #856404; }
+.badge-done     { background: #d4edda; color: #155724; }
+
 /* 操作按鈕 */
 .actions-cell { vertical-align: middle; }
 .action-buttons { display: flex; gap: 6px; justify-content: center; }
-.btn-save, .btn-edit {
+.btn-save, .btn-edit, .btn-proofread {
   border: none;
   border-radius: 4px;
   width: 34px;
@@ -821,13 +853,16 @@ tr.dragging { opacity: 0.4; }
   justify-content: center;
   font-size: 1rem;
   transition: transform 0.1s;
+  text-decoration: none;
 }
 .btn-save  { background: #28a745; color: white; }
 .btn-save:hover:not(:disabled)  { background: #218838; }
 .btn-save:disabled  { background: #ccc; cursor: not-allowed; }
 .btn-edit  { background: #17a2b8; color: white; }
 .btn-edit:hover  { background: #138496; }
-.btn-save:active, .btn-edit:active { transform: scale(0.95); }
+.btn-proofread { background: #11998e; color: white; }
+.btn-proofread:hover { background: #0d7a70; }
+.btn-save:active, .btn-edit:active, .btn-proofread:active { transform: scale(0.95); }
 
 /* 空分區 */
 .empty-zone {
