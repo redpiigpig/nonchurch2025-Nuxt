@@ -17,7 +17,7 @@ let FORMAT_SPEC = null;
  * @param {Boolean} useAI - 是否使用 AI 判斷
  * @returns {Object} {articleId, classified}
  */
-export async function parseAndClassifyDocument(file, useAI = false) {
+export async function parseAndClassifyDocument(file, useAI = false, issueContext = {}, overrideId = null) {
   // 初始化格式規範
   if (!FORMAT_SPEC) {
     FORMAT_SPEC = await parseFormatSpec();
@@ -34,9 +34,30 @@ export async function parseAndClassifyDocument(file, useAI = false) {
   if (useAI) {
     // 讀取完整格式規範
     const specContent = await readFormatSpecFile();
-    classified = await classifyWithGemini(rawContent, specContent);
+    classified = await classifyWithGemini(rawContent, specContent, issueContext);
   } else {
     classified = classifyWithRules(rawContent);
+  }
+
+  // 若有指定覆蓋 ID，直接套用（不用 Gemini 產生的）
+  if (overrideId) {
+    classified.id = overrideId;
+    // 從 overrideId 解析期號補回
+    const m = overrideId.match(/^(\d+)-/);
+    if (m) classified.issue = parseInt(m[1]);
+  }
+
+  // Step 2.5: 將圖片佔位標記替換為正式 figure HTML
+  if (rawContent.imageCount > 0 && classified.id) {
+    const idMatch = classified.id.match(/^(\d+)-(\d+)/);
+    if (idMatch) {
+      const issue = idMatch[1];
+      const articleSeq = idMatch[2];
+      console.log(`🖼️ 偵測到 ${rawContent.imageCount} 張圖片，套用命名規則 issue${issue}_${articleSeq}-N.jpg`);
+      classified.content = replaceImagePlaceholders(classified.content, issue, articleSeq);
+    } else {
+      console.warn("⚠️ 無法從 AI 建議的 ID 提取期號/篇序，圖片佔位標記保留原樣");
+    }
   }
 
   // Step 3: 自動寫入 Supabase
@@ -50,9 +71,12 @@ export async function parseAndClassifyDocument(file, useAI = false) {
 
 /**
  * Step 1: 提取 Word 內容與樣式
+ * 圖片會被替換為 [[圖片N]] 佔位標記
  */
 async function extractWordContent(file) {
   const arrayBuffer = await file.arrayBuffer();
+
+  let imageCounter = 0;
 
   // 使用 mammoth 解析 Word
   const result = await mammoth.convertToHtml({
@@ -66,6 +90,11 @@ async function extractWordContent(file) {
       "p[style-name='引用'] => blockquote:fresh",
       "p[style-name='Quote'] => blockquote:fresh",
     ],
+    convertImage: mammoth.images.inline(async () => {
+      imageCounter++;
+      // 回傳佔位標記作為 src，讓圖片在 HTML 中以 <img src="[[圖片N]]"> 呈現
+      return { src: `[[圖片${imageCounter}]]` };
+    }),
   });
 
   // 解析 HTML 為 DOM
@@ -81,6 +110,7 @@ async function extractWordContent(file) {
     html: result.value,
     elements: elements,
     rawText: doc.body.textContent,
+    imageCount: imageCounter,
   };
 }
 
@@ -369,6 +399,30 @@ function convertToMarkdown(element) {
   return text;
 }
 
+// layout 對應的 CSS class
+const LAYOUT_CLASS = {
+  center: "img-bottom px-600",
+  left:   "img-left px-300",
+  right:  "img-right px-300",
+};
+
+/**
+ * 將 content 中的 [[圖片N:layout]] 佔位標記替換為正式 figure HTML
+ * 命名規則：issue{issue}_{articleSeq}-{n}.jpg
+ * 例如 issue 7、篇序 4、第 2 張 → issue7_4-2.jpg
+ * layout 由 Gemini 判斷：center / left / right
+ */
+function replaceImagePlaceholders(content, issue, articleSeq) {
+  if (!content) return content;
+  // 同時相容舊格式 [[圖片N]] 和新格式 [[圖片N:layout]]
+  return content.replace(/\[\[圖片(\d+)(?::(left|right|center))?\]\]/g, (_, n, layout) => {
+    const cssClass = LAYOUT_CLASS[layout] || LAYOUT_CLASS.center;
+    const filename = `issue${issue}_${articleSeq}-${n}.jpg`;
+    const localPath = `/images/articles/issue-${issue}/${filename}`;
+    return `\n\n<figure class="${cssClass}"><img src="${localPath}" alt="圖片 ${articleSeq}-${n}"><figcaption>（圖片 ${articleSeq}-${n}，待上傳）</figcaption></figure>\n\n`;
+  });
+}
+
 /**
  * Step 3: 自動寫入 Supabase
  */
@@ -385,15 +439,26 @@ async function saveToSupabase(classified) {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
+  if (!classified.id) {
+    throw new Error("❌ AI 未能產生文章 ID，請手動輸入");
+  }
+
   const articleData = {
+    id: classified.id,
     title: classified.title || "未命名文章",
     subtitle: classified.subtitle || null,
+    issue: classified.issue || null,
+    category: classified.category || null,
+    section: classified.section || null,
     author: classified.author || null,
     author_title: classified.authorTitle || null,
+    remark: classified.remark || null,
+    summary: classified.summary || null,
     keyword: classified.keyword || null,
+    issue_title: classified.issue_title || issueContext.issueTitle || null,
     content: classified.content || "",
     footnotes: classified.footnotes || [],
-    metadata: classified.metadata || {},
+    seo: classified.seo || null,
     is_published: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -401,7 +466,7 @@ async function saveToSupabase(classified) {
 
   const { data, error } = await supabase
     .from("articles")
-    .insert([articleData])
+    .upsert(articleData, { onConflict: "id" })
     .select()
     .single();
 

@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import EditorView from "~/components/EditorView.vue";
 import { parseAndClassifyDocument } from "~/utils/contentParser";
+import { supabase } from "~/supabase";
 
 definePageMeta({
   layout: "admin",
@@ -11,13 +12,35 @@ definePageMeta({
 useHead({ title: "新增文章 - 無境界者雜誌" });
 
 const uploadStatus = ref("");
-const apiKeyStatus = ref("檢查中...");
 const showUploadPanel = ref(true);
+const latestIssue = ref(null);
+const nextSeq = ref(1);
+const existingStubs = ref([]);   // 本期已有的文章（供選擇帶入）
+const targetArticleId = ref(""); // 選擇帶入的文章 ID（空字串 = 新增）
 
-// 檢查 API Key 是否設定
-onMounted(() => {
-  const hasKey = !!import.meta.env.VITE_GEMINI_API_KEY;
-  apiKeyStatus.value = hasKey ? "✅ 已設定" : "❌ 未設定";
+onMounted(async () => {
+  // 抓最新一期
+  const { data: issues } = await supabase
+    .from("issues")
+    .select("id, title")
+    .order("id", { ascending: false })
+    .limit(1);
+  if (issues?.length) {
+    latestIssue.value = issues[0];
+    const { count } = await supabase
+      .from("articles")
+      .select("id", { count: "exact", head: true })
+      .eq("issue", issues[0].id);
+    nextSeq.value = (count || 0) + 1;
+
+    // 抓本期已有的文章列表（供選擇帶入）
+    const { data: stubs } = await supabase
+      .from("articles")
+      .select("id, title")
+      .eq("issue", issues[0].id)
+      .order("id", { ascending: true });
+    existingStubs.value = stubs || [];
+  }
 });
 
 async function handleFileUpload(event) {
@@ -27,25 +50,19 @@ async function handleFileUpload(event) {
   try {
     uploadStatus.value = "🤖 AI 分析中（使用 Gemini）...";
 
-    // ✅ AI 判斷預設開啟
-    const { articleId, classified } = await parseAndClassifyDocument(
-      file,
-      true,
-    );
+    const issueContext = latestIssue.value
+      ? { issueNumber: latestIssue.value.id, issueTitle: latestIssue.value.title, nextSeq: nextSeq.value }
+      : {};
+
+    // 若選擇帶入已有文章，直接用該 ID 覆蓋，不讓 Gemini 產生新 ID
+    const { articleId, classified } = await parseAndClassifyDocument(file, true, issueContext, targetArticleId.value || null);
 
     uploadStatus.value = `✅ 上傳成功！文章 ID: ${articleId}`;
-
-    // 顯示分類結果
     console.log("分類結果：", classified);
 
-    // 跳轉編輯頁
-    setTimeout(() => {
-      navigateTo(`/admin/editor/${articleId}`);
-    }, 1500);
+    setTimeout(() => navigateTo(`/admin/editor/${articleId}`), 1500);
   } catch (error) {
     uploadStatus.value = `❌ 上傳失敗: ${error.message}`;
-
-    // 如果是 API Key 問題
     if (error.message.includes("VITE_GEMINI_API_KEY")) {
       uploadStatus.value += "\n\n請在 .env 檔案中設定 VITE_GEMINI_API_KEY";
     }
@@ -65,14 +82,24 @@ async function handleFileUpload(event) {
       </div>
 
       <div class="upload-panel">
-        <!-- API 狀態顯示 -->
+        <!-- 期號資訊顯示 -->
         <div class="api-status">
-          <strong>Gemini API 狀態：</strong>
-          <span
-            :class="apiKeyStatus.includes('✅') ? 'status-ok' : 'status-error'"
-          >
-            {{ apiKeyStatus }}
+          <strong>預設上傳至：</strong>
+          <span v-if="latestIssue" class="status-ok">
+            Vol.{{ latestIssue.id }}「{{ latestIssue.title }}」（本期第 {{ nextSeq }} 篇）
           </span>
+          <span v-else class="status-error">載入期號中...</span>
+        </div>
+
+        <!-- 帶入已有文章選擇器 -->
+        <div class="api-status" v-if="existingStubs.length > 0">
+          <strong>套用到：</strong>
+          <select v-model="targetArticleId" class="target-select">
+            <option value="">＋ 自動產生新文章 ID</option>
+            <option v-for="s in existingStubs" :key="s.id" :value="s.id">
+              {{ s.id }}{{ s.title ? `　${s.title}` : '　（未命名）' }}
+            </option>
+          </select>
         </div>
 
         <!-- AI 狀態提示（預設開啟） -->
@@ -276,6 +303,16 @@ async function handleFileUpload(event) {
 
 .api-status strong {
   color: #495057;
+  white-space: nowrap;
+}
+.target-select {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: white;
+  cursor: pointer;
 }
 
 .status-ok {

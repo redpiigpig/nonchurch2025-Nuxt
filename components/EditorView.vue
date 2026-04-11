@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from "vue";
+import { ref, computed, onMounted, nextTick, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { marked } from "marked";
 import { supabase } from "~/supabase";
@@ -29,6 +29,7 @@ const form = ref({
   footnotes: [],
   prev_id: "",
   next_id: "",
+  page_start: null,
 });
 
 const seoJson = ref('{\n  "description": "",\n  "keywords": ""\n}');
@@ -53,6 +54,17 @@ const categoryColor = computed(() => {
 });
 
 const isPublished = ref(false);
+
+// 期號 issues 對應表（供 issue 號連動 issue_title 使用）
+const issuesMap = ref({}); // { 8: "地上神國與人間佛教", ... }
+
+
+// 當 issue 號改變時，自動帶入對應的 issue_title（僅新增模式下連動，編輯模式保持原值）
+watch(() => form.value.issue, (newIssue) => {
+  if (!isEditMode.value && issuesMap.value[newIssue]) {
+    form.value.issue_title = issuesMap.value[newIssue];
+  }
+});
 
 const loadArticle = async (id) => {
   loading.value = true;
@@ -85,6 +97,7 @@ const loadArticle = async (id) => {
       footnotes: data.footnotes || [],
       prev_id: data.prev_id || "",
       next_id: data.next_id || "",
+      page_start: data.page_start ?? null,
     };
 
     seoJson.value = data.seo ? JSON.stringify(data.seo, null, 2) : "{\n}";
@@ -93,7 +106,13 @@ const loadArticle = async (id) => {
   loading.value = false;
 };
 
-onMounted(() => {
+onMounted(async () => {
+  // 載入 issues 對應表（供 issue 號連動 issue_title 使用）
+  const { data: issuesData } = await supabase.from("issues").select("id, title");
+  if (issuesData) {
+    issuesData.forEach((i) => { issuesMap.value[i.id] = i.title; });
+  }
+  // 若為編輯模式，載入文章
   const id = route.params.id || route.query.id;
   if (id) loadArticle(id);
 });
@@ -178,6 +197,93 @@ const saveArticle = async () => {
   loading.value = false;
 };
 
+// 📤 重新上傳 Word（只更新內文與註腳，不動其他欄位）
+const reuploadInput = ref(null);
+
+const triggerReupload = () => {
+  reuploadInput.value?.click();
+};
+
+const handleReupload = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  if (!confirm("確定要用新的 Word 覆蓋目前的內文與註腳嗎？（其他欄位不受影響）")) {
+    event.target.value = "";
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const mammoth = await import("mammoth");
+    const arrayBuffer = await file.arrayBuffer();
+
+    let imageCounter = 0;
+    const result = await mammoth.default.convertToHtml({
+      arrayBuffer,
+      convertImage: mammoth.images.inline(async () => {
+        imageCounter++;
+        return { src: `[[圖片${imageCounter}]]` };
+      }),
+    });
+
+    // 解析圖片佔位，從現有 ID 取期號和篇序
+    let html = result.value;
+    const idMatch = form.value.id.match(/^(\d+)-(\d+)/);
+    if (idMatch && imageCounter > 0) {
+      const issue = idMatch[1];
+      const seq = idMatch[2];
+      html = html.replace(/\[\[圖片(\d+)\]\]/g, (_, n) => {
+        const path = `/images/articles/issue-${issue}/issue${issue}_${seq}-${n}.jpg`;
+        return `\n\n<figure class="img-bottom px-600"><img src="${path}" alt="圖片 ${seq}-${n}"><figcaption>（圖片 ${seq}-${n}，待上傳）</figcaption></figure>\n\n`;
+      });
+    }
+
+    // HTML 轉為純文字 Markdown（保留段落結構）
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+
+    // 提取腳註（符合 [^N]: 格式的段落）
+    const newFootnotes = [];
+    const paragraphs = Array.from(doc.body.children);
+    const contentParts = [];
+
+    paragraphs.forEach((el) => {
+      const text = el.textContent.trim();
+      if (!text) return;
+      const fnMatch = text.match(/^\[\^(\d+)\][：:]\s*(.*)/);
+      if (fnMatch) {
+        newFootnotes.push({ id: parseInt(fnMatch[1]), text: fnMatch[2] });
+      } else {
+        // 保留圖片 HTML 原樣，文字段落轉 Markdown
+        if (el.querySelector("img") || el.innerHTML.includes("<figure")) {
+          contentParts.push(el.outerHTML);
+        } else if (el.tagName === "H2") {
+          contentParts.push(`## ${text}`);
+        } else if (el.tagName === "H3") {
+          contentParts.push(`### ${text}`);
+        } else if (el.tagName === "BLOCKQUOTE") {
+          contentParts.push(`<blockquote>\n${text}\n<div class="rel">── 出處</div>\n</blockquote>`);
+        } else {
+          contentParts.push(text);
+        }
+      }
+    });
+
+    form.value.content = contentParts.join("\n\n");
+    if (newFootnotes.length > 0) {
+      form.value.footnotes = newFootnotes;
+    }
+
+    alert(`✅ 內文已更新！${imageCounter > 0 ? `（偵測到 ${imageCounter} 張圖片佔位）` : ""}請確認後儲存。`);
+  } catch (err) {
+    alert("❌ 上傳失敗：" + err.message);
+  } finally {
+    loading.value = false;
+    event.target.value = "";
+  }
+};
+
 // 💾 下載專業排版 Word 檔案（呼叫 Python API）
 const exportToWord = async () => {
   try {
@@ -197,6 +303,7 @@ const exportToWord = async () => {
       footnotes: form.value.footnotes,
       issue: form.value.issue,
       issue_title: form.value.issue_title,
+      page_start: form.value.page_start,
     };
 
     console.log("📤 準備下載 Word:", articleData.id);
@@ -446,6 +553,25 @@ const editorComponents = [
     <div class="editor-header">
       <h2>📝 文章編輯器</h2>
       <div class="actions">
+        <!-- 📤 重新上傳 Word（只在編輯模式顯示） -->
+        <template v-if="isEditMode">
+          <input
+            ref="reuploadInput"
+            type="file"
+            accept=".docx"
+            style="display:none"
+            @change="handleReupload"
+          />
+          <button
+            class="btn btn-reupload"
+            @click="triggerReupload"
+            :disabled="loading"
+            title="以新版 Word 覆蓋內文與註腳"
+          >
+            📤 更新內文
+          </button>
+        </template>
+
         <!-- ✅ 下載 Word 按鈕（只在編輯模式顯示） -->
         <button
           v-if="isEditMode"
@@ -708,6 +834,26 @@ const editorComponents = [
   background: #e74c3c;
   color: white;
   margin-left: 10px;
+}
+.btn-reupload {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(245, 87, 108, 0.3);
+}
+.btn-reupload:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
+}
+.btn-reupload:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .btn-download {
   padding: 10px 20px;

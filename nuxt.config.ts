@@ -8,6 +8,8 @@ export default defineNuxtConfig({
 
   // 1. 設定環境變數 (給手動寫的 supabase.js 用)
   runtimeConfig: {
+    // server-only（不會暴露到前端 bundle）
+    geminiApiKey: process.env.VITE_GEMINI_API_KEY,
     public: {
       supabaseUrl: process.env.VITE_SUPABASE_URL,
       supabaseKey: process.env.VITE_SUPABASE_KEY,
