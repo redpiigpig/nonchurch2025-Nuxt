@@ -18,6 +18,9 @@
           <NuxtLink to="/admin/articles_manager" active-class="active-link">
             📚 文章管理
           </NuxtLink>
+          <NuxtLink to="/admin/media_manager" active-class="active-link">
+            🖼️ 媒體庫管理
+          </NuxtLink>
           <NuxtLink to="/admin/editor" active-class="active-link">
             📝 新增文章
           </NuxtLink>

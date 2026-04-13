@@ -30,7 +30,9 @@ const { data: asyncData, pending: loading } = await useAsyncData(
       // 1. 抓取當前文章
       const { data: currentArt, error } = await supabase
         .from("articles")
-        .select("*, issues(id, title, translations)")
+        .select(
+          "*, issues(id, title, translations), media_assets(image_url, sort_order)",
+        )
         .eq("id", articleId)
         .single();
       if (error) throw error;
@@ -53,18 +55,7 @@ const { data: asyncData, pending: loading } = await useAsyncData(
           next = issueArticles[idx + 1];
       }
 
-      // 3. 抓取該期圖片
-      let fetchedImages = [];
-      if (currentArt.issue) {
-        const { data: imgData, error: imgErr } = await supabase.storage
-          .from("images")
-          .list(`articles/issue-${currentArt.issue}`, {
-            limit: 1000,
-            offset: 0,
-            sortBy: { column: "name", order: "asc" },
-          });
-        if (!imgErr && imgData) fetchedImages = imgData;
-      }
+      // 🚨 已經徹底移除 Supabase Storage 抓圖片的程式碼 🚨
 
       return {
         article: {
@@ -75,8 +66,8 @@ const { data: asyncData, pending: loading } = await useAsyncData(
           dynamicNext: next,
           footnotes: currentArt.footnotes || [],
           media_data: currentArt.media_data || {},
+          media_assets: currentArt.media_assets || [],
         },
-        issueImages: fetchedImages,
       };
     } catch (err) {
       console.error(`載入文章 ${articleId} 失敗:`, err.message);
@@ -97,8 +88,6 @@ const article = computed(() => {
   }
   return null;
 });
-
-const issueImages = computed(() => asyncData.value?.issueImages || []);
 
 // ─── UI 多語字典 ──────────────────────────────────────────────────
 const contentTrans = {
@@ -282,7 +271,6 @@ const displayArticle = computed(() => {
   };
 });
 
-// ─── Special 元件對照表（type === 'special' 的文章掛載專屬元件）────
 const specialComponentsMap = {
   "7-6 In 是 Siáng？（他們是誰？）": defineAsyncComponent(
     () => import("~/components/feature_articles/Article7_6.vue"),
@@ -297,7 +285,7 @@ const currentSpecialComponent = computed(() => {
   return matchKey ? specialComponentsMap[matchKey] : null;
 });
 
-// ─── SEO（page 層）────────────────────────────────────────────────
+// ─── SEO ────────────────────────────────────────────────
 useSeoMeta({
   title: () =>
     displayArticle.value
@@ -382,6 +370,9 @@ const formatTextWithFootnote = (text) => {
   );
 };
 
+/**
+ * 🌟 核心渲染邏輯：完全改為 Cloudinary (移除所有 Supabase Storage 依賴)
+ */
 const htmlContent = computed(() => {
   if (!article.value?.content) return "";
   let fullText = article.value.content.replace(
@@ -389,30 +380,31 @@ const htmlContent = computed(() => {
     (_, id) =>
       `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`,
   );
-
   let parsedHtml = marked.parse(fullText, { gfm: true, breaks: true });
 
+  // 1. 處理新版：替換 [[圖片N]] 佔位符
+  const mediaAssets = article.value?.media_assets || [];
+  parsedHtml = parsedHtml.replace(
+    /src="\[\[圖片(\d+)\]\]"/g,
+    (match, orderStr) => {
+      const order = parseInt(orderStr);
+      const found = mediaAssets.find((m) => m.sort_order === order);
+      return found ? `src="${found.image_url}"` : match;
+    },
+  );
+
+  // 2. 處理舊版：相容舊文章中未帶 http 的純檔名路徑 (直接導向 Cloudinary)
   parsedHtml = parsedHtml.replace(/src="([^"]+)"/g, (match, srcValue) => {
     if (
       srcValue.startsWith("http") ||
       srcValue.startsWith("data:") ||
-      srcValue.startsWith("//")
-    )
+      srcValue.startsWith("//") ||
+      srcValue.startsWith("[[圖片")
+    ) {
       return match;
-    const matchedFile = issueImages.value.find((file) => {
-      const nameWithoutExt =
-        file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
-      return file.name === srcValue || nameWithoutExt === srcValue;
-    });
-    if (matchedFile) {
-      const { data } = supabase.storage
-        .from("images")
-        .getPublicUrl(
-          `articles/issue-${article.value.issue}/${matchedFile.name}`,
-        );
-      return `src="${data.publicUrl}"`;
     }
-    return match;
+    // 徹底棄用 Supabase Storage，直接使用 Cloudinary URL (假設你舊圖也上傳到 Cloudinary 根目錄或相對應目錄了)
+    return `src="https://res.cloudinary.com/nonchurch2025/image/upload/${srcValue}"`;
   });
 
   return parsedHtml;

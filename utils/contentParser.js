@@ -17,7 +17,12 @@ let FORMAT_SPEC = null;
  * @param {Boolean} useAI - 是否使用 AI 判斷
  * @returns {Object} {articleId, classified}
  */
-export async function parseAndClassifyDocument(file, useAI = false, issueContext = {}, overrideId = null) {
+export async function parseAndClassifyDocument(
+  file,
+  useAI = false,
+  issueContext = {},
+  overrideId = null,
+) {
   // 初始化格式規範
   if (!FORMAT_SPEC) {
     FORMAT_SPEC = await parseFormatSpec();
@@ -34,7 +39,11 @@ export async function parseAndClassifyDocument(file, useAI = false, issueContext
   if (useAI) {
     // 讀取完整格式規範
     const specContent = await readFormatSpecFile();
-    classified = await classifyWithGemini(rawContent, specContent, issueContext);
+    classified = await classifyWithGemini(
+      rawContent,
+      specContent,
+      issueContext,
+    );
   } else {
     classified = classifyWithRules(rawContent);
   }
@@ -53,10 +62,18 @@ export async function parseAndClassifyDocument(file, useAI = false, issueContext
     if (idMatch) {
       const issue = idMatch[1];
       const articleSeq = idMatch[2];
-      console.log(`🖼️ 偵測到 ${rawContent.imageCount} 張圖片，套用命名規則 issue${issue}_${articleSeq}-N.jpg`);
-      classified.content = replaceImagePlaceholders(classified.content, issue, articleSeq);
+      console.log(
+        `🖼️ 偵測到 ${rawContent.imageCount} 張圖片，保留佔位符供前端動態替換`,
+      );
+      classified.content = replaceImagePlaceholders(
+        classified.content,
+        issue,
+        articleSeq,
+      );
     } else {
-      console.warn("⚠️ 無法從 AI 建議的 ID 提取期號/篇序，圖片佔位標記保留原樣");
+      console.warn(
+        "⚠️ 無法從 AI 建議的 ID 提取期號/篇序，圖片佔位標記保留原樣",
+      );
     }
   }
 
@@ -402,25 +419,24 @@ function convertToMarkdown(element) {
 // layout 對應的 CSS class
 const LAYOUT_CLASS = {
   center: "img-bottom px-600",
-  left:   "img-left px-300",
-  right:  "img-right px-300",
+  left: "img-left px-300",
+  right: "img-right px-300",
 };
 
 /**
  * 將 content 中的 [[圖片N:layout]] 佔位標記替換為正式 figure HTML
- * 命名規則：issue{issue}_{articleSeq}-{n}.jpg
- * 例如 issue 7、篇序 4、第 2 張 → issue7_4-2.jpg
- * layout 由 Gemini 判斷：center / left / right
+ * 🌟 修改：不再寫死實體路徑，保留 [[圖片N]] 供前端從 media_assets 動態替換
  */
 function replaceImagePlaceholders(content, issue, articleSeq) {
   if (!content) return content;
   // 同時相容舊格式 [[圖片N]] 和新格式 [[圖片N:layout]]
-  return content.replace(/\[\[圖片(\d+)(?::(left|right|center))?\]\]/g, (_, n, layout) => {
-    const cssClass = LAYOUT_CLASS[layout] || LAYOUT_CLASS.center;
-    const filename = `issue${issue}_${articleSeq}-${n}.jpg`;
-    const localPath = `/images/articles/issue-${issue}/${filename}`;
-    return `\n\n<figure class="${cssClass}"><img src="${localPath}" alt="圖片 ${articleSeq}-${n}"><figcaption>（圖片 ${articleSeq}-${n}，待上傳）</figcaption></figure>\n\n`;
-  });
+  return content.replace(
+    /\[\[圖片(\d+)(?::(left|right|center))?\]\]/g,
+    (_, n, layout) => {
+      const cssClass = LAYOUT_CLASS[layout] || LAYOUT_CLASS.center;
+      return `\n\n<figure class="${cssClass}"><img src="[[圖片${n}]]" alt="圖片 ${articleSeq}-${n}"><figcaption>（圖片 ${articleSeq}-${n}，待上傳）</figcaption></figure>\n\n`;
+    },
+  );
 }
 
 /**

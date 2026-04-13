@@ -2,42 +2,28 @@
 import { ref, computed, onMounted } from "vue";
 import { marked } from "marked";
 import markedFootnote from "marked-footnote";
-import { supabase } from "~/supabase";
 
 marked.use(markedFootnote({ prefixId: "footnote-" }));
 
 const article = ref(null);
 const loading = ref(true);
-const issueImages = ref([]);
-
-const fetchIssueImages = async (issueNumber) => {
-  if (!issueNumber) return;
-  const path = `articles/issue-${issueNumber}`;
-  const { data, error } = await supabase.storage.from("images").list(path, {
-    limit: 1000,
-    offset: 0,
-    sortBy: { column: "name", order: "asc" },
-  });
-
-  if (!error && data) issueImages.value = data;
-};
 
 useSeoMeta({
   title: () =>
-    article.value ? `[預覽] ${article.value.title} - 無境界者雜誌` : "預覽中 - 無境界者雜誌",
+    article.value
+      ? `[預覽] ${article.value.title} - 無境界者雜誌`
+      : "預覽中 - 無境界者雜誌",
   ogTitle: () => (article.value ? `[預覽] ${article.value.title}` : "文章預覽"),
-  description: () =>
-    article.value?.summary || "無境界者雜誌文章預覽頁。",
-  ogDescription: () =>
-    article.value?.summary || "無境界者雜誌文章預覽頁。",
+  description: () => article.value?.summary || "無境界者雜誌文章預覽頁。",
+  ogDescription: () => article.value?.summary || "無境界者雜誌文章預覽頁。",
   ogImage: () =>
     article.value?.seo_image ||
     article.value?.cover_image ||
-    "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/default-seo.jpg",
+    "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
   twitterCard: "summary_large_image",
 });
 
-onMounted(async () => {
+onMounted(() => {
   loading.value = true;
   try {
     const localData = localStorage.getItem("preview_article");
@@ -45,9 +31,7 @@ onMounted(async () => {
       article.value = null;
       return;
     }
-
     article.value = JSON.parse(localData);
-    if (article.value?.issue) await fetchIssueImages(article.value.issue);
   } catch {
     article.value = null;
   } finally {
@@ -62,6 +46,10 @@ const formatTextWithFootnote = (text) => {
   });
 };
 
+/**
+ * 🌟 核心預覽邏輯：直接依賴媒體庫的 url (因為是預覽，不會即時抓 DB)
+ * 如果遇到舊版純檔名，直接導向 Cloudinary
+ */
 const htmlContent = computed(() => {
   if (!article.value?.content) return "";
   let fullText = article.value.content;
@@ -72,27 +60,20 @@ const htmlContent = computed(() => {
 
   let parsedHtml = marked.parse(fullText, { gfm: true, breaks: true });
 
+  // 由於預覽模式無法即時 JOIN media_assets，若使用者尚未存檔，會先保留 [[圖片N]]
+  // 對於舊版寫死檔名的邏輯，直接加上 Cloudinary base URL
   parsedHtml = parsedHtml.replace(/src="([^"]+)"/g, (match, srcValue) => {
     if (
       srcValue.startsWith("http") ||
       srcValue.startsWith("data:") ||
-      srcValue.startsWith("//")
+      srcValue.startsWith("//") ||
+      srcValue.startsWith("[[圖片")
     ) {
       return match;
     }
 
-    const matchedFile = issueImages.value.find((file) => {
-      const nameWithoutExt =
-        file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
-      return file.name === srcValue || nameWithoutExt === srcValue;
-    });
-
-    if (matchedFile) {
-      const fullPath = `articles/issue-${article.value.issue}/${matchedFile.name}`;
-      const { data } = supabase.storage.from("images").getPublicUrl(fullPath);
-      return `src="${data.publicUrl}"`;
-    }
-    return match;
+    // 徹底棄用 Supabase Storage
+    return `src="https://res.cloudinary.com/nonchurch2025/image/upload/${srcValue}"`;
   });
 
   if (article.value.footnotes?.length > 0) {
@@ -284,12 +265,26 @@ const categoryColor = computed(() => {
   animation: dots-cycle 2s infinite steps(1);
 }
 @keyframes dots-cycle {
-  0% { content: ""; }
-  15% { content: "."; }
-  30% { content: ".."; }
-  45% { content: "..."; }
-  60% { content: "...."; }
-  75% { content: "....."; }
-  90% { content: "......"; }
+  0% {
+    content: "";
+  }
+  15% {
+    content: ".";
+  }
+  30% {
+    content: "..";
+  }
+  45% {
+    content: "...";
+  }
+  60% {
+    content: "....";
+  }
+  75% {
+    content: ".....";
+  }
+  90% {
+    content: "......";
+  }
 }
 </style>

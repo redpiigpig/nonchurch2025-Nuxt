@@ -27,6 +27,7 @@ const form = ref({
   content: "",
   keyword: "",
   footnotes: [],
+  media_assets: [], // 🌟 新增：存放圖片關聯資料
   prev_id: "",
   next_id: "",
   page_start: null,
@@ -60,19 +61,22 @@ const proofreadStatus = ref("pending");
 // 期號 issues 對應表（供 issue 號連動 issue_title 使用）
 const issuesMap = ref({}); // { 8: "地上神國與人間佛教", ... }
 
-
 // 當 issue 號改變時，自動帶入對應的 issue_title（僅新增模式下連動，編輯模式保持原值）
-watch(() => form.value.issue, (newIssue) => {
-  if (!isEditMode.value && issuesMap.value[newIssue]) {
-    form.value.issue_title = issuesMap.value[newIssue];
-  }
-});
+watch(
+  () => form.value.issue,
+  (newIssue) => {
+    if (!isEditMode.value && issuesMap.value[newIssue]) {
+      form.value.issue_title = issuesMap.value[newIssue];
+    }
+  },
+);
 
 const loadArticle = async (id) => {
   loading.value = true;
+  // 🌟 修正：JOIN media_assets 取得這篇文章的所有圖片
   const { data, error } = await supabase
     .from("articles")
-    .select("*")
+    .select("*, media_assets(image_url, sort_order)")
     .eq("id", id)
     .single();
 
@@ -97,6 +101,7 @@ const loadArticle = async (id) => {
       content: data.content || "",
       keyword: data.keyword || "",
       footnotes: data.footnotes || [],
+      media_assets: data.media_assets || [], // 🌟 存放媒體陣列
       prev_id: data.prev_id || "",
       next_id: data.next_id || "",
       page_start: data.page_start ?? null,
@@ -114,9 +119,13 @@ const loadArticle = async (id) => {
 
 onMounted(async () => {
   // 載入 issues 對應表（供 issue 號連動 issue_title 使用）
-  const { data: issuesData } = await supabase.from("issues").select("id, title");
+  const { data: issuesData } = await supabase
+    .from("issues")
+    .select("id, title");
   if (issuesData) {
-    issuesData.forEach((i) => { issuesMap.value[i.id] = i.title; });
+    issuesData.forEach((i) => {
+      issuesMap.value[i.id] = i.title;
+    });
   }
   // 若為編輯模式，載入文章
   const id = route.params.id || route.query.id;
@@ -153,7 +162,14 @@ const contentHtml = computed(() => {
 });
 
 // ── 校對標記：文字內嵌高亮 + 標記圖示（同 ProofreadView 的 DOM 注入技術）──
-const injectEditorHighlight = (container, startOff, endOff, color, annId, note) => {
+const injectEditorHighlight = (
+  container,
+  startOff,
+  endOff,
+  color,
+  annId,
+  note,
+) => {
   let offset = 0;
   const walk = (node) => {
     if (offset >= endOff) return;
@@ -210,7 +226,9 @@ const buildProofreadPreview = () => {
       );
       const base = marked.parse(withRefs, { gfm: true, breaks: true });
 
-      const anns = proofreadAnnotations.value.filter((a) => a.paragraphIndex === idx);
+      const anns = proofreadAnnotations.value.filter(
+        (a) => a.paragraphIndex === idx,
+      );
       if (!anns.length) return base;
 
       const div = document.createElement("div");
@@ -219,7 +237,14 @@ const buildProofreadPreview = () => {
       // 由大到小注入，避免 offset 偏移
       const sorted = [...anns].sort((a, b) => b.startOffset - a.startOffset);
       for (const ann of sorted) {
-        injectEditorHighlight(div, ann.startOffset, ann.endOffset, ann.color, ann.id, ann.note || "");
+        injectEditorHighlight(
+          div,
+          ann.startOffset,
+          ann.endOffset,
+          ann.color,
+          ann.id,
+          ann.note || "",
+        );
         // 在 mark 後插入標記圖示
         const markEl = div.querySelector(`mark[data-ann-id="${ann.id}"]`);
         if (markEl) {
@@ -228,7 +253,9 @@ const buildProofreadPreview = () => {
           icon.style.background = ann.color;
           icon.textContent = "✎";
           if (ann.note) icon.dataset.note = ann.note;
-          icon.title = ann.note || `校對標記：${(ann.selectedText || "").substring(0, 20)}`;
+          icon.title =
+            ann.note ||
+            `校對標記：${(ann.selectedText || "").substring(0, 20)}`;
           markEl.parentNode.insertBefore(icon, markEl.nextSibling);
         }
       }
@@ -248,16 +275,35 @@ const buildProofreadPreview = () => {
   proofreadPreviewHtml.value = html;
 };
 
-watch(proofreadAnnotations, () => nextTick(buildProofreadPreview), { deep: true });
-watch(() => form.value.content, () => nextTick(buildProofreadPreview));
-watch(() => form.value.footnotes, () => nextTick(buildProofreadPreview), { deep: true });
-
-// 最終顯示用的 HTML
-const effectivePreviewHtml = computed(() =>
-  proofreadAnnotations.value.length && proofreadPreviewHtml.value
-    ? proofreadPreviewHtml.value
-    : contentHtml.value,
+watch(proofreadAnnotations, () => nextTick(buildProofreadPreview), {
+  deep: true,
+});
+watch(
+  () => form.value.content,
+  () => nextTick(buildProofreadPreview),
 );
+watch(
+  () => form.value.footnotes,
+  () => nextTick(buildProofreadPreview),
+  { deep: true },
+);
+
+// 🌟 核心預覽邏輯：將 [[圖片N]] 替換為真正的 Cloudinary 網址
+const effectivePreviewHtml = computed(() => {
+  let html =
+    proofreadAnnotations.value.length && proofreadPreviewHtml.value
+      ? proofreadPreviewHtml.value
+      : contentHtml.value;
+
+  const assets = form.value.media_assets || [];
+  html = html.replace(/src="\[\[圖片(\d+)\]\]"/g, (match, orderStr) => {
+    const order = parseInt(orderStr);
+    const found = assets.find((m) => m.sort_order === order);
+    return found ? `src="${found.image_url}"` : match;
+  });
+
+  return html;
+});
 
 const saveArticle = async () => {
   if (!form.value.id) {
@@ -296,6 +342,9 @@ const saveArticle = async () => {
     updated_at: new Date().toISOString(),
   };
 
+  // 避免將前端顯示用的 media_assets 存回 articles
+  delete payload.media_assets;
+
   const { error } = await supabase
     .from("articles")
     .upsert(payload, { onConflict: "id" });
@@ -321,7 +370,9 @@ const handleReupload = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
 
-  if (!confirm("確定要用新的 Word 覆蓋目前的內文與註腳嗎？（其他欄位不受影響）")) {
+  if (
+    !confirm("確定要用新的 Word 覆蓋目前的內文與註腳嗎？（其他欄位不受影響）")
+  ) {
     event.target.value = "";
     return;
   }
@@ -346,9 +397,9 @@ const handleReupload = async (event) => {
     if (idMatch && imageCounter > 0) {
       const issue = idMatch[1];
       const seq = idMatch[2];
+      // 🌟 修正重新上傳：保留 [[圖片N]] 讓動態系統去替換
       html = html.replace(/\[\[圖片(\d+)\]\]/g, (_, n) => {
-        const path = `/images/articles/issue-${issue}/issue${issue}_${seq}-${n}.jpg`;
-        return `\n\n<figure class="img-bottom px-600"><img src="${path}" alt="圖片 ${seq}-${n}"><figcaption>（圖片 ${seq}-${n}，待上傳）</figcaption></figure>\n\n`;
+        return `\n\n<figure class="img-bottom px-600"><img src="[[圖片${n}]]" alt="圖片 ${seq}-${n}"><figcaption>（圖片 ${seq}-${n}，待上傳）</figcaption></figure>\n\n`;
       });
     }
 
@@ -376,7 +427,9 @@ const handleReupload = async (event) => {
         } else if (el.tagName === "H3") {
           contentParts.push(`### ${text}`);
         } else if (el.tagName === "BLOCKQUOTE") {
-          contentParts.push(`<blockquote>\n${text}\n<div class="rel">── 出處</div>\n</blockquote>`);
+          contentParts.push(
+            `<blockquote>\n${text}\n<div class="rel">── 出處</div>\n</blockquote>`,
+          );
         } else {
           contentParts.push(text);
         }
@@ -388,7 +441,9 @@ const handleReupload = async (event) => {
       form.value.footnotes = newFootnotes;
     }
 
-    alert(`✅ 內文已更新！${imageCounter > 0 ? `（偵測到 ${imageCounter} 張圖片佔位）` : ""}請確認後儲存。`);
+    alert(
+      `✅ 內文已更新！${imageCounter > 0 ? `（偵測到 ${imageCounter} 張圖片佔位）` : ""}請確認後儲存。`,
+    );
   } catch (err) {
     alert("❌ 上傳失敗：" + err.message);
   } finally {
@@ -504,12 +559,20 @@ const insertOrWrap = async (
     newSelectionEnd = newSelectionStart + selectedText.length;
   } else if (selectedText.length > 0) {
     newText =
-      originalText.substring(0, start) + prefix + selectedText + suffix + originalText.substring(end);
+      originalText.substring(0, start) +
+      prefix +
+      selectedText +
+      suffix +
+      originalText.substring(end);
     newSelectionStart = start + prefix.length;
     newSelectionEnd = newSelectionStart + selectedText.length;
   } else {
     newText =
-      originalText.substring(0, start) + prefix + defaultText + suffix + originalText.substring(end);
+      originalText.substring(0, start) +
+      prefix +
+      defaultText +
+      suffix +
+      originalText.substring(end);
     newSelectionStart = start + prefix.length;
     newSelectionEnd = newSelectionStart + defaultText.length;
   }
@@ -525,7 +588,8 @@ const insertBlock = async (template) => {
   const start = textarea.selectionStart;
   const end = textarea.selectionEnd;
   const originalText = form.value.content;
-  const newText = originalText.substring(0, start) + template + originalText.substring(end);
+  const newText =
+    originalText.substring(0, start) + template + originalText.substring(end);
   form.value.content = newText;
   await nextTick();
   textarea.focus({ preventScroll: true });
@@ -548,8 +612,14 @@ const tools = [
         "引用的內容...",
       ),
   },
-  { label: "去除縮排", action: () => insertOrWrap('<p class="no-indent">', "</p>", "無縮排文字") },
-  { label: "分隔線", action: () => insertBlock('\n<div class="custom-divider"></div>\n') },
+  {
+    label: "去除縮排",
+    action: () => insertOrWrap('<p class="no-indent">', "</p>", "無縮排文字"),
+  },
+  {
+    label: "分隔線",
+    action: () => insertBlock('\n<div class="custom-divider"></div>\n'),
+  },
   {
     label: "置右",
     action: () => {
@@ -586,7 +656,9 @@ const editorComponents = [
   {
     label: "🖼️ 主題圖片",
     action: () =>
-      insertBlock(`\n\n<div class="theme-image"><img src="圖片網址" alt="主題圖片"></div>\n\n`),
+      insertBlock(
+        `\n\n<div class="theme-image"><img src="圖片網址" alt="主題圖片"></div>\n\n`,
+      ),
   },
   {
     label: "🖼️ 圖片(左)",
@@ -632,14 +704,17 @@ const editorComponents = [
       for (let i = 1; i <= numRows; i++) {
         listItems += `<div style="text-indent: -1.5rem; padding-left: 1.5rem; margin-bottom: 1rem; line-height: 1.8;">•&nbsp;&nbsp;資料來源${i}...</div>`;
       }
-      insertBlock(`\n\n<div class="reference-box"><strong>參考資料</strong><div style="margin-top: 1rem; margin-bottom: 1rem;">${listItems}</div></div>\n\n`);
+      insertBlock(
+        `\n\n<div class="reference-box"><strong>參考資料</strong><div style="margin-top: 1rem; margin-bottom: 1rem;">${listItems}</div></div>\n\n`,
+      );
     },
   },
   {
     label: "📊 表格",
     action: () => {
       let sizeInput = prompt("表格尺寸 (欄x列)", "2x5");
-      let cols = 2, rows = 5;
+      let cols = 2,
+        rows = 5;
       if (sizeInput) {
         const p = sizeInput.toLowerCase().split(/[x*]/);
         cols = parseInt(p[0]) || 2;
@@ -666,13 +741,12 @@ const editorComponents = [
     <div class="editor-header">
       <h2>📝 文章編輯器</h2>
       <div class="actions">
-        <!-- 📤 重新上傳 Word（只在編輯模式顯示） -->
         <template v-if="isEditMode">
           <input
             ref="reuploadInput"
             type="file"
             accept=".docx"
-            style="display:none"
+            style="display: none"
             @change="handleReupload"
           />
           <button
@@ -685,7 +759,6 @@ const editorComponents = [
           </button>
         </template>
 
-        <!-- ✅ 下載 Word 按鈕（只在編輯模式顯示） -->
         <button
           v-if="isEditMode"
           class="btn btn-download"
@@ -696,14 +769,17 @@ const editorComponents = [
           📥 下載 Word
         </button>
 
-        <!-- 🔍 文章校對按鈕（只在編輯模式顯示） -->
         <NuxtLink
           v-if="isEditMode"
           :to="`/admin/proofread/${form.id}`"
           class="btn btn-proofread"
           title="進入文章校對模式"
         >
-          🔍 文章校對<span v-if="proofreadAnnotations.length" class="proofread-badge">{{ proofreadAnnotations.length }}</span>
+          🔍 文章校對<span
+            v-if="proofreadAnnotations.length"
+            class="proofread-badge"
+            >{{ proofreadAnnotations.length }}</span
+          >
         </NuxtLink>
 
         <label class="publish-label">
@@ -809,7 +885,13 @@ const editorComponents = [
           <label>內文 (Markdown)</label>
           <div class="toolbar">
             <div class="toolbar-group">
-              <button v-for="tool in tools" :key="tool.label" @click="tool.action" class="tool-btn" type="button">
+              <button
+                v-for="tool in tools"
+                :key="tool.label"
+                @click="tool.action"
+                class="tool-btn"
+                type="button"
+              >
                 {{ tool.label }}
               </button>
             </div>
@@ -896,11 +978,23 @@ const editorComponents = [
           ></div>
 
           <br />
-          <!-- 校對標記通知列 -->
           <div v-if="proofreadAnnotations.length" class="proofread-notice">
             <span class="proofread-notice-icon">🔍</span>
-            <span>有 <strong>{{ proofreadAnnotations.length }}</strong> 條校對標記（{{ proofreadStatus === 'completed' ? '✅ 已校對完成' : proofreadStatus === 'in_progress' ? '🔄 校對中' : '⬜ 待校對' }}）</span>
-            <NuxtLink :to="`/admin/proofread/${form.id}`" class="proofread-notice-link">查看校對頁面 →</NuxtLink>
+            <span
+              >有
+              <strong>{{ proofreadAnnotations.length }}</strong> 條校對標記（{{
+                proofreadStatus === "completed"
+                  ? "✅ 已校對完成"
+                  : proofreadStatus === "in_progress"
+                    ? "🔄 校對中"
+                    : "⬜ 待校對"
+              }}）</span
+            >
+            <NuxtLink
+              :to="`/admin/proofread/${form.id}`"
+              class="proofread-notice-link"
+              >查看校對頁面 →</NuxtLink
+            >
           </div>
           <div class="markdown-body" v-html="effectivePreviewHtml"></div>
         </div>
@@ -1048,7 +1142,9 @@ const editorComponents = [
   font-size: 0.9rem;
   color: #555;
 }
-.proofread-notice-icon { font-size: 1rem; }
+.proofread-notice-icon {
+  font-size: 1rem;
+}
 .proofread-notice-link {
   margin-left: auto;
   color: #11998e;
@@ -1056,9 +1152,14 @@ const editorComponents = [
   text-decoration: none;
   font-size: 0.85rem;
 }
-.proofread-notice-link:hover { text-decoration: underline; }
+.proofread-notice-link:hover {
+  text-decoration: underline;
+}
 /* 校對標記圖示（編輯器預覽用） */
-:deep(mark) { border-radius: 2px; padding: 0 1px; }
+:deep(mark) {
+  border-radius: 2px;
+  padding: 0 1px;
+}
 :deep(.ann-marker-icon) {
   display: inline-flex;
   align-items: center;
@@ -1091,9 +1192,11 @@ const editorComponents = [
   z-index: 100;
   pointer-events: none;
   white-space: normal;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
-:deep(.ann-marker-icon:hover::after) { display: block; }
+:deep(.ann-marker-icon:hover::after) {
+  display: block;
+}
 
 .editor-layout {
   display: flex;
