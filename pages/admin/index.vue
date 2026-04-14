@@ -147,6 +147,10 @@ onMounted(() => {
 
 <template>
   <div class="publishing-center">
+    <div class="issues-tabs">
+      <NuxtLink to="/admin" exact-active-class="tab-active" class="tab-link">🚀 發布狀態</NuxtLink>
+      <NuxtLink to="/admin/issues_manager" active-class="tab-active" class="tab-link">📋 主題設定</NuxtLink>
+    </div>
     <div class="header-row">
       <div>
         <h2>🚀 期刊發布中心</h2>
@@ -245,6 +249,36 @@ onMounted(() => {
   padding: 20px;
   max-width: 1100px;
   margin: 0 auto;
+}
+.issues-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #ddd;
+  padding-bottom: 0;
+}
+.tab-link {
+  padding: 8px 20px;
+  border-radius: 6px 6px 0 0;
+  color: #666;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.95rem;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-bottom: -2px;
+  transition: background 0.2s;
+}
+.tab-link:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+.tab-active {
+  background: white;
+  color: #2c3e50 !important;
+  border-color: #ddd;
+  border-bottom-color: white !important;
+  font-weight: bold;
 }
 .header-row {
   position: relative;

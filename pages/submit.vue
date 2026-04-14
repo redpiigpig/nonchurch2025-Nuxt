@@ -652,13 +652,9 @@ onMounted(() => {
     <section id="submit">
       <h2>{{ t.submitZone }}</h2>
       <p class="no-indent">{{ t.submitHint }}</p>
-      <a
-        href="https://forms.gle/wDxBRbGAorTTJqeJ9"
-        class="submit-button"
-        target="_blank"
-      >
+      <NuxtLink to="/submission" class="submit-button">
         {{ t.submitBtn }}
-      </a>
+      </NuxtLink>
     </section>
   </div>
 </template>
@@ -696,6 +692,24 @@ p {
 .no-indent,
 .deadline {
   text-indent: 0 !important;
+}
+.submit-button {
+  display: inline-block;
+  padding: 15px 60px;
+  background-color: #5cb85c;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: bold;
+  text-decoration: none;
+  border-radius: 50px;
+  transition: transform 0.2s, background-color 0.2s;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-top: 1rem;
+}
+.submit-button:hover {
+  background-color: #4cae4c;
+  transform: translateY(-3px);
+  text-decoration: none;
 }
 .main-divider {
   width: 100%;
@@ -834,26 +848,6 @@ a:hover {
 #submit p {
   text-align: center !important;
   text-indent: 0 !important;
-}
-.submit-button {
-  display: inline-block;
-  padding: 15px 60px;
-  background-color: #5cb85c;
-  color: white;
-  font-size: 1.5rem;
-  font-weight: bold;
-  text-decoration: none;
-  border-radius: 50px;
-  transition:
-    transform 0.2s,
-    background-color 0.2s;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  margin-top: 1rem;
-}
-.submit-button:hover {
-  background-color: #4cae4c;
-  transform: translateY(-3px);
-  text-decoration: none;
 }
 .status-msg {
   text-align: center;

@@ -465,6 +465,88 @@ onMounted(() => {
 onBeforeUnmount(() =>
   window.removeEventListener("beforeunload", handleBeforeUnload),
 );
+
+// ════════════════════════════════════════════════════════════════
+// ── 待處理投稿（已接受，尚未轉文章）────────────────────────────
+// ════════════════════════════════════════════════════════════════
+const pendingSubmissions = ref([]);
+const loadingSubmissions = ref(false);
+const convertingId = ref(null);
+
+// 分區選項（與現有 SECTION_ORDER 一致）
+const SUBMIT_SECTIONS = ["主題介紹", "特稿專區", "主題廣場", "多元講堂", "編輯資訊"];
+
+// 每筆投稿的暫存 section 選擇
+const submissionSection = ref({});
+
+const fetchPendingSubmissions = async () => {
+  if (!selectedIssueId.value) return;
+  loadingSubmissions.value = true;
+  const { data } = await supabase
+    .from("submissions")
+    .select("id, title, real_name, display_name, category, created_at, word_url, parsed_html, article_summary, keywords, author_bio")
+    .eq("status", "accepted")
+    .eq("issue_number", selectedIssueId.value);
+  pendingSubmissions.value = data || [];
+  // 預設分區
+  for (const s of pendingSubmissions.value) {
+    if (!submissionSection.value[s.id]) submissionSection.value[s.id] = "主題廣場";
+  }
+  loadingSubmissions.value = false;
+};
+
+// 當選擇期數變更時重新抓
+watch(selectedIssueId, fetchPendingSubmissions);
+
+const convertToArticle = async (sub) => {
+  if (!confirm(`確定要將「${sub.title}」轉換為文章草稿嗎？`)) return;
+  convertingId.value = sub.id;
+  try {
+    // 計算本期下一個序號
+    const issueArticles = editedArticles.value.filter((a) => a.issue === selectedIssueId.value);
+    const maxSeq = issueArticles.reduce((max, a) => {
+      const m = a.id.match(/-(\d+)/);
+      return m ? Math.max(max, parseInt(m[1], 10)) : max;
+    }, 0);
+    const nextSeq = maxSeq + 1;
+    const authorName = sub.display_name || sub.real_name;
+    const titleShort = sub.title.replace(/\s/g, "").slice(0, 4);
+    const newId = `${selectedIssueId.value}-${nextSeq}${titleShort}`;
+
+    const section = submissionSection.value[sub.id] || "主題廣場";
+    const newArticle = {
+      id: newId,
+      issue: selectedIssueId.value,
+      title: sub.title,
+      author: authorName,
+      category: sub.category,
+      summary: sub.article_summary || "",
+      keyword: Array.isArray(sub.keywords) ? sub.keywords.join("、") : (sub.keywords || ""),
+      content: sub.parsed_html || "",
+      section,
+      sort_order: nextSeq,
+      is_published: false,
+      article_type: "regular",
+    };
+
+    const { error: insertErr } = await supabase.from("articles").insert([newArticle]);
+    if (insertErr) throw insertErr;
+
+    // 更新投稿狀態為 converted
+    await supabase.from("submissions").update({ status: "converted", article_id: newId }).eq("id", sub.id);
+
+    // 從待處理列表移除
+    pendingSubmissions.value = pendingSubmissions.value.filter((s) => s.id !== sub.id);
+
+    // 重新載入文章列表
+    await initData();
+    alert(`✅ 已成功建立草稿：${newId}`);
+  } catch (err) {
+    alert("❌ 轉換失敗：" + err.message);
+  } finally {
+    convertingId.value = null;
+  }
+};
 </script>
 
 <template>
@@ -681,6 +763,59 @@ onBeforeUnmount(() =>
           </template>
         </tbody>
       </table>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════
+         ── 待處理投稿區塊 ──────────────────────────────────── -->
+    <div class="pending-submissions-section">
+      <div class="pending-header" @click="fetchPendingSubmissions">
+        <h3>📥 待轉換投稿
+          <span class="pending-count" v-if="pendingSubmissions.length > 0">{{ pendingSubmissions.length }}</span>
+        </h3>
+        <p class="pending-desc">已接受、尚未轉換為文章的投稿。設定分區後點「跑 AI 分類」即可建立草稿。</p>
+      </div>
+
+      <div v-if="loadingSubmissions" class="pending-loading">載入中...</div>
+      <div v-else-if="pendingSubmissions.length === 0" class="pending-empty">
+        目前本期沒有待處理的投稿。
+      </div>
+      <div v-else class="pending-table-wrapper">
+        <table class="pending-table">
+          <thead>
+            <tr>
+              <th>標題</th>
+              <th>作者</th>
+              <th>類型</th>
+              <th>放入分區</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="sub in pendingSubmissions" :key="sub.id">
+              <td class="sub-title">{{ sub.title }}</td>
+              <td>{{ sub.display_name || sub.real_name }}</td>
+              <td><span class="tag-cat">{{ sub.category }}</span></td>
+              <td>
+                <select v-model="submissionSection[sub.id]" class="section-select">
+                  <option v-for="sec in SUBMIT_SECTIONS" :key="sec" :value="sec">{{ sec }}</option>
+                </select>
+              </td>
+              <td>
+                <div class="sub-actions">
+                  <a v-if="sub.word_url" :href="sub.word_url" target="_blank" class="btn-dl">📄 Word</a>
+                  <button
+                    class="btn-convert"
+                    :disabled="convertingId === sub.id"
+                    @click="convertToArticle(sub)"
+                  >
+                    {{ convertingId === sub.id ? '轉換中...' : '✨ 建立草稿' }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- ── 合併期刊 PDF Modal ── -->
@@ -1405,6 +1540,34 @@ tr.meta-row td {
   color: #888;
   word-break: break-all;
 }
+
+/* ── 待處理投稿 ─────────────────────────────────────────── */
+.pending-submissions-section {
+  margin-top: 36px;
+  border: 2px dashed #b8cce4;
+  border-radius: 10px;
+  padding: 20px 24px;
+  background: #f0f6ff;
+}
+.pending-header { margin-bottom: 14px; }
+.pending-header h3 { margin: 0 0 4px; color: #1a4f7a; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
+.pending-count { background: #e74c3c; color: white; border-radius: 12px; padding: 1px 8px; font-size: 0.8rem; }
+.pending-desc { margin: 0; font-size: 0.85rem; color: #5a7a9a; }
+.pending-loading, .pending-empty { text-align: center; color: #999; padding: 20px 0; font-size: 0.9rem; }
+.pending-table-wrapper { overflow-x: auto; }
+.pending-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.pending-table th { background: #d0e4f7; color: #1a4f7a; padding: 8px 10px; text-align: left; }
+.pending-table td { padding: 8px 10px; border-bottom: 1px solid #d8e8f8; vertical-align: middle; }
+.pending-table tr:hover td { background: #e8f2fc; }
+.sub-title { font-weight: 600; color: #2c3e50; max-width: 220px; }
+.tag-cat { background: #e8f0fe; color: #2c5aa0; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; white-space: nowrap; }
+.section-select { padding: 4px 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.85rem; }
+.sub-actions { display: flex; gap: 6px; align-items: center; }
+.btn-dl { padding: 4px 10px; background: #e8f4fd; color: #1a6fa8; border-radius: 5px; text-decoration: none; font-size: 0.82rem; }
+.btn-dl:hover { background: #d0e8f9; }
+.btn-convert { padding: 5px 12px; background: #2c3e50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 0.85rem; white-space: nowrap; }
+.btn-convert:hover:not(:disabled) { background: #34495e; }
+.btn-convert:disabled { opacity: 0.5; cursor: default; }
 
 @media (max-width: 768px) {
   .toolbar-container {

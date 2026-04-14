@@ -1,0 +1,160 @@
+# 專案資料結構參考
+# 最後更新：2026-04-14
+# 更新方式：在 Supabase SQL Editor 執行下方查詢，把結果貼給 Claude 更新此檔
+
+# ── 更新用 SQL ────────────────────────────────────────────────────────────────
+# SELECT c.table_name, c.column_name, c.data_type, c.is_nullable, c.column_default
+# FROM information_schema.columns c
+# JOIN information_schema.tables t ON c.table_name = t.table_name AND c.table_schema = t.table_schema
+# WHERE c.table_schema = 'public' AND t.table_type = 'BASE TABLE'
+# ORDER BY c.table_name, c.ordinal_position;
+
+# ════════════════════════════════════════════════════════════════════════════════
+# Supabase 資料表結構
+# ════════════════════════════════════════════════════════════════════════════════
+
+## Table: article_seo_translations
+| 欄位 | 類型 | 可空 | 預設 |
+|------|------|------|------|
+| article_id | varchar | NO | |
+| locale | varchar | NO | |
+| og_title | text | YES | |
+| og_description | text | YES | |
+| keywords | text | YES | |
+| description | text | YES | |
+
+## Table: articles
+| 欄位 | 類型 | 可空 | 預設 |
+|------|------|------|------|
+| id | text | NO | |
+| title | text | NO | |
+| subtitle | text | YES | |
+| issue | bigint | YES | |
+| issue_title | text | YES | |
+| category | text | YES | |
+| author | text | YES | |
+| author_title | text | YES | |
+| keyword | text | YES | |
+| content | text | YES | |
+| footnotes | jsonb | YES | |
+| seo | jsonb | YES | |
+| prev_article | jsonb | YES | |
+| next_article | jsonb | YES | |
+| created_at | timestamptz | YES | now() |
+| updated_at | timestamptz | YES | now() |
+| summary | text | YES | |
+| remark | text | YES | |
+| author_display | text | YES | |
+| section | text | YES | |
+| is_published | boolean | YES | false |
+| type | text | YES | 'text' |
+| media_data | jsonb | YES | {} |
+| translations | jsonb | YES | {} |
+| prev_id | text | YES | |
+| next_id | text | YES | |
+| sort_order | integer | YES | |
+| page_start | integer | YES | |
+| proofread_status | text | YES | 'pending' |
+| proofread_annotations | jsonb | YES | [] |
+| proofread_by | text | YES | |
+| proofread_date | date | YES | |
+| article_type | text | NO | 'regular' |
+
+## Table: authors
+| 欄位 | 類型 | 可空 | 預設 | 說明 |
+|------|------|------|------|------|
+| id | bigint | NO | | |
+| name | text | NO | | 公開顯示名（筆名） |
+| bio | text | YES | | 作者自介 |
+| author_image | text | YES | | 大頭貼 URL（Cloudinary） |
+| years | ARRAY | YES | | 投稿期數 |
+| is_published | boolean | YES | true | |
+| translations | jsonb | YES | {} | |
+| email | text | YES | | 聯絡信箱（投稿表單自動帶入用） |
+| real_name | text | YES | | 真實姓名（投稿查詢比對用，不對外顯示） |
+
+## Table: issues
+| 欄位 | 類型 | 可空 | 預設 |
+|------|------|------|------|
+| id | bigint | NO | |
+| title | text | YES | |
+| date | text | YES | |
+| cover_img | text | YES | |
+| pdf_link | text | YES | |
+| intro_home | text | YES | |
+| intro_cfp | text | YES | |
+| cfp_theme | text | YES | |
+| is_published | boolean | YES | false |
+| created_at | timestamptz | YES | now() |
+| author_order | ARRAY | YES | |
+| cfp_title | text | YES | |
+| cfp_deadline | text | YES | |
+| cfp_image | text | YES | |
+| translations | jsonb | YES | {} |
+
+## Table: media_assets
+| 欄位 | 類型 | 可空 | 預設 |
+|------|------|------|------|
+| id | uuid | NO | gen_random_uuid() |
+| issue_id | bigint | YES | |
+| article_id | text | YES | |
+| cloudinary_id | text | NO | |
+| image_url | text | NO | |
+| sort_order | integer | YES | 1 |
+| created_at | timestamptz | YES | now() |
+
+## Table: submissions（新增於 2026-04-14）
+| 欄位 | 類型 | 可空 | 預設 |
+|------|------|------|------|
+| id | bigint | NO | auto identity |
+| created_at | timestamptz | YES | now() |
+| status | text | YES | 'submitted' |
+| real_name | text | NO | |
+| display_name | text | YES | |
+| author_bio | text | NO | |
+| email | text | NO | |
+| is_first_submission | boolean | YES | false |
+| author_intro | text | YES | |
+| avatar_url | text | YES | |
+| issue_number | integer | YES | |
+| title | text | NO | |
+| category | text | NO | |
+| article_summary | text | YES | |
+| keywords | jsonb | YES | [] |
+| notes | text | YES | |
+| word_url | text | YES | |
+| pdf_url | text | YES | |
+| images | jsonb | YES | [] |
+| parsed_html | text | YES | |
+| article_id | text | YES | |
+
+# RLS 政策（submissions）：
+#   anon        → INSERT only（公開投稿）
+#   authenticated → SELECT / UPDATE / DELETE
+
+# ════════════════════════════════════════════════════════════════════════════════
+# Cloudinary 資料夾結構
+# ════════════════════════════════════════════════════════════════════════════════
+# Cloud name: nonchurch2025
+# 存取方式：後端 /api/media（GET/POST/PUT），Cloudinary 憑證不暴露於前端
+
+cloudinary/
+├── images/
+│   ├── articles/
+│   │   ├── issue-1/     ← 第1期文章圖片
+│   │   ├── issue-2/
+│   │   ├── issue-3/
+│   │   ├── issue-4/
+│   │   ├── issue-5/
+│   │   └── issue-6/
+│   ├── authors/         ← 作者大頭貼
+│   ├── covers/          ← 封面圖（jpg/png）
+│   ├── topics/          ← 徵稿主題圖（topic-2.png ~ topic-6.png）
+│   └── system/          ← Header logo 等系統圖片
+├── covers/              ← 封面/封底 PDF（透過 issues_manager 上傳）
+├── magazines/           ← 合刊 PDF（Vol.1.pdf ~ Vol.6.pdf）
+└── submissions/         ← 投稿檔案（新增於 2026-04-14）
+    └── issue-{n}/
+        ├── *.docx       ← 投稿 Word 檔
+        ├── *.pdf        ← 投稿 PDF 檔
+        └── images/      ← 投稿附圖

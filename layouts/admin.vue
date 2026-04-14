@@ -6,11 +6,12 @@
       <aside class="sidebar">
         <div class="logo">無境界者 後台</div>
         <nav>
-          <NuxtLink to="/admin" exact-active-class="active-link">
-            🚀 期刊發布中心
-          </NuxtLink>
-          <NuxtLink to="/admin/issues_manager" active-class="active-link">
-            📅 期刊主題管理
+          <NuxtLink
+            to="/admin"
+            :class="['', isIssuesPage ? 'active-link' : '']"
+            exact-active-class="active-link"
+          >
+            📅 期刊管理
           </NuxtLink>
           <NuxtLink to="/admin/authors_manager" active-class="active-link">
             🧑‍🏫 作者管理
@@ -20,6 +21,9 @@
           </NuxtLink>
           <NuxtLink to="/admin/media_manager" active-class="active-link">
             🖼️ 媒體庫管理
+          </NuxtLink>
+          <NuxtLink to="/admin/submissions_manager" active-class="active-link">
+            📥 投稿管理
           </NuxtLink>
           <NuxtLink to="/admin/editor" active-class="active-link">
             📝 新增文章
@@ -41,12 +45,17 @@
 </template>
 
 <script setup>
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
+import { computed } from "vue";
 import { supabase } from "~/supabase";
 import AppHeader from "~/components/AppHeader.vue";
 import AppFooter from "~/components/AppFooter.vue";
 
 const router = useRouter();
+const route = useRoute();
+const isIssuesPage = computed(() =>
+  route.path === "/admin" || route.path === "/admin/issues_manager"
+);
 
 const handleLogout = async () => {
   await supabase.auth.signOut();

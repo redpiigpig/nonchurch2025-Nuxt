@@ -2,11 +2,13 @@ Directory structure:
 └── nonchurch-nuxt/
     ├── .env
     ├── .gitignore
+    ├── CLAUDE.md
     ├── README.md
     ├── app.vue
     ├── nuxt.config.ts
     ├── package.json
     ├── package-lock.json
+    ├── project_info.txt
     ├── supabase.js
     ├── tree.txt
     ├── tsconfig.json
@@ -23,6 +25,7 @@ Directory structure:
     │   ├── HomeView.vue
     │   ├── MainLayout.vue
     │   ├── ProofreadView.vue
+    │   ├── SubmissionForm.vue
     │   ├── feature_articles/
     │   │   └── Article7_6.vue
     │   └── icons/
@@ -50,6 +53,7 @@ Directory structure:
     │   ├── preview.vue
     │   ├── search.vue
     │   ├── submit.vue
+    │   ├── submission.vue
     │   ├── admin/
     │   │   ├── articles_manager.vue
     │   │   ├── authors_manager.vue
@@ -60,6 +64,7 @@ Directory structure:
     │   │   ├── mission.vue
     │   │   ├── search.vue
     │   │   ├── submit.vue
+    │   │   ├── submissions_manager.vue
     │   │   ├── articles/
     │   │   │   ├── [id].vue
     │   │   │   └── index.vue
@@ -118,7 +123,9 @@ Directory structure:
     │   └── api/
     │       ├── classify-article.post.js
     │       ├── export-word.post.js
-    │       └── media.js
+    │       ├── media.js
+    │       ├── submission-lookup.post.js
+    │       └── submit.post.js
     ├── stores/
     │   ├── form.md
     │   └── tempArticles.js
