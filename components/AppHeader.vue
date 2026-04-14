@@ -370,6 +370,10 @@ const editLink = computed(() => {
   .nav {
     flex-direction: column;
     align-items: flex-start;
+    margin: 0;
+  }
+  .header:not(.editor-header) .nav {
+    margin-left: 0;
   }
   .logo {
     margin-bottom: 5px;

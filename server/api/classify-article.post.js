@@ -4,8 +4,24 @@
  * API key 只存在後端，不會暴露到前端 bundle
  */
 
+import { readFileSync } from "fs";
+import { join } from "path";
+
 const GEMINI_MODEL = "gemini-2.5-flash";
 const MAX_RETRIES = 4;
+
+// 伺服器端快取 form.md 內容
+let _cachedFormSpec = null;
+function getFormSpec() {
+  if (!_cachedFormSpec) {
+    try {
+      _cachedFormSpec = readFileSync(join(process.cwd(), "stores", "form.md"), "utf-8");
+    } catch {
+      _cachedFormSpec = "";
+    }
+  }
+  return _cachedFormSpec;
+}
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
@@ -21,7 +37,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: "缺少 html 欄位" });
   }
 
-  const prompt = buildPrompt(html, formatSpec || "", issueNumber, issueTitle, nextSeq);
+  // 優先使用前端傳來的 formatSpec，否則伺服器端直接讀取 form.md
+  const spec = formatSpec || getFormSpec();
+  const prompt = buildPrompt(html, spec, issueNumber, issueTitle, nextSeq);
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     let response;

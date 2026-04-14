@@ -1,22 +1,15 @@
 /**
- * 格式規範解析器
- * 從 stores/form.md 讀取格式規範並解析成程式可用的格式
+ * 格式規範解析器（純前端版）
+ * 規範資料已硬編碼，不依賴 fs/path（避免瀏覽器不相容）
+ * fullSpec 文字由 classify-article API 在伺服器端讀取
  */
 
-import fs from "fs";
-import path from "path";
-
 /**
- * 讀取並解析 form.md 格式規範
+ * 解析格式規範
  * @returns {Object} 解析後的格式規範
  */
 export function parseFormatSpec() {
   try {
-    // 讀取 form.md 檔案
-    const formPath = path.join(process.cwd(), "stores", "form.md");
-    const formContent = fs.readFileSync(formPath, "utf-8");
-
-    // 解析規範
     const spec = {
       title: {
         // 標題規則：24pt、粗體、華康中黑體或 Times New Roman
@@ -75,7 +68,7 @@ export function parseFormatSpec() {
         // 腳註規則：[^數字] 格式
         pattern: /\[\^(\d+)\]/g,
       },
-      fullSpec: formContent, // 完整規範文字（給 AI 使用）
+      fullSpec: "", // 完整規範文字由伺服器端 classify-article API 讀取
     };
 
     return spec;

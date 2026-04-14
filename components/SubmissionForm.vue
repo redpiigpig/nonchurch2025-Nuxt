@@ -949,5 +949,11 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
   .form-section { padding: 20px 16px; }
   .file-row { flex-direction: column; }
   .lookup-box { padding: 20px 16px; }
+  .old-author-trigger { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .old-author-hint-inline { font-size: 0.8rem; }
+  .btn-old-author { width: 100%; text-align: center; }
+  .old-author-item { flex-wrap: wrap; }
+  .mode-tabs { gap: 2px; }
+  .mode-tab { padding: 8px 14px; font-size: 0.9rem; }
 }
 </style>

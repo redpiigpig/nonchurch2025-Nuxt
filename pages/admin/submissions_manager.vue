@@ -341,7 +341,12 @@ onMounted(fetchSubmissions);
 /* 資訊格 */
 .modal-body { margin-top: 8px; }
 .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-@media (max-width: 600px) { .info-grid { grid-template-columns: 1fr; } }
+@media (max-width: 600px) {
+  .info-grid { grid-template-columns: 1fr; }
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal { padding: 20px 16px; border-radius: 12px 12px 0 0; max-height: 90vh; overflow-y: auto; }
+  .page-header { flex-direction: column; gap: 10px; }
+}
 .info-section h4 { font-size: 1rem; color: #2c3e50; margin: 0 0 10px; padding-bottom: 6px; border-bottom: 1px solid #eee; }
 .info-row { display: flex; gap: 8px; font-size: 0.9rem; padding: 5px 0; border-bottom: 1px solid #f5f5f5; }
 .info-row.column { flex-direction: column; }

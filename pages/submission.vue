@@ -68,6 +68,22 @@ onMounted(async () => {
   font-size: 2.5rem;
   margin: 0.5rem 0;
 }
+
+@media (max-width: 600px) {
+  .page-title-row {
+    padding-top: 0;
+  }
+  .back-link {
+    position: static;
+    display: block;
+    transform: none;
+    margin-bottom: 10px;
+    text-align: left;
+  }
+  .page-main-title {
+    font-size: 1.8rem;
+  }
+}
 .emoji { margin: 0 6px; }
 .main-divider {
   width: 100%;
