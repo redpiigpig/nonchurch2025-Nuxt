@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { useLanguage } from "~/composables/useLanguage";
+import { cloudinaryUrl, CLD } from "~/utils/cloudinary";
 
 const route = useRoute();
 const { isEditor } = useEditorMode();
@@ -101,7 +102,11 @@ const editLink = computed(() => {
     );
   } else {
     // 前台 -> 後台 (首頁去 /admin/home，其他加 /admin)
-    return currentPath === "/" ? "/admin/home" : `/admin${currentPath}`;
+    if (currentPath === "/") return "/admin/home";
+    // 沒有對應後台頁面的前台路徑 → 導向後台首頁
+    const noAdminCounterpart = ["/submission", "/login", "/preview"];
+    if (noAdminCounterpart.some((p) => currentPath.startsWith(p))) return "/admin";
+    return `/admin${currentPath}`;
   }
 });
 </script>
@@ -112,14 +117,20 @@ const editLink = computed(() => {
       <div class="logo">
         <NuxtLink :to="isEditMode ? '/admin/home' : '/'">
           <img
-            src="https://res.cloudinary.com/nonchurch2025/image/upload/Header_Logo.png"
-            alt="Logo"
+            :src="cloudinaryUrl('https://res.cloudinary.com/nonchurch2025/image/upload/Header_Logo.png', CLD.logoIcon)"
+            alt="無境界者雜誌 Logo"
+            width="60"
+            height="65"
             class="logo-icon"
+            fetchpriority="high"
           />
           <img
-            src="https://res.cloudinary.com/nonchurch2025/image/upload/Header_text.png"
+            :src="cloudinaryUrl('https://res.cloudinary.com/nonchurch2025/image/upload/Header_text.png', CLD.logoText)"
             alt="無境界者"
+            width="180"
+            height="65"
             class="logo-text"
+            fetchpriority="high"
           />
         </NuxtLink>
       </div>
@@ -140,7 +151,7 @@ const editLink = computed(() => {
         <NuxtLink :to="getLink('/submit')">{{ t.submit }}</NuxtLink>
 
         <div class="lang-switcher">
-          <select v-model="currentLang" class="lang-select">
+          <select v-model="currentLang" class="lang-select" aria-label="選擇語言">
             <option value="default">🌐 繁體中文</option>
             <option value="zh-HK">🌐 港澳粵語</option>
             <option value="zh-CN">🌐 中国简体</option>

@@ -122,8 +122,10 @@ Directory structure:
     ├── server/
     │   └── api/
     │       ├── classify-article.post.js
+    │       ├── delete-article.post.js
     │       ├── export-word.post.js
     │       ├── media.js
+    │       ├── merge-pdfs.post.js
     │       ├── submission-lookup.post.js
     │       └── submit.post.js
     ├── stores/
@@ -133,6 +135,7 @@ Directory structure:
     │   └── article-template.dotx
     └── utils/
         ├── cdn.js
+        ├── cloudinary.js
         ├── contentParser.js
         ├── formatSpecParser.js
         ├── formatSpecWatcher.js

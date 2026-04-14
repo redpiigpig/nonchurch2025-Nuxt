@@ -2,9 +2,9 @@
   <div class="site-layout">
     <AppHeader />
 
-    <div class="main-layout-container">
+    <main class="main-layout-container">
       <slot></slot>
-    </div>
+    </main>
 
     <AppFooter />
   </div>
@@ -20,7 +20,7 @@
 }
 
 /* 中間的白色內容框 */
-.main-layout-container {
+main.main-layout-container {
   flex: 1; /* 自動撐開高度 */
   width: 80%; /* 設定寬度 */
   max-width: 1200px; /* 避免在大螢幕太寬 */
@@ -36,14 +36,14 @@
 
 /* RWD 設定 */
 @media (max-width: 1024px) {
-  .main-layout-container {
+  main.main-layout-container {
     width: 95%; /* 平板時變寬一點 */
     padding: 30px;
   }
 }
 
 @media (max-width: 768px) {
-  .main-layout-container {
+  main.main-layout-container {
     width: 100%; /* 手機版全寬 */
     margin: 0; /* 移除外距 */
     border-radius: 0; /* 移除圓角 */

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { supabase } from "../supabase";
 import { useEditorMode } from "../composables/useEditorMode";
 import { useLanguage } from "../composables/useLanguage";
+import { cloudinaryUrl, CLD } from "../utils/cloudinary";
 
 const route = useRoute();
 const router = useRouter();
@@ -597,13 +598,21 @@ onMounted(async () => {
   <div v-else class="home-container">
     <section class="current-issue">
       <div class="left">
-        <a :href="currentIssue.pdfLink || '#'" target="_blank">
-          <img :src="currentIssue.coverImg" class="magazine-cover" />
+        <a :href="currentIssue.pdfLink || '#'" target="_blank" :aria-label="`下載第${currentIssue.number}期《${currentIssue.title}》PDF`">
+          <img
+            :src="cloudinaryUrl(currentIssue.coverImg, CLD.cover)"
+            :alt="`第${currentIssue.number}期《${currentIssue.title}》封面`"
+            width="400"
+            height="566"
+            class="magazine-cover"
+            fetchpriority="high"
+            loading="eager"
+          />
         </a>
         <p class="cover-description">{{ t.downloadPdf }}</p>
       </div>
       <div class="right">
-        <h3>
+        <h2 class="issue-heading">
           <router-link
             :to="`/articles#issue-${currentIssue.number}`"
             class="title-link"
@@ -611,7 +620,7 @@ onMounted(async () => {
             {{ t.issueFormat(currentIssue.number, currentIssue.title) }}
           </router-link>
           <span class="date">{{ currentIssue.date }}</span>
-        </h3>
+        </h2>
         <p
           v-for="(p, i) in (currentIssue.introHome || '').split('\n')"
           :key="i"
@@ -698,8 +707,14 @@ onMounted(async () => {
       <h2>✍️ {{ t.authors }}</h2>
       <div class="author-container">
         <div v-for="a in currentIssueAuthors" :key="a.id" class="author">
-          <router-link :to="'/authors/' + a.name" :data-tooltip="t.viewAuthor">
-            <img :src="a.author_image" />
+          <router-link :to="'/authors/' + a.name" :data-tooltip="t.viewAuthor" :aria-label="a.displayName">
+            <img
+              :src="cloudinaryUrl(a.author_image, CLD.avatar)"
+              :alt="a.displayName"
+              width="120"
+              height="120"
+              loading="lazy"
+            />
           </router-link>
           <h4>{{ a.displayName }}</h4>
         </div>
@@ -708,12 +723,12 @@ onMounted(async () => {
 
     <section class="next-preview-submission">
       <div class="card-content">
-        <h3>{{ t.cfp }}</h3>
+        <h2>{{ t.cfp }}</h2>
         <p class="next-issue-text" v-html="formattedIntroCfp"></p>
         <router-link to="/submit" class="btn">{{ t.cfp }}</router-link>
       </div>
       <div class="call-for-submission">
-        <h3>{{ t.subscribe }}</h3>
+        <h2>{{ t.subscribe }}</h2>
         <p>{{ t.subscribeDesc }}</p>
         <a
           href="https://forms.gle/aWSBFRfQ74QY13nw8"
@@ -898,6 +913,12 @@ h2 {
 .current-issue .right {
   flex: 1;
   text-align: left;
+}
+/* h3→h2 heading level fix：保持原視覺大小 */
+.current-issue .right h2.issue-heading {
+  font-size: 1.17em;
+  font-weight: bold;
+  margin: 0 0 0.5rem;
 }
 .title-link {
   font-size: 1.6rem;
@@ -1140,8 +1161,8 @@ h2 {
   display: flex;
   flex-direction: column;
 }
-.card-content h3,
-.call-for-submission h3 {
+.card-content h2,
+.call-for-submission h2 {
   text-align: center;
   margin-bottom: 1.5rem;
 }
