@@ -1,10 +1,12 @@
 Directory structure:
-└── redpiigpig-nonchurch2025-nust/
+└── nonchurch-nuxt/
+    ├── .env
+    ├── .gitignore
     ├── README.md
-    ├── MIGRATION_DIFF_CHECKLIST.md
     ├── app.vue
     ├── nuxt.config.ts
     ├── package.json
+    ├── package-lock.json
     ├── supabase.js
     ├── tree.txt
     ├── tsconfig.json
@@ -20,6 +22,7 @@ Directory structure:
     │   ├── EditorView.vue
     │   ├── HomeView.vue
     │   ├── MainLayout.vue
+    │   ├── ProofreadView.vue
     │   ├── feature_articles/
     │   │   └── Article7_6.vue
     │   └── icons/
@@ -64,12 +67,14 @@ Directory structure:
     │   │   │   ├── [name].vue
     │   │   │   └── index.vue
     │   │   ├── editor/
-    │   │   │   ├── [[id]].vue
+    │   │   │   ├── [id].vue
     │   │   │   └── index.vue
-    │   │   └── home/
-    │   │       ├── index.vue
-    │   │       └── issue/
-    │   │           └── [issueNumber].vue
+    │   │   ├── home/
+    │   │   │   ├── index.vue
+    │   │   │   └── issue/
+    │   │   │       └── [issueNumber].vue
+    │   │   └── proofread/
+    │   │       └── [id].vue
     │   ├── articles/
     │   │   ├── [id].vue
     │   │   └── index.vue
@@ -80,20 +85,43 @@ Directory structure:
     │       └── issue/
     │           └── [issueNumber].vue
     ├── public/
+    │   ├── favicon.ico
     │   ├── robots.txt
-    │   └── articles/
-    │       ├── 5-13話語與肉身.json
-    │       └── 5-13話語與肉身.md
+    │   ├── articles/
+    │   │   ├── 5-13話語與肉身.json
+    │   │   └── 5-13話語與肉身.md
+    │   ├── images/
+    │   │   ├── articles/
+    │   │   │   ├── issue-1/   (31 files)
+    │   │   │   ├── issue-2/   (40 files)
+    │   │   │   ├── issue-3/   (56 files)
+    │   │   │   ├── issue-4/   (55 files)
+    │   │   │   ├── issue-5/   (38 files)
+    │   │   │   └── issue-6/   (57 files)
+    │   │   ├── authors/
+    │   │   │   └── author_1.jpg ~ author_26.jpg  (26 files)
+    │   │   ├── covers/
+    │   │   │   └── cover-1.png ~ cover-6.png  (6 files)
+    │   │   ├── system/
+    │   │   │   ├── Header_Logo.png
+    │   │   │   ├── Header_text.png
+    │   │   │   ├── background_image.png
+    │   │   │   ├── topic.jpg
+    │   │   │   └── web_Logo.png
+    │   │   └── topics/
+    │   │       └── topic-2.png ~ topic-6.png  (5 files)
+    │   └── magazines/
+    │       └── Vol.1.pdf ~ Vol.6.pdf  (6 files)
     ├── scripts/
     │   └── generate_docx.py
     ├── server/
     │   └── api/
-    │       └── export-word.post.js
+    │       ├── classify-article.post.js
+    │       ├── export-word.post.js
+    │       └── media.js
     ├── stores/
     │   ├── form.md
     │   └── tempArticles.js
-    ├── temp/
-    │   └── 7-4教會外的福音見證者.json
     ├── templates/
     │   └── article-template.dotx
     └── utils/

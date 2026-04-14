@@ -20,6 +20,47 @@ const saving = ref(false);
 const showModal = ref(false);
 const editingIssue = ref({});
 
+// ── 封面 / 封底 PDF 上傳 ──────────────────────────────────────────
+const coverPdfInput = ref(null);
+const backCoverPdfInput = ref(null);
+const uploadingCoverPdf = ref(false);
+const uploadingBackCoverPdf = ref(false);
+
+const uploadIssuePdf = async (file, field) => {
+  const isUploading = field === "cover_pdf" ? uploadingCoverPdf : uploadingBackCoverPdf;
+  isUploading.value = true;
+  try {
+    const safeLabel = field === "cover_pdf" ? "cover" : "back-cover";
+    const newFileName = `${safeLabel}-${editingIssue.value.id}.pdf`;
+    const renamedFile = new File([file], newFileName, { type: file.type });
+
+    const formData = new FormData();
+    formData.append("file", renamedFile);
+    formData.append("path", "covers");
+
+    const response = await $fetch("/api/media", { method: "POST", body: formData });
+    if (!response.success) throw new Error(response.error);
+
+    editingIssue.value[field] = response.data.secure_url;
+    alert(`✅ 上傳成功！已命名為：${newFileName}\n（請記得按「確認儲存」）`);
+  } catch (err) {
+    alert("❌ 上傳失敗：" + err.message);
+  } finally {
+    isUploading.value = false;
+  }
+};
+
+const handleCoverPdfUpload = (e) => {
+  const file = e.target.files[0];
+  if (file) uploadIssuePdf(file, "cover_pdf");
+  e.target.value = "";
+};
+const handleBackCoverPdfUpload = (e) => {
+  const file = e.target.files[0];
+  if (file) uploadIssuePdf(file, "back_cover_pdf");
+  e.target.value = "";
+};
+
 // 1. 讀取列表
 const fetchIssues = async () => {
   loading.value = true;
@@ -65,6 +106,8 @@ const saveIssue = async () => {
       date: editingIssue.value.date,
       cover_img: editingIssue.value.cover_img,
       pdf_link: editingIssue.value.pdf_link,
+      cover_pdf: editingIssue.value.cover_pdf || null,
+      back_cover_pdf: editingIssue.value.back_cover_pdf || null,
       intro_home: editingIssue.value.intro_home,
       author_order: authorArray,
       intro_cfp: editingIssue.value.intro_cfp,
@@ -186,13 +229,87 @@ onMounted(() => {
               </div>
             </div>
             <div class="form-group">
-              <label>PDF 檔案連結 (PDF Link)</label>
+              <label>整期 PDF 連結 (PDF Link)</label>
               <input
                 type="text"
                 v-model="editingIssue.pdf_link"
                 class="input-text"
                 placeholder="https://..."
               />
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>📄 封面與封底 PDF</legend>
+            <small class="hint" style="display:block; margin-bottom:12px;">
+              上傳後自動存到 Cloudinary <code>covers/</code> 資料夾，供合併期刊 PDF 使用。
+            </small>
+
+            <!-- 隱藏的 file input -->
+            <input
+              ref="coverPdfInput"
+              type="file"
+              accept="application/pdf"
+              style="display:none"
+              @change="handleCoverPdfUpload"
+            />
+            <input
+              ref="backCoverPdfInput"
+              type="file"
+              accept="application/pdf"
+              style="display:none"
+              @change="handleBackCoverPdfUpload"
+            />
+
+            <div class="form-row">
+              <div class="form-group half">
+                <label>封面 PDF (Cover PDF)</label>
+                <div class="pdf-upload-row">
+                  <input
+                    type="text"
+                    v-model="editingIssue.cover_pdf"
+                    class="input-text"
+                    placeholder="https://..."
+                  />
+                  <button
+                    class="btn-upload-pdf"
+                    @click="coverPdfInput.click()"
+                    :disabled="uploadingCoverPdf"
+                  >
+                    {{ uploadingCoverPdf ? "上傳中..." : "📄 上傳" }}
+                  </button>
+                  <a
+                    v-if="editingIssue.cover_pdf"
+                    :href="editingIssue.cover_pdf"
+                    target="_blank"
+                    class="btn-preview-pdf"
+                  >👀</a>
+                </div>
+              </div>
+              <div class="form-group half">
+                <label>封底 PDF (Back Cover PDF)</label>
+                <div class="pdf-upload-row">
+                  <input
+                    type="text"
+                    v-model="editingIssue.back_cover_pdf"
+                    class="input-text"
+                    placeholder="https://..."
+                  />
+                  <button
+                    class="btn-upload-pdf"
+                    @click="backCoverPdfInput.click()"
+                    :disabled="uploadingBackCoverPdf"
+                  >
+                    {{ uploadingBackCoverPdf ? "上傳中..." : "📄 上傳" }}
+                  </button>
+                  <a
+                    v-if="editingIssue.back_cover_pdf"
+                    :href="editingIssue.back_cover_pdf"
+                    target="_blank"
+                    class="btn-preview-pdf"
+                  >👀</a>
+                </div>
+              </div>
             </div>
             <div class="form-group">
               <label>首頁本期簡介 (Intro Home)</label>
@@ -465,6 +582,39 @@ label {
   margin-top: 5px;
   font-size: 0.85rem;
   color: #888;
+}
+
+.pdf-upload-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.pdf-upload-row .input-text {
+  flex: 1;
+  min-width: 0;
+}
+.btn-upload-pdf {
+  white-space: nowrap;
+  padding: 8px 12px;
+  background: #27ae60;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: 0.2s;
+}
+.btn-upload-pdf:hover:not(:disabled) {
+  background: #219a52;
+}
+.btn-upload-pdf:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-preview-pdf {
+  font-size: 1.2rem;
+  text-decoration: none;
+  padding: 4px 6px;
 }
 
 .preview-box {

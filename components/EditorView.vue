@@ -4,6 +4,41 @@ import { useRoute, useRouter } from "vue-router";
 import { marked } from "marked";
 import { supabase } from "~/supabase";
 
+// ── 目錄模式 ─────────────────────────────────────────────────────
+// 依 article_type 欄位判斷，不依賴 ID 或 title
+const isTocMode = computed(() => form.value.article_type === "toc");
+const tocArticles = ref([]);
+const tocSaving = ref({}); // { [id]: bool }
+
+const loadTocArticles = async (issueId) => {
+  const { data } = await supabase
+    .from("articles")
+    .select("id, title, author, page_start, section, sort_order")
+    .eq("issue", issueId)
+    .order("sort_order", { ascending: true });
+  // 排除目錄文章本身
+  tocArticles.value = (data || []).filter((a) => !/^\d+-0$/.test(a.id));
+};
+
+const saveTocPageStart = async (article) => {
+  tocSaving.value[article.id] = true;
+  const { error } = await supabase
+    .from("articles")
+    .update({ page_start: article.page_start })
+    .eq("id", article.id);
+  if (error) alert("儲存頁數失敗：" + error.message);
+  tocSaving.value[article.id] = false;
+};
+
+const generateTocContent = () => {
+  const lines = tocArticles.value.map((a) => {
+    const page = a.page_start ? `**p.${a.page_start}**　` : "";
+    const author = a.author ? `　／　${a.author}` : "";
+    return `${page}${a.title}${author}`;
+  });
+  form.value.content = lines.join("\n\n");
+};
+
 const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
@@ -31,6 +66,7 @@ const form = ref({
   prev_id: "",
   next_id: "",
   page_start: null,
+  article_type: "regular",
 });
 
 const seoJson = ref('{\n  "description": "",\n  "keywords": ""\n}');
@@ -105,6 +141,7 @@ const loadArticle = async (id) => {
       prev_id: data.prev_id || "",
       next_id: data.next_id || "",
       page_start: data.page_start ?? null,
+      article_type: data.article_type || "regular",
     };
 
     seoJson.value = data.seo ? JSON.stringify(data.seo, null, 2) : "{\n}";
@@ -113,6 +150,11 @@ const loadArticle = async (id) => {
     proofreadStatus.value = data.proofread_status || "pending";
     await nextTick();
     buildProofreadPreview();
+
+    // 目錄模式：載入同期文章列表
+    if (data.article_type === "toc") {
+      await loadTocArticles(data.issue);
+    }
   }
   loading.value = false;
 };
@@ -795,6 +837,47 @@ const editorComponents = [
       </div>
     </div>
 
+    <!-- ── 目錄模式：文章列表面板 ── -->
+    <div v-if="isTocMode" class="toc-panel">
+      <div class="toc-panel-header">
+        <h3>📋 目錄 — 同期文章列表</h3>
+        <span class="toc-hint">可直接修改各篇頁數，失焦後自動儲存</span>
+        <button class="btn-gen-toc" @click="generateTocContent" type="button">
+          ✨ 從列表生成目錄內文
+        </button>
+      </div>
+      <table class="toc-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>標題</th>
+            <th>作者</th>
+            <th width="70">起始頁</th>
+            <th width="60">狀態</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="a in tocArticles" :key="a.id">
+            <td class="toc-id">{{ a.id }}</td>
+            <td>{{ a.title }}</td>
+            <td>{{ a.author }}</td>
+            <td>
+              <input
+                type="number"
+                v-model.number="a.page_start"
+                class="toc-page-input"
+                min="1"
+                @blur="saveTocPageStart(a)"
+              />
+            </td>
+            <td class="toc-saving">
+              {{ tocSaving[a.id] ? "儲存..." : "" }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <div class="editor-layout">
       <div class="form-pane">
         <div class="form-group">
@@ -845,7 +928,7 @@ const editorComponents = [
           </div>
         </div>
 
-        <div class="form-row">
+        <div v-if="!isTocMode" class="form-row">
           <div class="form-group third">
             <label>作者 (Author)</label>
             <input v-model="form.author" />
@@ -871,12 +954,12 @@ const editorComponents = [
           </div>
         </div>
 
-        <div class="form-group">
+        <div v-if="!isTocMode" class="form-group">
           <label>文章摘要 (Summary / Description)</label>
           <textarea v-model="form.summary" rows="3"></textarea>
         </div>
 
-        <div class="form-group">
+        <div v-if="!isTocMode" class="form-group">
           <label>關鍵字 (Markdown)</label>
           <textarea v-model="form.keyword" rows="2"></textarea>
         </div>
@@ -916,7 +999,7 @@ const editorComponents = [
           ></textarea>
         </div>
 
-        <div class="form-group">
+        <div v-if="!isTocMode" class="form-group">
           <label>SEO 資料 (JSON 格式)</label>
           <textarea v-model="seoJson" rows="6" class="code-font"></textarea>
         </div>
@@ -1442,5 +1525,80 @@ input[readonly] {
   .preview-pane {
     display: none;
   } /* 手機版隱藏預覽 */
+}
+
+/* ── 目錄模式面板 ── */
+.toc-panel {
+  background: #fef9e7;
+  border: 2px solid #f0c040;
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+.toc-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.toc-panel-header h3 {
+  margin: 0;
+  color: #7d6008;
+  font-size: 1rem;
+}
+.toc-hint {
+  font-size: 0.82rem;
+  color: #a08040;
+  flex: 1;
+}
+.btn-gen-toc {
+  padding: 7px 14px;
+  background: #e67e22;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+.btn-gen-toc:hover {
+  background: #ca6f1e;
+}
+.toc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.toc-table th,
+.toc-table td {
+  padding: 6px 10px;
+  border: 1px solid #f0c040;
+  vertical-align: middle;
+}
+.toc-table th {
+  background: #fdebd0;
+  color: #7d4e10;
+  font-weight: bold;
+  text-align: left;
+}
+.toc-id {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #999;
+}
+.toc-page-input {
+  width: 60px;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+.toc-saving {
+  font-size: 0.78rem;
+  color: #888;
 }
 </style>

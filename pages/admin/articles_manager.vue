@@ -16,6 +16,58 @@ const allArticles = ref([]);
 const editedArticles = ref([]);
 const selectedIssueId = ref(null);
 
+const pdfInput = ref(null);
+const uploadingPdfId = ref(null);
+
+// ── 目前期刊資訊（封面/封底 PDF，供合併用）──
+const currentIssue = ref(null);
+
+// ── 合併期刊 PDF ──────────────────────────────────────────────────
+const showMergeModal = ref(false);
+const merging = ref(false);
+const mergeResult = ref(null); // { url, pages_merged } or null
+
+const openMergeModal = async () => {
+  // 每次打開都重新拉最新的 cover_pdf / back_cover_pdf
+  if (selectedIssueId.value) {
+    const { data } = await supabase
+      .from("issues")
+      .select("cover_pdf, back_cover_pdf")
+      .eq("id", selectedIssueId.value)
+      .single();
+    currentIssue.value = data;
+  }
+  mergeResult.value = null;
+  showMergeModal.value = true;
+};
+
+const performMerge = async () => {
+  merging.value = true;
+  mergeResult.value = null;
+  try {
+    const articlesForMerge = editedArticles.value
+      .filter((a) => a.issue === selectedIssueId.value)
+      .map((a) => ({ id: a.id, title: a.title, seo_pdf: a.seo_pdf, page_start: a.page_start }));
+
+    const res = await $fetch("/api/merge-pdfs", {
+      method: "POST",
+      body: {
+        issueId: selectedIssueId.value,
+        articles: articlesForMerge,
+        cover_pdf: currentIssue.value?.cover_pdf || "",
+        back_cover_pdf: currentIssue.value?.back_cover_pdf || "",
+      },
+    });
+
+    if (!res.success) throw new Error(res.error);
+    mergeResult.value = res;
+  } catch (err) {
+    alert("❌ 合併失敗：" + err.message);
+  } finally {
+    merging.value = false;
+  }
+};
+
 // ── 分區定義 ──
 const SECTION_ORDER = [
   "主題介紹",
@@ -64,21 +116,19 @@ const fetchArticles = async () => {
   const { data, error } = await supabase
     .from("articles")
     .select(
-      "id, issue, title, subtitle, author, keyword, summary, seo, section, sort_order, page_start, proofread_status, proofread_by, proofread_date",
-    )
-    .order("sort_order", { ascending: true });
+      "id, issue, title, author, seo, section, sort_order, page_start, proofread_status, proofread_by, proofread_date, article_type",
+    );
   if (error) throw error;
 
   const processed = data.map((a) => ({
     ...a,
     idSuffix: a.id.replace(/^\d+-/, ""),
     seo_image: a.seo?.image || "",
+    seo_pdf: a.seo?.pdf || "",
     section: SECTION_ORDER.includes(a.section) ? a.section : "主題介紹",
-    sort_order: a.sort_order ?? 0,
     page_start: a.page_start ?? null,
     proofread_status: a.proofread_status || "pending",
-    proofread_by: a.proofread_by || "",
-    proofread_date: a.proofread_date || "",
+    article_type: a.article_type || "regular",
     isSaving: false,
   }));
 
@@ -90,7 +140,7 @@ watch(selectedIssueId, (val) => {
   if (val) router.replace({ query: { ...route.query, issue: val } });
 });
 
-// ── 分區分組 ──
+// ── 分區分組與嚴格數字排序 ──
 const groupedArticles = computed(() => {
   const groups = {};
   SECTION_ORDER.forEach((s) => (groups[s] = []));
@@ -102,9 +152,15 @@ const groupedArticles = computed(() => {
       groups[s].push(a);
     });
 
-  SECTION_ORDER.forEach((s) =>
-    groups[s].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
-  );
+  // 🌟 嚴格按照 ID 橫線後面的「數字」大小進行排序
+  SECTION_ORDER.forEach((s) => {
+    groups[s].sort((a, b) => {
+      const numA = parseInt(a.idSuffix.match(/^\d+/)?.[0] || 999, 10);
+      const numB = parseInt(b.idSuffix.match(/^\d+/)?.[0] || 999, 10);
+      return numA - numB;
+    });
+  });
+
   return groups;
 });
 
@@ -143,7 +199,6 @@ const onDrop = (e, section) => {
   const article = editedArticles.value.find((a) => a.id === draggedId.value);
   if (article) {
     article.section = section;
-    recalculateSortOrder();
   }
   draggedId.value = null;
   dropSection.value = null;
@@ -151,22 +206,6 @@ const onDrop = (e, section) => {
 const onDragEnd = () => {
   draggedId.value = null;
   dropSection.value = null;
-};
-
-const recalculateSortOrder = () => {
-  let order = 1;
-  SECTION_ORDER.forEach((s) => {
-    editedArticles.value
-      .filter(
-        (a) =>
-          a.issue === selectedIssueId.value &&
-          (SECTION_ORDER.includes(a.section) ? a.section : "主題介紹") === s,
-      )
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      .forEach((a) => {
-        a.sort_order = order++;
-      });
-  });
 };
 
 // ── 頁數連動 ──
@@ -188,18 +227,64 @@ const onPageBlur = (a) => {
   }
 };
 
-// ── 儲存邏輯 (修正版) ──
+// ── PDF 上傳邏輯 (Cloudinary) ──
+const triggerPdfUpload = (article) => {
+  uploadingPdfId.value = article.id;
+  pdfInput.value.click();
+};
+
+const handlePdfUpload = async (event) => {
+  const file = event.target.files[0];
+  if (!file || !uploadingPdfId.value) return;
+
+  const targetArticle = editedArticles.value.find(
+    (a) => a.id === uploadingPdfId.value,
+  );
+  if (!targetArticle) return;
+
+  targetArticle.isSaving = true;
+  try {
+    // 🌟 核心防呆：自動將 PDF 重新命名為 "PDF_7-1_標題.pdf" 的格式
+    const safeTitle = targetArticle.title.replace(/[\\/:*?"<>| ]/g, "_"); // 移除不能當作檔名的特殊字元與空白
+    const newFileName = `PDF_${targetArticle.id}_${safeTitle}.pdf`;
+
+    // 利用原有的檔案內容，產生一個具有新檔名的 File 物件
+    const renamedFile = new File([file], newFileName, { type: file.type });
+
+    const formData = new FormData();
+    formData.append("file", renamedFile); // 上傳重新命名過後的檔案
+    formData.append("path", `articles/issue-${selectedIssueId.value}/pdfs`);
+
+    // 呼叫 Cloudinary API
+    const response = await $fetch("/api/media", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.success) throw new Error(response.error);
+
+    targetArticle.seo_pdf = response.data.secure_url;
+    alert(
+      `✅ PDF 上傳成功！已自動命名為：\n${newFileName}\n\n(請記得按「💾」儲存進資料庫)`,
+    );
+  } catch (err) {
+    alert("❌ PDF 上傳失敗：" + err.message);
+  } finally {
+    targetArticle.isSaving = false;
+    uploadingPdfId.value = null;
+    event.target.value = "";
+  }
+};
+
+// ── 儲存邏輯 ──
 const isChanged = (item, orig) =>
   item.idSuffix !== orig.id.replace(/^\d+-/, "") ||
   item.title !== orig.title ||
-  item.subtitle !== orig.subtitle ||
   item.author !== orig.author ||
-  item.keyword !== orig.keyword ||
-  item.summary !== orig.summary ||
   item.seo_image !== (orig.seo?.image || "") ||
+  item.seo_pdf !== (orig.seo?.pdf || "") ||
   item.section !==
     (SECTION_ORDER.includes(orig.section) ? orig.section : "主題介紹") ||
-  item.sort_order !== (orig.sort_order ?? 0) ||
   item.page_start !== (orig.page_start ?? null);
 
 const hasUnsavedChanges = computed(() =>
@@ -211,19 +296,24 @@ const hasUnsavedChanges = computed(() =>
 
 const performUpdate = async (article) => {
   const newId = `${article.issue}-${article.idSuffix}`;
+  const computedSortOrder = parseInt(
+    article.idSuffix.match(/^\d+/)?.[0] || 999,
+    10,
+  );
+
   const updates = {
     title: article.title,
-    subtitle: article.subtitle,
     author: article.author,
-    keyword: article.keyword,
-    summary: article.summary,
-    seo: { ...(article.seo || {}), image: article.seo_image },
+    seo: {
+      ...(article.seo || {}),
+      image: article.seo_image,
+      pdf: article.seo_pdf,
+    },
     section: article.section,
-    sort_order: article.sort_order,
+    sort_order: computedSortOrder,
     page_start: article.page_start,
   };
 
-  // 🌟 核心修正：直接更新 ID。這會觸發資料庫的 ON UPDATE CASCADE 自動更新媒體關聯。
   const { error } = await supabase
     .from("articles")
     .update({ ...updates, id: newId })
@@ -281,19 +371,33 @@ const saveAll = async () => {
   );
 };
 
-const goToEditor = (id) => {
+const goToEditor = (article) => {
   if (hasUnsavedChanges.value && !confirm("有未儲存的變更，確定離開？")) return;
-  router.push(`/admin/editor/${id}`);
+  const type = article.article_type || "regular";
+  if (type === "submission_info" || type === "editorial_info") {
+    router.push(`/admin/meta-article/${article.id}`);
+  } else {
+    router.push(`/admin/editor/${article.id}`);
+  }
 };
+
+// ── 文章類型對照 ──
+const ARTICLE_TYPES = [
+  { value: "regular",         label: "一般文章" },
+  { value: "toc",             label: "📋 目錄" },
+  { value: "submission_info", label: "📮 投稿資訊" },
+  { value: "editorial_info",  label: "📋 編輯資訊" },
+];
 
 // ── 新增文章 modal ──
 const showAddModal = ref(false);
-const addForm = ref({ seq: "", title: "", section: "主題介紹" });
+const addForm = ref({ seq: "", title: "", section: "主題介紹", article_type: "regular" });
 const addSaving = ref(false);
 const closeAddModal = () => {
   showAddModal.value = false;
-  addForm.value = { seq: "", title: "", section: "主題介紹" };
+  addForm.value = { seq: "", title: "", section: "主題介紹", article_type: "regular" };
 };
+
 const submitAddArticle = async () => {
   if (!addForm.value.seq.toString().trim()) return alert("請填寫序號");
   if (!addForm.value.title.trim()) return alert("請填寫標題");
@@ -302,27 +406,23 @@ const submitAddArticle = async () => {
   const newId = `${selectedIssueId.value}-${idSuffix}`;
   if (editedArticles.value.some((a) => a.id === newId))
     return alert(`ID「${newId}」已存在`);
+
   const section = addForm.value.section;
-  const maxOrder = Math.max(
-    0,
-    ...editedArticles.value
-      .filter((a) => a.issue === selectedIssueId.value && a.section === section)
-      .map((a) => a.sort_order ?? 0),
-  );
+  const computedSortOrder = parseInt(addForm.value.seq, 10) || 999;
+
   const stub = {
     id: newId,
     issue: selectedIssueId.value,
     title: addForm.value.title.trim(),
-    subtitle: "",
     author: "",
-    keyword: "",
-    summary: "",
     seo: {},
     section,
-    sort_order: maxOrder + 1,
+    sort_order: computedSortOrder,
     page_start: null,
     idSuffix,
     seo_image: "",
+    seo_pdf: "",
+    article_type: addForm.value.article_type || "regular",
     isSaving: false,
   };
   addSaving.value = true;
@@ -333,6 +433,7 @@ const submitAddArticle = async () => {
       title: stub.title,
       section: stub.section,
       sort_order: stub.sort_order,
+      article_type: stub.article_type,
       is_published: false,
     });
     if (error) throw error;
@@ -369,9 +470,9 @@ onBeforeUnmount(() =>
 <template>
   <div class="articles-manager">
     <div class="header">
-      <h2>📚 文章列表管理</h2>
+      <h2>📚 文章管理</h2>
       <p class="desc">
-        拖曳文章列可換分區；點擊頁數修改，後續文章頁碼自動連動。
+        更改 ID 數字將「自動重新排序」；更改分區請透過左側 ⠿ 拖曳。
       </p>
     </div>
 
@@ -398,6 +499,9 @@ onBeforeUnmount(() =>
         <span v-if="hasUnsavedChanges" class="unsaved-warning"
           >⚠️ 有未儲存的變更</span
         >
+        <button class="btn-merge-pdf" @click="openMergeModal" title="將此期所有文章 PDF 合併成完整期刊">
+          🔗 合併成期刊 PDF
+        </button>
         <button
           class="btn-save-all"
           @click="saveAll"
@@ -409,21 +513,28 @@ onBeforeUnmount(() =>
       </div>
     </div>
 
+    <input
+      type="file"
+      ref="pdfInput"
+      accept="application/pdf"
+      style="display: none"
+      @change="handlePdfUpload"
+    />
+
     <div v-if="loading" class="loading">載入中...</div>
     <div v-else class="table-wrapper">
       <table class="data-table">
         <thead>
           <tr>
-            <th width="24"></th>
-            <th width="150">ID</th>
-            <th width="72">頁數</th>
-            <th>主標題</th>
-            <th width="130">副標題</th>
-            <th width="90">作者</th>
-            <th width="110">關鍵字</th>
-            <th width="210">摘要</th>
+            <th width="30"></th>
+            <th width="180">ID(自動排序)</th>
+            <th width="60">頁數</th>
+            <th width="220">主標題</th>
+            <th width="120">作者</th>
+            <th width="130">圖片 SEO</th>
+            <th width="100">上傳 PDF</th>
             <th width="90">校對狀態</th>
-            <th width="80">操作</th>
+            <th width="140">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -435,7 +546,7 @@ onBeforeUnmount(() =>
               @dragleave="onDragLeave"
               @drop="onDrop($event, section)"
             >
-              <td colspan="10">
+              <td colspan="9">
                 <span class="section-label">{{ SECTION_LABELS[section] }}</span>
                 <span class="section-note" v-if="SECTION_NOTES[section]">{{
                   SECTION_NOTES[section]
@@ -445,15 +556,20 @@ onBeforeUnmount(() =>
                 >
               </td>
             </tr>
+
             <tr
               v-for="article in groupedArticles[section]"
               :key="article.id"
               draggable="true"
               @dragstart="onDragStart($event, article)"
               @dragend="onDragEnd"
-              :class="{ dragging: draggedId === article.id }"
+              :class="{
+                dragging: draggedId === article.id,
+                'toc-row': article.article_type === 'toc',
+                'meta-row': article.article_type === 'submission_info' || article.article_type === 'editorial_info',
+              }"
             >
-              <td class="drag-handle">⠿</td>
+              <td class="drag-handle" title="拖曳以更換分區">⠿</td>
               <td class="id-cell">
                 <div class="id-cell-inner">
                   <span class="id-prefix">{{ article.issue }}-</span>
@@ -461,6 +577,7 @@ onBeforeUnmount(() =>
                     type="text"
                     v-model="article.idSuffix"
                     class="table-input id-input"
+                    placeholder="例如: 1編輯室報告"
                     :class="{
                       'id-changed':
                         article.issue + '-' + article.idSuffix !== article.id,
@@ -488,13 +605,6 @@ onBeforeUnmount(() =>
               <td>
                 <input
                   type="text"
-                  v-model="article.subtitle"
-                  class="table-input"
-                />
-              </td>
-              <td>
-                <input
-                  type="text"
                   v-model="article.author"
                   class="table-input"
                 />
@@ -502,16 +612,31 @@ onBeforeUnmount(() =>
               <td>
                 <input
                   type="text"
-                  v-model="article.keyword"
-                  class="table-input"
+                  v-model="article.seo_image"
+                  class="table-input seo-input"
+                  placeholder="貼上網址..."
                 />
               </td>
-              <td>
-                <textarea
-                  v-model="article.summary"
-                  class="table-textarea"
-                  rows="2"
-                ></textarea>
+              <td class="pdf-cell">
+                <div class="pdf-actions">
+                  <a
+                    v-if="article.seo_pdf"
+                    :href="article.seo_pdf"
+                    target="_blank"
+                    class="pdf-link"
+                    >👀 預覽</a
+                  >
+                  <button
+                    class="btn-pdf-upload"
+                    @click="triggerPdfUpload(article)"
+                  >
+                    {{
+                      article.isSaving && uploadingPdfId === article.id
+                        ? "上傳中..."
+                        : "📄 上傳"
+                    }}
+                  </button>
+                </div>
               </td>
               <td class="proofread-cell">
                 <span
@@ -533,15 +658,21 @@ onBeforeUnmount(() =>
                     class="btn-save"
                     @click="saveRow(article)"
                     :disabled="article.isSaving"
+                    title="儲存此列"
                   >
                     {{ article.isSaving ? "…" : "💾" }}
                   </button>
-                  <button class="btn-edit" @click="goToEditor(article.id)">
-                    ✏️
+                  <button
+                    class="btn-edit"
+                    @click="goToEditor(article)"
+                    :title="article.article_type === 'toc' ? '進入目錄編輯器' : (article.article_type === 'submission_info' || article.article_type === 'editorial_info') ? '進入專用編輯介面' : '進入內文編輯器'"
+                  >
+                    {{ article.article_type === 'toc' ? '📋' : (article.article_type === 'submission_info' || article.article_type === 'editorial_info') ? '📝' : '✏️' }}
                   </button>
                   <NuxtLink
                     :to="`/admin/proofread/${article.id}`"
                     class="btn-proofread"
+                    title="進入校對畫面"
                     >🔍</NuxtLink
                   >
                 </div>
@@ -551,13 +682,163 @@ onBeforeUnmount(() =>
         </tbody>
       </table>
     </div>
+
+    <!-- ── 合併期刊 PDF Modal ── -->
+    <div v-if="showMergeModal" class="modal-overlay" @click.self="showMergeModal = false">
+      <div class="modal merge-modal">
+        <div class="modal-header">
+          <h3>🔗 合併期刊 PDF — Vol.{{ selectedIssueId }}</h3>
+          <button class="modal-close" @click="showMergeModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="merge-desc">
+            合併順序：<strong>封面 PDF → 文章（依頁數排序）→ 封底 PDF</strong>
+            <br />合併結果上傳到 Cloudinary <code>magazines/</code> 資料夾，命名為 <code>Vol.{{ selectedIssueId }}.pdf</code>。
+          </p>
+
+          <table class="merge-table">
+            <thead>
+              <tr>
+                <th width="30">#</th>
+                <th>名稱</th>
+                <th width="60">頁數</th>
+                <th width="80">PDF 狀態</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>—</td>
+                <td>封面 PDF</td>
+                <td>—</td>
+                <td>
+                  <span v-if="currentIssue?.cover_pdf" class="badge-ok">✅ 已上傳</span>
+                  <span v-else class="badge-miss">❌ 缺少</span>
+                </td>
+              </tr>
+              <template v-for="a in [...editedArticles.filter(x => x.issue === selectedIssueId)].sort((a,b) => (a.page_start??9999)-(b.page_start??9999))" :key="a.id">
+                <tr>
+                  <td class="text-center">{{ a.page_start ?? '—' }}</td>
+                  <td>{{ a.id }} {{ a.title }}</td>
+                  <td>{{ a.page_start ?? '—' }}</td>
+                  <td>
+                    <span v-if="a.seo_pdf" class="badge-ok">✅</span>
+                    <span v-else class="badge-miss">❌ 缺少</span>
+                  </td>
+                </tr>
+              </template>
+              <tr>
+                <td>—</td>
+                <td>封底 PDF</td>
+                <td>—</td>
+                <td>
+                  <span v-if="currentIssue?.back_cover_pdf" class="badge-ok">✅ 已上傳</span>
+                  <span v-else class="badge-miss">❌ 缺少</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div v-if="mergeResult" class="merge-result">
+            <p>🎉 合併成功！共 <strong>{{ mergeResult.pages_merged }}</strong> 頁</p>
+            <a :href="mergeResult.url" target="_blank" class="btn-download-merged">
+              📥 下載 Vol.{{ selectedIssueId }}.pdf
+            </a>
+            <p class="merge-url">{{ mergeResult.url }}</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="showMergeModal = false" :disabled="merging">取消</button>
+          <button class="btn-new" @click="performMerge" :disabled="merging">
+            {{ merging ? "合併中，請稍候..." : "🔗 開始合併並上傳" }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showAddModal" class="modal-overlay" @click.self="closeAddModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>新增文章</h3>
+          <button class="modal-close" @click="closeAddModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-row">
+            <div class="modal-field" style="flex: 1">
+              <label>文章篇序 (數字)</label>
+              <input
+                type="number"
+                v-model.number="addForm.seq"
+                class="table-input"
+                placeholder="例如: 1"
+              />
+            </div>
+            <div class="modal-field" style="flex: 3">
+              <label>主標題</label>
+              <input
+                type="text"
+                v-model="addForm.title"
+                class="table-input"
+                placeholder="請輸入標題"
+              />
+            </div>
+          </div>
+          <div class="modal-field">
+            <label>所屬分區</label>
+            <select v-model="addForm.section" class="table-input">
+              <option v-for="s in SECTION_ORDER" :key="s" :value="s">
+                {{ SECTION_LABELS[s] }}
+              </option>
+            </select>
+          </div>
+          <div class="modal-field">
+            <label>文章類型</label>
+            <select v-model="addForm.article_type" class="table-input">
+              <option v-for="t in ARTICLE_TYPES" :key="t.value" :value="t.value">
+                {{ t.label }}
+              </option>
+            </select>
+            <small class="modal-type-hint">
+              <template v-if="addForm.article_type === 'toc'">目錄模式：編輯器會顯示文章列表面板，可直接修改各篇頁數並生成目錄內文。</template>
+              <template v-else-if="addForm.article_type === 'submission_info'">投稿資訊模式：使用簡化編輯器，並可從期刊主題管理的 CFP 資料一鍵同步內文。</template>
+              <template v-else-if="addForm.article_type === 'editorial_info'">編輯資訊模式：使用簡化編輯器，獨立管理。</template>
+              <template v-else>一般文章，使用完整文章編輯器。</template>
+            </small>
+          </div>
+          <div class="modal-id-preview">
+            即將建立的 ID:
+            <strong
+              >{{ selectedIssueId }}-{{ addForm.seq
+              }}{{ addForm.title }}</strong
+            >
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button
+            class="btn-cancel"
+            @click="closeAddModal"
+            :disabled="addSaving"
+          >
+            取消
+          </button>
+          <button
+            class="btn-new"
+            @click="submitAddArticle"
+            :disabled="addSaving"
+          >
+            {{ addSaving ? "建立中..." : "確認建立" }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .articles-manager {
   padding: 20px;
-  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden; /* 防止整個頁面出現水平捲軸 */
 }
 
 .header {
@@ -672,24 +953,27 @@ onBeforeUnmount(() =>
 
 /* ── 表格 ── */
 .table-wrapper {
+  width: 100%;
   background: white;
   border-radius: 8px;
-  overflow-x: auto;
+  overflow-x: auto; /* 只有表格內部可以捲動，不影響外部版面 */
   border: 2px solid #2c3e50;
 }
 
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1100px;
+  min-width: 900px;
 }
 .data-table th,
 .data-table td {
   padding: 10px 8px;
   border: 1px solid #dee2e6;
   vertical-align: middle;
-  text-align: left;
+  text-align: left; /* td 預設靠左 */
 }
+
+/* 🌟 表格標題置中 */
 .data-table th {
   background: #2c3e50;
   color: white;
@@ -697,6 +981,7 @@ onBeforeUnmount(() =>
   font-size: 0.85rem;
   white-space: nowrap;
   border-color: #3d5166;
+  text-align: center;
 }
 
 /* 分區標題列 */
@@ -796,6 +1081,13 @@ onBeforeUnmount(() =>
 .modal-id-preview strong {
   color: #2c3e50;
 }
+.modal-type-hint {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.8rem;
+  color: #888;
+  font-style: italic;
+}
 .modal-footer {
   padding: 14px 20px;
   border-top: 1px solid #eee;
@@ -812,20 +1104,6 @@ onBeforeUnmount(() =>
   color: #555;
 }
 
-/* 空分區提示列 */
-.empty-row td {
-  text-align: center;
-  color: #bbb;
-  font-size: 0.9rem;
-  padding: 14px;
-  font-style: italic;
-  border: 1px solid #dee2e6;
-}
-.empty-row.drop-active td {
-  color: #3498db;
-  background: #f0f8ff;
-}
-
 /* 拖曳把手 */
 .drag-handle {
   cursor: grab;
@@ -840,30 +1118,6 @@ onBeforeUnmount(() =>
 
 tr.dragging {
   opacity: 0.4;
-}
-
-/* 區內排序 */
-.order-cell {
-  text-align: center;
-  white-space: nowrap;
-}
-.btn-order {
-  background: none;
-  border: 1px solid #ddd;
-  border-radius: 3px;
-  padding: 1px 4px;
-  font-size: 0.7rem;
-  cursor: pointer;
-  line-height: 1;
-  color: #666;
-}
-.btn-order:hover:not(:disabled) {
-  background: #e9ecef;
-  color: #333;
-}
-.btn-order:disabled {
-  opacity: 0.25;
-  cursor: default;
 }
 
 /* ID 欄位 */
@@ -885,7 +1139,7 @@ tr.dragging {
 }
 .id-input {
   font-family: monospace;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   color: #007bff;
   font-weight: bold;
   min-width: 0;
@@ -899,7 +1153,7 @@ tr.dragging {
 
 /* 頁數欄位 */
 .page-input {
-  width: 64px;
+  width: 100%;
   text-align: center;
   padding: 6px 4px;
 }
@@ -912,24 +1166,64 @@ tr.dragging {
   border-radius: 4px;
   font-size: 0.9rem;
   transition: border 0.15s;
+  box-sizing: border-box;
 }
 .table-input:focus {
   border-color: #3498db;
   outline: none;
 }
+/* SEO 網址欄：截斷顯示，不撐開版面 */
+.seo-input {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  color: #888;
+  font-size: 0.8rem;
+}
+.seo-input:focus {
+  color: #333;
+}
 
-.table-textarea {
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid #ddd;
+/* PDF 上傳區 */
+.data-table td.pdf-cell {
+  text-align: center;
+}
+.pdf-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.pdf-link {
+  font-size: 0.85rem;
+  color: #007bff;
+  text-decoration: none;
+  font-weight: bold;
+  background: #e7f1ff;
+  padding: 4px 8px;
   border-radius: 4px;
-  font-size: 0.9rem;
-  resize: vertical;
-  min-height: 52px;
+  white-space: nowrap;
+}
+.pdf-link:hover {
+  text-decoration: underline;
+  background: #cfe2ff;
+}
+.btn-pdf-upload {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-pdf-upload:hover {
+  background: #5a6268;
 }
 
 /* 校對狀態 */
-.proofread-cell {
+.data-table td.proofread-cell {
   vertical-align: middle;
   text-align: center;
 }
@@ -955,7 +1249,7 @@ tr.dragging {
 }
 
 /* 操作按鈕 */
-.actions-cell {
+.data-table td.actions-cell {
   vertical-align: middle;
 }
 .action-buttons {
@@ -968,8 +1262,8 @@ tr.dragging {
 .btn-proofread {
   border: none;
   border-radius: 4px;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1009,35 +1303,107 @@ tr.dragging {
   transform: scale(0.95);
 }
 
-/* 空分區 */
-.empty-zone {
-  padding: 28px;
-  text-align: center;
-  color: #bbb;
-  font-size: 0.95rem;
-  border: 2px dashed #e0e0e0;
-  margin: 12px;
+/* ── 目錄列 / meta 列特殊樣式 ── */
+tr.toc-row td {
+  background: #fef9e7;
+}
+tr.meta-row td {
+  background: #f0f4ff;
+}
+
+/* ── 合併 PDF 按鈕 ── */
+.btn-merge-pdf {
+  padding: 8px 14px;
+  background: #8e44ad;
+  color: white;
+  border: none;
   border-radius: 6px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
 }
-.section-block.drop-active .empty-zone {
-  border-color: #3498db;
-  color: #3498db;
-}
-
-.section-note {
-  font-size: 0.8rem;
-  color: #999;
-  font-style: italic;
+.btn-merge-pdf:hover {
+  background: #7d3c98;
 }
 
-/* Fade 動畫 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s;
+/* ── 合併 PDF Modal ── */
+.merge-modal {
+  width: 680px !important;
+  max-width: 96vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
 }
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+.merge-modal .modal-body {
+  overflow-y: auto;
+  flex: 1;
+}
+.merge-desc {
+  font-size: 0.9rem;
+  color: #555;
+  background: #f8f9fa;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border-left: 3px solid #8e44ad;
+  margin-bottom: 12px;
+}
+.merge-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.merge-table th,
+.merge-table td {
+  padding: 7px 10px;
+  border: 1px solid #dee2e6;
+}
+.merge-table th {
+  background: #f1f3f5;
+  font-weight: bold;
+  color: #444;
+}
+.badge-ok {
+  color: #27ae60;
+  font-weight: bold;
+}
+.badge-miss {
+  color: #e74c3c;
+  font-weight: bold;
+}
+.merge-result {
+  margin-top: 16px;
+  padding: 14px;
+  background: #eafaf1;
+  border: 1px solid #a9dfbf;
+  border-radius: 8px;
+  text-align: center;
+}
+.merge-result p {
+  margin: 0 0 10px;
+  color: #1e8449;
+  font-weight: bold;
+}
+.btn-download-merged {
+  display: inline-block;
+  padding: 10px 20px;
+  background: #27ae60;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 1rem;
+  transition: background 0.2s;
+}
+.btn-download-merged:hover {
+  background: #219a52;
+}
+.merge-url {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: #888;
+  word-break: break-all;
 }
 
 @media (max-width: 768px) {
