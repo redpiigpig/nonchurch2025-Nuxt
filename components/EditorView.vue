@@ -630,6 +630,20 @@ const removeFootnote = (index) => {
   });
 };
 
+// ── 圖片插入 ─────────────────────────────────────────────────────
+const insertImageBlock = (sortOrder, style) => {
+  const templates = {
+    left:   `\n\n<figure class="img-left px-300"><img src="[[圖片${sortOrder}]]" alt="描述"><figcaption>圖片說明</figcaption></figure>\n\n`,
+    center: `\n\n<figure class="img-bottom px-600"><img src="[[圖片${sortOrder}]]" alt="描述"><figcaption>圖片說明文字</figcaption></figure>\n\n`,
+    right:  `\n\n<figure class="img-right px-300"><img src="[[圖片${sortOrder}]]" alt="描述"><figcaption>圖片說明</figcaption></figure>\n\n`,
+  };
+  insertBlock(templates[style]);
+};
+
+const sortedMediaAssets = computed(() =>
+  [...(form.value.media_assets || [])].sort((a, b) => a.sort_order - b.sort_order)
+);
+
 // ── 工具列：插入 / 包裹文字 ──────────────────────────────────────
 const insertOrWrap = async (
   prefix,
@@ -1054,6 +1068,21 @@ const editorComponents = [
               </button>
             </div>
           </div>
+          <!-- ── 文章圖片快速插入 ── -->
+          <div class="media-insert-bar">
+            <span class="group-label">文章圖片：</span>
+            <template v-if="sortedMediaAssets.length > 0">
+              <div v-for="img in sortedMediaAssets" :key="img.sort_order" class="media-insert-item">
+                <img :src="img.image_url" class="media-thumb" :title="`圖片 ${img.sort_order}`" />
+                <span class="media-order">#{{ img.sort_order }}</span>
+                <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'left')">左</button>
+                <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'center')">中</button>
+                <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'right')">右</button>
+              </div>
+            </template>
+            <span v-else class="media-empty">尚未在媒體庫關聯圖片</span>
+          </div>
+
           <textarea
             v-model="form.content"
             ref="textareaRef"
@@ -1464,6 +1493,48 @@ input[readonly] {
 }
 .comp-btn:hover {
   background: #d6eaff;
+}
+
+/* 圖片快速插入列 */
+.media-insert-bar {
+  background: #f0f7ff;
+  border: 1px solid #cce5ff;
+  border-bottom: none;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.media-insert-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.media-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid #adb5bd;
+}
+.media-order {
+  font-size: 0.75rem;
+  color: #555;
+  font-weight: bold;
+  min-width: 20px;
+}
+.img-btn {
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  color: #0056b3;
+  background: white;
+  border-color: #cce5ff;
+}
+.img-btn:hover { background: #d6eaff; }
+.media-empty {
+  font-size: 0.8rem;
+  color: #999;
 }
 
 .footnote-item {
