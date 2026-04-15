@@ -105,12 +105,16 @@ async function extractWordContent(file) {
   const result = await mammoth.convertToHtml({
     arrayBuffer: arrayBuffer,
     styleMap: [
+      // 標題
       "p[style-name='標題'] => h1.title:fresh",
       "p[style-name='Heading 1'] => h1.title:fresh",
       "p[style-name='副標題'] => h2.subtitle:fresh",
       "p[style-name='Heading 2'] => h2.subtitle:fresh",
+      "p[style-name='Heading 3'] => h3:fresh",
+      // 引用（form.md：List Paragraph 為獨立引用段落主要 style）
       "p[style-name='引用'] => blockquote:fresh",
       "p[style-name='Quote'] => blockquote:fresh",
+      "p[style-name='List Paragraph'] => blockquote:fresh",
     ],
   });
 
@@ -437,21 +441,39 @@ function extractContentFromHtml(html) {
   const contentParts = [];
 
   Array.from(doc.body.children).forEach((el) => {
+    const tag = el.tagName;
+
+    // mammoth 原生腳注清單由 extractFootnotesFromHtml 處理，此處略過
+    if (tag === "OL" && el.classList.contains("footnotes")) return;
+
     const text = el.textContent.trim();
     if (!text) return;
-    // 腳注段落跳過（由 extractFootnotesFromHtml 處理）
-    if (/^\[\^(\d+)\][：:]/.test(text)) return;
+
+    // 舊式 [^N] 腳注行略過
+    if (/^\[\^\d+\]/.test(text)) return;
 
     if (el.querySelector("img") || el.innerHTML.includes("[[圖片")) {
+      // 圖片佔位：保留整個元素 HTML
       contentParts.push(el.outerHTML);
-    } else if (el.tagName === "H2") {
-      contentParts.push(`## ${text}`);
-    } else if (el.tagName === "H3") {
+    } else if (tag === "H1") {
+      // H1.title 是文章主標（metadata），略過；其他 H1 視為大標
+      if (!el.classList.contains("title")) contentParts.push(`# ${text}`);
+    } else if (tag === "H2") {
+      // H2.subtitle 是副標（metadata），略過；其他 H2 視為段落小標
+      if (!el.classList.contains("subtitle")) contentParts.push(`## ${text}`);
+    } else if (tag === "H3") {
       contentParts.push(`### ${text}`);
-    } else if (el.tagName === "BLOCKQUOTE") {
-      contentParts.push(
-        `<blockquote>\n${text}\n<div class="rel">── 出處</div>\n</blockquote>`,
-      );
+    } else if (tag === "BLOCKQUOTE") {
+      // 引用段落（List Paragraph / 引用 style 對應）
+      contentParts.push(`<blockquote>\n${text}\n</blockquote>`);
+    } else if (tag === "P") {
+      const innerHTML = el.innerHTML.trim();
+      // 全粗體短段落 → 段落小標題（form.md：14pt bold = 段落小標題）
+      if (/^<strong>[^<]*<\/strong>$/.test(innerHTML) && text.length <= 40) {
+        contentParts.push(`## ${text}`);
+      } else {
+        contentParts.push(paragraphToMarkdown(el));
+      }
     } else {
       contentParts.push(text);
     }
@@ -461,13 +483,63 @@ function extractContentFromHtml(html) {
 }
 
 /**
+ * 將 <p> 元素內容轉換為 Markdown，保留行內 bold/italic/腳注引用
+ */
+function paragraphToMarkdown(el) {
+  let result = "";
+  el.childNodes.forEach((node) => {
+    if (node.nodeType === 3 /* TEXT_NODE */) {
+      result += node.textContent;
+    } else if (node.nodeType === 1 /* ELEMENT_NODE */) {
+      const tag = node.tagName;
+      const text = node.textContent;
+      if (tag === "STRONG" || tag === "B") {
+        result += `**${text}**`;
+      } else if (tag === "EM" || tag === "I") {
+        result += `*${text}*`;
+      } else if (tag === "SUP") {
+        // mammoth 腳注引用：<sup><a href="#footnote-N">[N]</a></sup>
+        const numMatch = text.match(/\[?(\d+)\]?/);
+        result += numMatch ? `[^${numMatch[1]}]` : text;
+      } else if (tag === "A") {
+        const href = node.getAttribute("href") || "";
+        // 略過腳注內部跳轉連結
+        if (href.startsWith("#footnote")) return;
+        result += `[${text}](${href})`;
+      } else {
+        result += text;
+      }
+    }
+  });
+  return result.trim();
+}
+
+/**
  * 從 mammoth 完整 HTML 提取腳注陣列 [{id, text}, ...]
+ * 支援 mammoth 原生 <ol class="footnotes"> 與舊式 [^N]: 兩種格式
  */
 function extractFootnotesFromHtml(html) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
   const footnotes = [];
 
+  // 優先：mammoth 原生格式 <ol class="footnotes"><li id="footnote-N">
+  const footnoteList = doc.querySelector("ol.footnotes");
+  if (footnoteList) {
+    Array.from(footnoteList.querySelectorAll("li")).forEach((li) => {
+      const idAttr = li.getAttribute("id") || "";
+      const numMatch = idAttr.match(/footnote-(\d+)/);
+      if (!numMatch) return;
+      const id = parseInt(numMatch[1]);
+      // 移除返回文章的 ↩ 連結
+      li.querySelectorAll('a[href^="#footnote-ref"]').forEach((a) => a.remove());
+      const text = li.textContent.trim();
+      if (text) footnotes.push({ id, text });
+    });
+    return footnotes;
+  }
+
+  // 備用：舊式 [^N]: text 格式
   Array.from(doc.body.children).forEach((el) => {
     const text = el.textContent.trim();
     const m = text.match(/^\[\^(\d+)\][：:]\s*(.*)/);

@@ -428,10 +428,22 @@ const handleReupload = async (event) => {
     const mammoth = mammothModule.default ?? mammothModule;
     const arrayBuffer = await file.arrayBuffer();
 
-    // 不傳 convertImage，讓 mammoth 輸出 base64，再用 regex 全部換成佔位標記
-    const result = await mammoth.convertToHtml({ arrayBuffer });
+    // 使用 styleMap 對應 Word 樣式；不傳 convertImage，改用 regex 替換 base64
+    const result = await mammoth.convertToHtml({
+      arrayBuffer,
+      styleMap: [
+        "p[style-name='標題'] => h1.title:fresh",
+        "p[style-name='Heading 1'] => h1.title:fresh",
+        "p[style-name='副標題'] => h2.subtitle:fresh",
+        "p[style-name='Heading 2'] => h2.subtitle:fresh",
+        "p[style-name='Heading 3'] => h3:fresh",
+        "p[style-name='引用'] => blockquote:fresh",
+        "p[style-name='Quote'] => blockquote:fresh",
+        "p[style-name='List Paragraph'] => blockquote:fresh",
+      ],
+    });
     let imageCounter = 0;
-    let html = result.value.replace(
+    const html = result.value.replace(
       /<img\b[^>]*\bsrc="data:[^"]*"[^>]*/gi,
       () => {
         imageCounter++;
@@ -439,47 +451,88 @@ const handleReupload = async (event) => {
       },
     );
 
-    // 解析圖片佔位，從現有 ID 取期號和篇序
-    const idMatch = form.value.id.match(/^(\d+)-(\d+)/);
-    if (idMatch && imageCounter > 0) {
-      const issue = idMatch[1];
-      const seq = idMatch[2];
-      // 🌟 修正重新上傳：保留 [[圖片N]] 讓動態系統去替換
-      html = html.replace(/\[\[圖片(\d+)\]\]/g, (_, n) => {
-        return `\n\n<figure class="img-bottom px-600"><img src="[[圖片${n}]]" alt="圖片 ${seq}-${n}"><figcaption>（圖片 ${seq}-${n}，待上傳）</figcaption></figure>\n\n`;
-      });
-    }
-
-    // HTML 轉為純文字 Markdown（保留段落結構）
+    // HTML 轉為 Markdown（保留段落結構）
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
-    // 提取腳註（符合 [^N]: 格式的段落）
     const newFootnotes = [];
-    const paragraphs = Array.from(doc.body.children);
     const contentParts = [];
 
-    paragraphs.forEach((el) => {
+    Array.from(doc.body.children).forEach((el) => {
+      const tag = el.tagName;
+
+      // mammoth 原生腳注清單 → 提取腳注
+      if (tag === "OL" && el.classList.contains("footnotes")) {
+        el.querySelectorAll("li").forEach((li) => {
+          const idAttr = li.getAttribute("id") || "";
+          const numMatch = idAttr.match(/footnote-(\d+)/);
+          if (!numMatch) return;
+          li.querySelectorAll('a[href^="#footnote-ref"]').forEach((a) => a.remove());
+          const t = li.textContent.trim();
+          if (t) newFootnotes.push({ id: parseInt(numMatch[1]), text: t });
+        });
+        return;
+      }
+
       const text = el.textContent.trim();
       if (!text) return;
+
+      // 舊式 [^N]: 腳注行
       const fnMatch = text.match(/^\[\^(\d+)\][：:]\s*(.*)/);
       if (fnMatch) {
         newFootnotes.push({ id: parseInt(fnMatch[1]), text: fnMatch[2] });
-      } else {
-        // 保留圖片 HTML 原樣，文字段落轉 Markdown
-        if (el.querySelector("img") || el.innerHTML.includes("<figure")) {
-          contentParts.push(el.outerHTML);
-        } else if (el.tagName === "H2") {
+        return;
+      }
+
+      // 圖片佔位
+      if (el.querySelector("img") || el.innerHTML.includes("[[圖片")) {
+        const idMatch = form.value.id.match(/^(\d+)-(\d+)/);
+        const seq = idMatch ? idMatch[2] : "0";
+        const withFigure = el.outerHTML.replace(
+          /\[\[圖片(\d+)\]\]/g,
+          (_, n) =>
+            `\n\n<figure class="img-bottom px-600"><img src="[[圖片${n}]]" alt="圖片 ${seq}-${n}"><figcaption>（圖片 ${seq}-${n}，待上傳）</figcaption></figure>\n\n`,
+        );
+        contentParts.push(withFigure);
+      } else if (tag === "H1") {
+        if (!el.classList.contains("title")) contentParts.push(`# ${text}`);
+      } else if (tag === "H2") {
+        if (!el.classList.contains("subtitle")) contentParts.push(`## ${text}`);
+      } else if (tag === "H3") {
+        contentParts.push(`### ${text}`);
+      } else if (tag === "BLOCKQUOTE") {
+        contentParts.push(`<blockquote>\n${text}\n</blockquote>`);
+      } else if (tag === "P") {
+        // 全粗體短段落 → 段落小標題
+        const inner = el.innerHTML.trim();
+        if (/^<strong>[^<]*<\/strong>$/.test(inner) && text.length <= 40) {
           contentParts.push(`## ${text}`);
-        } else if (el.tagName === "H3") {
-          contentParts.push(`### ${text}`);
-        } else if (el.tagName === "BLOCKQUOTE") {
-          contentParts.push(
-            `<blockquote>\n${text}\n<div class="rel">── 出處</div>\n</blockquote>`,
-          );
         } else {
-          contentParts.push(text);
+          // 行內格式轉 Markdown
+          let md = "";
+          el.childNodes.forEach((node) => {
+            if (node.nodeType === 3) {
+              md += node.textContent;
+            } else if (node.nodeType === 1) {
+              const t = node.tagName;
+              const v = node.textContent;
+              if (t === "STRONG" || t === "B") md += `**${v}**`;
+              else if (t === "EM" || t === "I") md += `*${v}*`;
+              else if (t === "SUP") {
+                const m = v.match(/\[?(\d+)\]?/);
+                md += m ? `[^${m[1]}]` : v;
+              } else if (t === "A") {
+                const href = node.getAttribute("href") || "";
+                if (!href.startsWith("#footnote")) md += `[${v}](${href})`;
+              } else {
+                md += v;
+              }
+            }
+          });
+          contentParts.push(md.trim());
         }
+      } else {
+        contentParts.push(text);
       }
     });
 
