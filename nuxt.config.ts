@@ -11,6 +11,9 @@ export default defineNuxtConfig({
     // server-only（不會暴露到前端 bundle）
     geminiApiKey: process.env.VITE_GEMINI_API_KEY,
     supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
+    gmailUser: process.env.GMAIL_USER,
+    gmailAppPassword: process.env.GMAIL_APP_PASSWORD,
+    siteUrl: process.env.SITE_URL || "http://localhost:3000",
 
     // 👇 新增：Cloudinary 後端 API 專用環境變數
     cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,

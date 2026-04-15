@@ -66,13 +66,18 @@ const t = computed(
 );
 
 // 導覽列連結生成器：前台維持原樣，後台加 /admin
+// 前台路徑 → 後台對應路徑（非直接加 /admin 的特殊情況）
+const adminPathMap = {
+  "/subscribe": "/admin/subscribers_manager",
+};
+
 const getLink = (path) => {
   // 如果是首頁且在編輯模式，導向 /admin/home
   if (path === "/home" || path === "/") {
     return isEditMode.value ? "/admin/home" : "/";
   }
   if (isEditMode.value) {
-    return `/admin${path}`;
+    return adminPathMap[path] ?? `/admin${path}`;
   }
   return path;
 };
@@ -104,6 +109,12 @@ const editLink = computed(() => {
     // 前台 -> 後台 (首頁去 /admin/home，其他加 /admin)
     if (currentPath === "/") return "/admin/home";
     // 沒有對應後台頁面的前台路徑 → 導向後台首頁
+    // 前台路徑 → 對應後台路徑（不是直接加 /admin 的特殊情況）
+    const specialMap = {
+      "/subscribe": "/admin/subscribers_manager",
+    };
+    if (specialMap[currentPath]) return specialMap[currentPath];
+
     const noAdminCounterpart = ["/submission", "/login", "/preview"];
     if (noAdminCounterpart.some((p) => currentPath.startsWith(p))) return "/admin";
     return `/admin${currentPath}`;
@@ -145,9 +156,7 @@ const editLink = computed(() => {
         <NuxtLink :to="getLink('/mission')">{{ t.mission }}</NuxtLink>
         <NuxtLink :to="getLink('/articles')">{{ t.articles }}</NuxtLink>
         <NuxtLink :to="getLink('/authors')">{{ t.authors }}</NuxtLink>
-        <a href="https://forms.gle/aWSBFRfQ74QY13nw8" target="_blank">{{
-          t.subscribe
-        }}</a>
+        <NuxtLink :to="getLink('/subscribe')">{{ t.subscribe }}</NuxtLink>
         <NuxtLink :to="getLink('/submit')">{{ t.submit }}</NuxtLink>
 
         <div class="lang-switcher">

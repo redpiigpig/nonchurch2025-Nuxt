@@ -54,6 +54,8 @@ Directory structure:
     │   ├── search.vue
     │   ├── submit.vue
     │   ├── submission.vue
+    │   ├── subscribe.vue
+    │   ├── unsubscribe.vue
     │   ├── admin/
     │   │   ├── articles_manager.vue
     │   │   ├── authors_manager.vue
@@ -65,6 +67,7 @@ Directory structure:
     │   │   ├── search.vue
     │   │   ├── submit.vue
     │   │   ├── submissions_manager.vue
+    │   │   ├── subscribers_manager.vue
     │   │   ├── articles/
     │   │   │   ├── [id].vue
     │   │   │   └── index.vue
@@ -127,9 +130,13 @@ Directory structure:
     │       ├── media.js
     │       ├── merge-pdfs.post.js
     │       ├── submission-lookup.post.js
-    │       └── submit.post.js
+    │       ├── submit.post.js
+    │       ├── subscribe.post.js
+    │       ├── send-newsletter.post.js
+    │       └── unsubscribe.post.js
     ├── stores/
     │   ├── form.md
+    │   ├── word_to_sql.md
     │   └── tempArticles.js
     ├── templates/
     │   └── article-template.dotx
