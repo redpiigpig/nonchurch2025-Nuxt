@@ -423,7 +423,10 @@ const footnotesHtml = computed(() => {
 
 const keywordContent = computed(() => {
   if (!displayArticle.value?.keyword) return "";
-  return marked.parse(displayArticle.value.keyword);
+  const kw = displayArticle.value.keyword;
+  // 若 keyword 欄位已含前綴（舊文章）則直接解析；否則補上前綴
+  const hasPrefix = /🌿|關鍵字/.test(kw);
+  return marked.parse(hasPrefix ? kw : `🌿 **關鍵字：** ${kw}`);
 });
 </script>
 
@@ -612,22 +615,27 @@ const keywordContent = computed(() => {
   text-align: right;
   margin-bottom: 40px;
   font-family: "Times New Roman", serif;
+  line-height: 1.5;
 }
 .author-name {
   font-size: 1.2rem;
   color: #444;
 }
+/* 讓作者名稱的 span 也以 block 呈現，與下方欄位行距一致 */
+.author-name > span:first-child {
+  display: block;
+}
 .author-title {
   display: block;
   font-size: 1.2rem;
   color: #444;
-  margin-top: 4px;
+  margin-top: 0.6rem;
 }
 .author-remark {
   display: block;
   font-size: 1.2rem;
   color: #444;
-  margin-top: 10px;
+  margin-top: 0.6rem;
 }
 .not-found {
   text-align: center;

@@ -184,6 +184,11 @@ const draggedId = ref(null);
 const dropSection = ref(null);
 
 const onDragStart = (e, article) => {
+  // 只允許從拖曳把手（.drag-handle）發起拖曳，否則取消（讓使用者可以反白文字）
+  if (!e.target.closest(".drag-handle")) {
+    e.preventDefault();
+    return;
+  }
   draggedId.value = article.id;
   e.dataTransfer.effectAllowed = "move";
 };
@@ -381,6 +386,22 @@ const goToEditor = (article) => {
   }
 };
 
+// ── 刪除文章（含媒體庫圖片，透過後端 service role 執行） ──
+const deleteArticle = async (article) => {
+  if (!confirm(`確定要刪除文章「${article.title}」（${article.id}）？\n媒體庫中屬於此文章的圖片也會一併從 Cloudinary 刪除。\n此操作無法復原！`)) return;
+  try {
+    const res = await $fetch("/api/delete-article", {
+      method: "POST",
+      body: { articleId: article.id },
+    });
+    editedArticles.value = editedArticles.value.filter((a) => a.id !== article.id);
+    allArticles.value = allArticles.value.filter((a) => a.id !== article.id);
+    alert(`✅ 已刪除文章「${article.title}」${res.deletedImages ? `及 ${res.deletedImages} 張媒體圖片` : ""}`);
+  } catch (err) {
+    alert("刪除失敗：" + (err.data?.message || err.message));
+  }
+};
+
 // ── 文章類型對照 ──
 const ARTICLE_TYPES = [
   { value: "regular",         label: "一般文章" },
@@ -447,7 +468,7 @@ const submitAddArticle = async () => {
   }
 };
 
-onBeforeRouteLeave((to, from, next) => {
+onBeforeRouteLeave((_to, _from, next) => {
   hasUnsavedChanges.value
     ? next(window.confirm("⚠️ 有未儲存的變更！確定要離開？"))
     : next();
@@ -478,6 +499,10 @@ const SUBMIT_SECTIONS = ["主題介紹", "特稿專區", "主題廣場", "多元
 
 // 每筆投稿的暫存 section 選擇
 const submissionSection = ref({});
+// 每筆投稿的模式：'new'（新文章）或 'existing'（加入現有文章）
+const submissionMode = ref({});
+// 每筆投稿在「現有文章」模式下選擇的目標文章 id
+const submissionTargetId = ref({});
 
 const fetchPendingSubmissions = async () => {
   if (!selectedIssueId.value) return;
@@ -491,6 +516,7 @@ const fetchPendingSubmissions = async () => {
   // 預設分區
   for (const s of pendingSubmissions.value) {
     if (!submissionSection.value[s.id]) submissionSection.value[s.id] = "主題廣場";
+    if (!submissionMode.value[s.id]) submissionMode.value[s.id] = "new";
   }
   loadingSubmissions.value = false;
 };
@@ -499,48 +525,75 @@ const fetchPendingSubmissions = async () => {
 watch(selectedIssueId, fetchPendingSubmissions);
 
 const convertToArticle = async (sub) => {
-  if (!confirm(`確定要將「${sub.title}」轉換為文章草稿嗎？`)) return;
+  const mode = submissionMode.value[sub.id] || "new";
+  const isExisting = mode === "existing";
+  const targetId = submissionTargetId.value[sub.id];
+
+  if (isExisting && !targetId) return alert("請先選擇要更新的目標文章");
+  if (!sub.parsed_html?.trim()) return alert("此投稿沒有已解析的 Word 內容，無法轉換");
+  if (!confirm(`確定要將「${sub.title}」${isExisting ? `的內容更新到文章 ${targetId}` : "建立為新文章草稿"}？`)) return;
+
   convertingId.value = sub.id;
   try {
-    // 計算本期下一個序號
+    // ── 1. 呼叫 AI 分類 ──────────────────────────────────────
+    const issueInfo = issuesOptions.value.find((i) => i.id === selectedIssueId.value);
+    const issueTitle = issueInfo?.title || "";
     const issueArticles = editedArticles.value.filter((a) => a.issue === selectedIssueId.value);
     const maxSeq = issueArticles.reduce((max, a) => {
       const m = a.id.match(/-(\d+)/);
       return m ? Math.max(max, parseInt(m[1], 10)) : max;
     }, 0);
     const nextSeq = maxSeq + 1;
-    const authorName = sub.display_name || sub.real_name;
-    const titleShort = sub.title.replace(/\s/g, "").slice(0, 4);
-    const newId = `${selectedIssueId.value}-${nextSeq}${titleShort}`;
 
+    let classified = null;
+    try {
+      const res = await $fetch("/api/classify-article", {
+        method: "POST",
+        body: { html: sub.parsed_html, issueNumber: selectedIssueId.value, issueTitle, nextSeq },
+      });
+      classified = res.classified;
+    } catch (aiErr) {
+      if (!confirm(`⚠️ AI 分類失敗（${aiErr.message}）\n要改用原始內容繼續轉換嗎？`)) return;
+    }
+
+    // ── 2. 組合文章資料 ──────────────────────────────────────
+    const authorName = sub.display_name || sub.real_name;
     const section = submissionSection.value[sub.id] || "主題廣場";
-    const newArticle = {
-      id: newId,
-      issue: selectedIssueId.value,
-      title: sub.title,
-      author: authorName,
-      category: sub.category,
-      summary: sub.article_summary || "",
-      keyword: Array.isArray(sub.keywords) ? sub.keywords.join("、") : (sub.keywords || ""),
-      content: sub.parsed_html || "",
+    const articleData = {
+      title:    classified?.title    || sub.title,
+      author:   classified?.author   || authorName,
+      subtitle: classified?.subtitle || "",
+      category: classified?.category || sub.category,
+      summary:  classified?.summary  || sub.article_summary || "",
+      keyword:  classified?.keyword  || (Array.isArray(sub.keywords) ? sub.keywords.join("、") : (sub.keywords || "")),
+      content:  classified?.content  || sub.parsed_html,
+      footnotes: classified?.footnotes || [],
+      seo: classified?.seo ? { description: classified.seo.description, keywords: classified.seo.keywords } : {},
       section,
-      sort_order: nextSeq,
       is_published: false,
       article_type: "regular",
     };
 
-    const { error: insertErr } = await supabase.from("articles").insert([newArticle]);
-    if (insertErr) throw insertErr;
-
-    // 更新投稿狀態為 converted
-    await supabase.from("submissions").update({ status: "converted", article_id: newId }).eq("id", sub.id);
-
-    // 從待處理列表移除
-    pendingSubmissions.value = pendingSubmissions.value.filter((s) => s.id !== sub.id);
-
-    // 重新載入文章列表
-    await initData();
-    alert(`✅ 已成功建立草稿：${newId}`);
+    // ── 3a. 更新現有文章 ──────────────────────────────────────
+    if (isExisting) {
+      const { error: updateErr } = await supabase.from("articles").update(articleData).eq("id", targetId);
+      if (updateErr) throw updateErr;
+      await supabase.from("submissions").update({ status: "converted", article_id: targetId }).eq("id", sub.id);
+      pendingSubmissions.value = pendingSubmissions.value.filter((s) => s.id !== sub.id);
+      await initData();
+      alert(`✅ 已成功更新文章：${targetId}`);
+    } else {
+      // ── 3b. 建立新文章 ──────────────────────────────────────
+      const titleShort = articleData.title.replace(/\s/g, "").slice(0, 4);
+      const newId = `${selectedIssueId.value}-${nextSeq}${titleShort}`;
+      const newArticle = { id: newId, issue: selectedIssueId.value, sort_order: nextSeq, ...articleData };
+      const { error: insertErr } = await supabase.from("articles").insert([newArticle]);
+      if (insertErr) throw insertErr;
+      await supabase.from("submissions").update({ status: "converted", article_id: newId }).eq("id", sub.id);
+      pendingSubmissions.value = pendingSubmissions.value.filter((s) => s.id !== sub.id);
+      await initData();
+      alert(`✅ 已成功建立草稿：${newId}`);
+    }
   } catch (err) {
     alert("❌ 轉換失敗：" + err.message);
   } finally {
@@ -611,12 +664,11 @@ const convertToArticle = async (sub) => {
             <th width="30"></th>
             <th width="180">ID(自動排序)</th>
             <th width="60">頁數</th>
-            <th width="220">主標題</th>
-            <th width="120">作者</th>
+            <th width="260">主標題</th>
             <th width="130">圖片 SEO</th>
             <th width="100">上傳 PDF</th>
             <th width="90">校對狀態</th>
-            <th width="140">操作</th>
+            <th width="160">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -628,7 +680,7 @@ const convertToArticle = async (sub) => {
               @dragleave="onDragLeave"
               @drop="onDrop($event, section)"
             >
-              <td colspan="9">
+              <td colspan="8">
                 <span class="section-label">{{ SECTION_LABELS[section] }}</span>
                 <span class="section-note" v-if="SECTION_NOTES[section]">{{
                   SECTION_NOTES[section]
@@ -681,13 +733,6 @@ const convertToArticle = async (sub) => {
                 <input
                   type="text"
                   v-model="article.title"
-                  class="table-input"
-                />
-              </td>
-              <td>
-                <input
-                  type="text"
-                  v-model="article.author"
                   class="table-input"
                 />
               </td>
@@ -757,6 +802,11 @@ const convertToArticle = async (sub) => {
                     title="進入校對畫面"
                     >🔍</NuxtLink
                   >
+                  <button
+                    class="btn-delete"
+                    @click="deleteArticle(article)"
+                    title="刪除此文章"
+                  >🗑️</button>
                 </div>
               </td>
             </tr>
@@ -783,22 +833,50 @@ const convertToArticle = async (sub) => {
         <table class="pending-table">
           <thead>
             <tr>
-              <th>標題</th>
-              <th>作者</th>
+              <th>標題 / 作者</th>
               <th>類型</th>
-              <th>放入分區</th>
+              <th>轉換設定</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="sub in pendingSubmissions" :key="sub.id">
-              <td class="sub-title">{{ sub.title }}</td>
-              <td>{{ sub.display_name || sub.real_name }}</td>
+              <td class="sub-title">
+                <div>{{ sub.title }}</div>
+                <div class="sub-author">{{ sub.display_name || sub.real_name }}</div>
+              </td>
               <td><span class="tag-cat">{{ sub.category }}</span></td>
-              <td>
-                <select v-model="submissionSection[sub.id]" class="section-select">
-                  <option v-for="sec in SUBMIT_SECTIONS" :key="sec" :value="sec">{{ sec }}</option>
-                </select>
+              <td class="convert-settings">
+                <!-- 模式切換 -->
+                <div class="mode-toggle">
+                  <label :class="['mode-btn', submissionMode[sub.id] === 'new' ? 'active' : '']">
+                    <input type="radio" :name="`mode-${sub.id}`" value="new" v-model="submissionMode[sub.id]" />
+                    ＋ 新文章
+                  </label>
+                  <label :class="['mode-btn', submissionMode[sub.id] === 'existing' ? 'active' : '']">
+                    <input type="radio" :name="`mode-${sub.id}`" value="existing" v-model="submissionMode[sub.id]" />
+                    → 現有文章
+                  </label>
+                </div>
+                <!-- 新文章模式：選分區 -->
+                <div v-if="submissionMode[sub.id] === 'new'" class="setting-row">
+                  <label class="setting-lbl">分區</label>
+                  <select v-model="submissionSection[sub.id]" class="section-select">
+                    <option v-for="sec in SUBMIT_SECTIONS" :key="sec" :value="sec">{{ sec }}</option>
+                  </select>
+                </div>
+                <!-- 現有文章模式：選目標文章 -->
+                <div v-else class="setting-row">
+                  <label class="setting-lbl">目標文章</label>
+                  <select v-model="submissionTargetId[sub.id]" class="section-select">
+                    <option value="">— 請選擇 —</option>
+                    <option
+                      v-for="art in editedArticles.filter(a => a.issue === selectedIssueId)"
+                      :key="art.id"
+                      :value="art.id"
+                    >{{ art.id }} {{ art.title }}</option>
+                  </select>
+                </div>
               </td>
               <td>
                 <div class="sub-actions">
@@ -808,7 +886,7 @@ const convertToArticle = async (sub) => {
                     :disabled="convertingId === sub.id"
                     @click="convertToArticle(sub)"
                   >
-                    {{ convertingId === sub.id ? '轉換中...' : '✨ 建立草稿' }}
+                    {{ convertingId === sub.id ? 'AI 處理中...' : '✨ AI 轉換' }}
                   </button>
                 </div>
               </td>
@@ -1432,9 +1510,22 @@ tr.dragging {
 .btn-proofread:hover {
   background: #0d7a70;
 }
+.btn-delete {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  text-decoration: none;
+}
+.btn-delete:hover { background: #c0392b; }
 .btn-save:active,
 .btn-edit:active,
-.btn-proofread:active {
+.btn-proofread:active,
+.btn-delete:active {
   transform: scale(0.95);
 }
 
@@ -1559,9 +1650,17 @@ tr.meta-row td {
 .pending-table th { background: #d0e4f7; color: #1a4f7a; padding: 8px 10px; text-align: left; }
 .pending-table td { padding: 8px 10px; border-bottom: 1px solid #d8e8f8; vertical-align: middle; }
 .pending-table tr:hover td { background: #e8f2fc; }
-.sub-title { font-weight: 600; color: #2c3e50; max-width: 220px; }
+.sub-title { font-weight: 600; color: #2c3e50; }
+.sub-author { font-size: 0.8rem; color: #666; margin-top: 2px; }
 .tag-cat { background: #e8f0fe; color: #2c5aa0; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; white-space: nowrap; }
-.section-select { padding: 4px 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.85rem; }
+.convert-settings { min-width: 240px; }
+.mode-toggle { display: flex; gap: 6px; margin-bottom: 6px; }
+.mode-btn { display: flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid #bbb; border-radius: 14px; font-size: 0.8rem; cursor: pointer; color: #555; background: #f5f5f5; user-select: none; }
+.mode-btn input[type=radio] { display: none; }
+.mode-btn.active { background: #2c3e50; color: white; border-color: #2c3e50; }
+.setting-row { display: flex; align-items: center; gap: 6px; }
+.setting-lbl { font-size: 0.78rem; color: #666; white-space: nowrap; }
+.section-select { padding: 4px 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.85rem; max-width: 180px; }
 .sub-actions { display: flex; gap: 6px; align-items: center; }
 .btn-dl { padding: 4px 10px; background: #e8f4fd; color: #1a6fa8; border-radius: 5px; text-decoration: none; font-size: 0.82rem; }
 .btn-dl:hover { background: #d0e8f9; }

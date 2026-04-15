@@ -186,40 +186,33 @@ watch(selectedArticle, async () => {
 const handleArtUploadClick = () => fileInputArt.value.click();
 
 const uploadArtImage = async (event) => {
-  const file = event.target.files[0];
-  if (!file || !selectedArticle.value) return;
+  const files = Array.from(event.target.files);
+  if (!files.length || !selectedArticle.value) return;
 
   uploadingArt.value = true;
+  let nextOrder =
+    articleImages.value.length > 0
+      ? Math.max(...articleImages.value.map((i) => i.sort_order)) + 1
+      : 1;
+
   try {
-    const match = selectedArticle.value.id.match(/^(\d+-\d+)/);
-    const shortId = match ? match[1] : selectedArticle.value.id;
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("path", `articles/issue-${selectedIssue.value}`);
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("path", `articles/issue-${selectedIssue.value}`);
+      const uploadRes = await $fetch("/api/media", { method: "POST", body: formData });
+      if (!uploadRes.success) throw new Error(uploadRes.error);
 
-    const uploadRes = await $fetch("/api/media", {
-      method: "POST",
-      body: formData,
-    });
-    if (!uploadRes.success) throw new Error(uploadRes.error);
-
-    const cloudData = uploadRes.data;
-
-    const nextOrder =
-      articleImages.value.length > 0
-        ? Math.max(...articleImages.value.map((i) => i.sort_order)) + 1
-        : 1;
-
-    const { error: dbErr } = await supabase.from("media_assets").insert({
-      issue_id: selectedIssue.value,
-      article_id: selectedArticle.value.id,
-      cloudinary_id: cloudData.public_id,
-      image_url: cloudData.secure_url,
-      sort_order: nextOrder,
-    });
-
-    if (dbErr) throw dbErr;
+      const { error: dbErr } = await supabase.from("media_assets").insert({
+        issue_id: selectedIssue.value,
+        article_id: selectedArticle.value.id,
+        cloudinary_id: uploadRes.data.public_id,
+        image_url: uploadRes.data.secure_url,
+        sort_order: nextOrder++,
+      });
+      if (dbErr) throw dbErr;
+    }
     await loadArticleImages();
   } catch (err) {
     alert("上傳失敗：" + err.message);
@@ -229,23 +222,23 @@ const uploadArtImage = async (event) => {
   }
 };
 
-// 4. 排序互換
-const moveImage = async (index, direction) => {
-  const newIndex = index + direction;
-  if (newIndex < 0 || newIndex >= articleImages.value.length) return;
+// 4. 排序：直接打數字決定位置
+const reorderImage = async (img, newPos) => {
+  const images = [...articleImages.value];
+  const fromIdx = images.findIndex((i) => i.id === img.id);
+  const toIdx = Math.min(Math.max(newPos - 1, 0), images.length - 1);
+  if (fromIdx === toIdx) return;
 
-  const imgA = articleImages.value[index];
-  const imgB = articleImages.value[newIndex];
-
-  const tempOrder = imgA.sort_order;
-  imgA.sort_order = imgB.sort_order;
-  imgB.sort_order = tempOrder;
+  const [item] = images.splice(fromIdx, 1);
+  images.splice(toIdx, 0, item);
 
   loadingUI.value = true;
-  await supabase.from("media_assets").upsert([
-    { id: imgA.id, sort_order: imgA.sort_order },
-    { id: imgB.id, sort_order: imgB.sort_order },
-  ]);
+  const updates = images.map((im, i) => ({ id: im.id, sort_order: i + 1 }));
+  await Promise.all(
+    updates.map(({ id, sort_order }) =>
+      supabase.from("media_assets").update({ sort_order }).eq("id", id)
+    )
+  );
   await loadArticleImages();
 };
 
@@ -359,22 +352,23 @@ const goToBreadcrumb = (index) => {
 const handleUploadClickRaw = () => fileInputRaw.value.click();
 
 const uploadFileRaw = async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
+  const files = Array.from(event.target.files);
+  if (!files.length) return;
   uploadingRaw.value = true;
+  let successCount = 0;
   try {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("path", currentPath.value);
-    const response = await $fetch("/api/media", {
-      method: "POST",
-      body: formData,
-    });
-    if (!response.success) throw new Error(response.error);
-    alert("上傳成功！");
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("path", currentPath.value);
+      const response = await $fetch("/api/media", { method: "POST", body: formData });
+      if (!response.success) throw new Error(response.error);
+      successCount++;
+    }
+    alert(`上傳成功！共 ${successCount} 個檔案`);
     fetchFiles();
   } catch (err) {
-    alert("上傳失敗：" + err.message);
+    alert(`上傳失敗（已完成 ${successCount} 個）：` + err.message);
   } finally {
     uploadingRaw.value = false;
     event.target.value = "";
@@ -543,6 +537,7 @@ onMounted(() => {
             ref="fileInputArt"
             hidden
             accept="image/*"
+            multiple
             @change="uploadArtImage"
           />
           <button
@@ -577,21 +572,16 @@ onMounted(() => {
             </div>
 
             <div class="card-controls">
-              <div class="move-btns">
-                <button
-                  @click="moveImage(idx, -1)"
-                  :disabled="idx === 0"
-                  title="往前移"
-                >
-                  ◀
-                </button>
-                <button
-                  @click="moveImage(idx, 1)"
-                  :disabled="idx === articleImages.length - 1"
-                  title="往後移"
-                >
-                  ▶
-                </button>
+              <div class="order-row">
+                <label class="order-lbl">順序</label>
+                <input
+                  type="number"
+                  class="order-num"
+                  :value="img.sort_order"
+                  min="1"
+                  :max="articleImages.length"
+                  @change="reorderImage(img, +$event.target.value)"
+                />
               </div>
 
               <button class="btn-md-copy link" @click="copyUrl(img.image_url)">
@@ -624,6 +614,7 @@ onMounted(() => {
             type="file"
             ref="fileInputRaw"
             hidden
+            multiple
             @change="uploadFileRaw"
           />
           <button
@@ -1000,25 +991,23 @@ onMounted(() => {
   background: white;
   border-radius: 0 0 8px 8px;
 }
-.move-btns {
+.order-row {
   display: flex;
-  gap: 5px;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
 }
-.move-btns button {
-  flex: 1;
-  padding: 6px;
+.order-lbl {
+  font-size: 0.75rem;
+  color: #888;
+}
+.order-num {
+  width: 52px;
+  padding: 4px 6px;
   border: 1px solid #ccc;
-  background: #f8f9fa;
   border-radius: 4px;
-  cursor: pointer;
-  color: #555;
-}
-.move-btns button:hover:not(:disabled) {
-  background: #e9ecef;
-}
-.move-btns button:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
+  font-size: 0.9rem;
+  text-align: center;
 }
 
 .btn-md-copy {

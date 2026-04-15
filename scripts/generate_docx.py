@@ -594,8 +594,10 @@ class ProfessionalDocxGenerator:
                     continue
                 p = self.doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-                p.paragraph_format.space_before = Pt(0)
-                p.paragraph_format.space_after  = Pt(0)
+                p.paragraph_format.space_before    = Pt(0)
+                p.paragraph_format.space_after     = Pt(0)
+                p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
+                p.paragraph_format.line_spacing      = 1.5
                 run = p.add_run(part)
                 self._apply_font(run, ascii_font, east_font, size=size)
 

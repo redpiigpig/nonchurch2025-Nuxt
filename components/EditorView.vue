@@ -97,11 +97,11 @@ const proofreadStatus = ref("pending");
 // 期號 issues 對應表（供 issue 號連動 issue_title 使用）
 const issuesMap = ref({}); // { 8: "地上神國與人間佛教", ... }
 
-// 當 issue 號改變時，自動帶入對應的 issue_title（僅新增模式下連動，編輯模式保持原值）
+// 當 issue 號改變時，自動帶入對應的 issue_title
 watch(
   () => form.value.issue,
   (newIssue) => {
-    if (!isEditMode.value && issuesMap.value[newIssue]) {
+    if (issuesMap.value[newIssue]) {
       form.value.issue_title = issuesMap.value[newIssue];
     }
   },
@@ -127,7 +127,7 @@ const loadArticle = async (id) => {
       title: data.title || "",
       subtitle: data.subtitle || "",
       issue: data.issue || 5,
-      issue_title: data.issue_title || "",
+      issue_title: data.issue_title || issuesMap.value[data.issue] || "",
       category: data.category || "",
       section: data.section || "",
       author: data.author || "",
@@ -196,7 +196,9 @@ const generateFootnotesHtml = (text, notes) => {
 
 const keywordContent = computed(() => {
   if (!form.value.keyword) return "";
-  return marked.parse(form.value.keyword);
+  const kw = form.value.keyword;
+  const hasPrefix = /🌿|關鍵字/.test(kw);
+  return marked.parse(hasPrefix ? kw : `🌿 **關鍵字：** ${kw}`);
 });
 
 const contentHtml = computed(() => {
@@ -677,6 +679,10 @@ const tools = [
       const suffix = "</span>";
       insertOrWrap(prefix, suffix, "請在此輸入小字體文字", prefix, suffix);
     },
+  },
+  {
+    label: "🌏 結尾",
+    action: () => insertBlock("🌏\uFE0E"),
   },
 ];
 
@@ -1426,14 +1432,14 @@ input[readonly] {
   margin-bottom: 20px;
 }
 .featured-box {
-  position: absolute;
-  right: 0;
+  display: inline-block;
+  float: right;
   color: white;
   font-weight: bold;
   font-size: 1.6rem;
   border-radius: 4px;
   padding: 5px 15px;
-  margin-top: -3rem;
+  margin-bottom: 16px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 .main-title {
@@ -1442,7 +1448,8 @@ input[readonly] {
   font-weight: bold;
   color: #444;
   text-align: left;
-  margin-top: 40px;
+  clear: both;
+  margin-top: 0;
   line-height: 1.4;
   padding-left: 2rem;
 }

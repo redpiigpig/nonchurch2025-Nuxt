@@ -56,6 +56,10 @@ export default defineEventHandler(async (event) => {
               topK: 1,
               topP: 1,
               maxOutputTokens: 8192,
+              // 限制 thinking budget，避免 2.5-flash 消耗過多 token 觸發 429
+              thinkingConfig: {
+                thinkingBudget: 0,
+              },
             },
           },
         },
@@ -120,11 +124,17 @@ function sleep(ms) {
 }
 
 function stripHtmlAttributes(html) {
-  return html
+  const stripped = html
     .replace(/\s+style="[^"]*"/g, "")
     .replace(/\s+class="[^"]*"/g, "")
     .replace(/\s+id="[^"]*"/g, "")
     .replace(/\s+data-[^=]+="[^"]*"/g, "");
+  // 免費層 250K TPM 保護：超過 60000 字元截斷（約 15000 tokens）
+  if (stripped.length > 60000) {
+    console.warn(`⚠️ HTML 過長（${stripped.length} 字元），截斷至 60000`);
+    return stripped.slice(0, 60000) + "\n<!-- [截斷] -->";
+  }
+  return stripped;
 }
 
 function buildPrompt(html, formatSpec, issueNumber, issueTitle, nextSeq) {

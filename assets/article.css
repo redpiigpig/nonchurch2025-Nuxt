@@ -83,6 +83,7 @@
 .keyword-section {
   margin: 3rem 0;
   font-weight: bold;
+  text-align: left;
   /* 保留標楷體設定 */
   font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
   font-size: 1.2rem;

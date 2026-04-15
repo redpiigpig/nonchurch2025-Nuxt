@@ -217,14 +217,32 @@ const handleImgChange = (e) => {
 };
 const removeImage = (i) => {
   if (imageFiles.value[i].previewUrl) URL.revokeObjectURL(imageFiles.value[i].previewUrl);
-  imageFiles.value.splice(i, 1);
+  const arr = [...imageFiles.value];
+  arr.splice(i, 1);
+  imageFiles.value = arr;
 };
-const moveImageUp = (i) => { if (i > 0) { const a = imageFiles.value; [a[i-1], a[i]] = [a[i], a[i-1]]; } };
-const moveImageDown = (i) => { const a = imageFiles.value; if (i < a.length-1) [a[i], a[i+1]] = [a[i+1], a[i]]; };
+const reorderNewImage = (fromIdx, newPos) => {
+  const toIdx = Math.min(Math.max(newPos - 1, 0), imageFiles.value.length - 1);
+  if (fromIdx === toIdx) return;
+  const arr = [...imageFiles.value];
+  const [item] = arr.splice(fromIdx, 1);
+  arr.splice(toIdx, 0, item);
+  imageFiles.value = arr;
+};
 
-const removeExistingImage = (i) => existingImages.value.splice(i, 1);
-const moveExistingUp = (i) => { if (i > 0) { const a = existingImages.value; [a[i-1], a[i]] = [a[i], a[i-1]]; } };
-const moveExistingDown = (i) => { const a = existingImages.value; if (i < a.length-1) [a[i], a[i+1]] = [a[i+1], a[i]]; };
+const removeExistingImage = (i) => {
+  const arr = [...existingImages.value];
+  arr.splice(i, 1);
+  existingImages.value = arr;
+};
+const reorderExistingImage = (fromIdx, newPos) => {
+  const toIdx = Math.min(Math.max(newPos - 1, 0), existingImages.value.length - 1);
+  if (fromIdx === toIdx) return;
+  const arr = [...existingImages.value];
+  const [item] = arr.splice(fromIdx, 1);
+  arr.splice(toIdx, 0, item);
+  existingImages.value = arr;
+};
 
 // 大頭貼
 const avatarFile = ref(null);
@@ -695,8 +713,8 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
               <img :src="img.url" class="img-thumb" />
               <div class="img-name">{{ img.name || `圖片 ${i+1}` }}</div>
               <div class="img-actions">
-                <button type="button" @click="moveExistingUp(i)" :disabled="i===0" class="btn-order">↑</button>
-                <button type="button" @click="moveExistingDown(i)" :disabled="i===existingImages.length-1" class="btn-order">↓</button>
+                <label class="order-label">順序</label>
+                <input type="number" class="order-input" :value="i+1" min="1" :max="existingImages.length" @change="reorderExistingImage(i, +$event.target.value)" />
                 <button type="button" @click="removeExistingImage(i)" class="btn-remove-sm">✕</button>
               </div>
             </div>
@@ -710,8 +728,8 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
               <div v-else class="img-thumb-placeholder">📎</div>
               <div class="img-name">{{ img.name }}</div>
               <div class="img-actions">
-                <button type="button" @click="moveImageUp(i)" :disabled="i===0" class="btn-order">↑</button>
-                <button type="button" @click="moveImageDown(i)" :disabled="i===imageFiles.length-1" class="btn-order">↓</button>
+                <label class="order-label">順序</label>
+                <input type="number" class="order-input" :value="i+1" min="1" :max="imageFiles.length" @change="reorderNewImage(i, +$event.target.value)" />
                 <button type="button" @click="removeImage(i)" class="btn-remove-sm">✕</button>
               </div>
             </div>
@@ -925,9 +943,9 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
 .img-thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
 .img-thumb-placeholder { width: 48px; height: 48px; background: #e0e0e0; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
 .img-name { flex: 1; font-size: 0.85rem; color: #555; word-break: break-all; }
-.img-actions { display: flex; gap: 4px; flex-shrink: 0; }
-.btn-order { padding: 4px 8px; background: #fff; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-.btn-order:disabled { opacity: 0.3; cursor: default; }
+.img-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.order-label { font-size: 0.75rem; color: #999; white-space: nowrap; }
+.order-input { width: 48px; padding: 3px 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; text-align: center; }
 
 /* ── 提交 ── */
 .submit-row { text-align: center; padding: 8px 0 24px; }
