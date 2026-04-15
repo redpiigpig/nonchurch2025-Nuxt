@@ -423,7 +423,10 @@ class ProfessionalDocxGenerator:
                             portrait_border=False):
         """浮動表格：圖片＋圖說組成矩形群組，整體文繞圖
         portrait_border=True 時加人物照片單層3px粗框（DrawingML，與行內圖一致）"""
-        width_dxa = int(width_cm * 567)   # cm → twips
+        # 人物照片需要在框線外留 0.5cm margin，table 要加寬
+        margin_cm = 0.5 if portrait_border else 0.0
+        margin_dxa = int(margin_cm * 567)
+        table_width_dxa = int(width_cm * 567) + 2 * margin_dxa  # 圖片寬 + 左右各 0.5cm
 
         tbl = self.doc.add_table(rows=1, cols=1)
 
@@ -444,15 +447,15 @@ class ProfessionalDocxGenerator:
         tblpPr.set(qn('w:tblpXSpec'), float_dir)   # 'right' or 'left'
         tblPr.insert(0, tblpPr)
 
-        # 表格寬度
+        # 表格寬度（含 margin）
         tblW = tblPr.find(qn('w:tblW'))
         if tblW is None:
             tblW = OxmlElement('w:tblW')
             tblPr.append(tblW)
-        tblW.set(qn('w:w'),    str(width_dxa))
+        tblW.set(qn('w:w'),    str(table_width_dxa))
         tblW.set(qn('w:type'), 'dxa')
 
-        # 表格框線（全部清除；portrait 的外框設在 tcBorders）
+        # 表格框線（全部清除；portrait 的外框設在圖片 DrawingML）
         tblBorders = OxmlElement('w:tblBorders')
         for side in ('top','left','bottom','right','insideH','insideV'):
             b = OxmlElement(f'w:{side}')
@@ -463,7 +466,7 @@ class ProfessionalDocxGenerator:
             tblBorders.append(b)
         tblPr.append(tblBorders)
 
-        # 表格層級：強制 cellSpacing=0 + cellMargin=0，防止 Word 預設留白影響框線位置
+        # 表格層級：強制 cellSpacing=0，防止 Word 預設留白影響框線位置
         tblCellSpacing = OxmlElement('w:tblCellSpacing')
         tblCellSpacing.set(qn('w:w'), '0')
         tblCellSpacing.set(qn('w:type'), 'dxa')
@@ -488,7 +491,7 @@ class ProfessionalDocxGenerator:
         if tcW is None:
             tcW = OxmlElement('w:tcW')
             tcPr.append(tcW)
-        tcW.set(qn('w:w'),    str(width_dxa))
+        tcW.set(qn('w:w'),    str(table_width_dxa))
         tcW.set(qn('w:type'), 'dxa')
 
         tcBorders = OxmlElement('w:tcBorders')
@@ -501,11 +504,11 @@ class ProfessionalDocxGenerator:
             tcBorders.append(b)
         tcPr.append(tcBorders)
 
-        # 儲存格 margin：全部 0，圖片緊貼框線
+        # 儲存格 margin：人物照片四周留 0.5cm，一般圖片為 0
         tcMar = OxmlElement('w:tcMar')
         for side in ('top', 'left', 'bottom', 'right'):
             m = OxmlElement(f'w:{side}')
-            m.set(qn('w:w'),    '0')
+            m.set(qn('w:w'),    str(margin_dxa))
             m.set(qn('w:type'), 'dxa')
             tcMar.append(m)
         tcPr.append(tcMar)
