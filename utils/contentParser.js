@@ -101,13 +101,10 @@ export async function parseAndClassifyDocument(
 async function extractWordContent(file) {
   const arrayBuffer = await file.arrayBuffer();
 
-  let imageCounter = 0;
-
-  // 使用 mammoth 解析 Word
+  // 使用 mammoth 解析 Word（不傳 convertImage，讓 mammoth 輸出預設的 base64）
   const result = await mammoth.convertToHtml({
     arrayBuffer: arrayBuffer,
     styleMap: [
-      // 保留樣式資訊
       "p[style-name='標題'] => h1.title:fresh",
       "p[style-name='Heading 1'] => h1.title:fresh",
       "p[style-name='副標題'] => h2.subtitle:fresh",
@@ -115,16 +112,22 @@ async function extractWordContent(file) {
       "p[style-name='引用'] => blockquote:fresh",
       "p[style-name='Quote'] => blockquote:fresh",
     ],
-    convertImage: mammoth.images.inline(async () => {
-      imageCounter++;
-      // 回傳佔位標記作為 src，讓圖片在 HTML 中以 <img src="[[圖片N]]"> 呈現
-      return { src: `[[圖片${imageCounter}]]` };
-    }),
   });
 
-  // 解析 HTML 為 DOM
+  // 把所有 base64 圖片資料替換為 [[圖片N]] 佔位標記
+  // （比依賴 convertImage callback 更可靠，完全不受 async/await 行為影響）
+  let imageCounter = 0;
+  const html = result.value.replace(
+    /<img\b[^>]*\bsrc="data:[^"]*"[^>]*/gi,
+    () => {
+      imageCounter++;
+      return `<img src="[[圖片${imageCounter}]]" alt=""`;
+    },
+  );
+
+  // 解析替換後的 HTML 為 DOM
   const parser = new DOMParser();
-  const doc = parser.parseFromString(result.value, "text/html");
+  const doc = parser.parseFromString(html, "text/html");
 
   // 提取元素資訊
   const elements = Array.from(doc.body.children).map((el, index) =>
@@ -132,8 +135,8 @@ async function extractWordContent(file) {
   );
 
   return {
-    html: result.value,
-    elements: elements,
+    html,
+    elements,
     rawText: doc.body.textContent,
     imageCount: imageCounter,
   };

@@ -423,22 +423,23 @@ const handleReupload = async (event) => {
 
   loading.value = true;
   try {
-    // 動態載入 mammoth，確保拿到真正的預設 export（修正 CJS/ESM 互操作問題）
+    // 動態載入 mammoth
     const mammothModule = await import("mammoth");
     const mammoth = mammothModule.default ?? mammothModule;
     const arrayBuffer = await file.arrayBuffer();
 
+    // 不傳 convertImage，讓 mammoth 輸出 base64，再用 regex 全部換成佔位標記
+    const result = await mammoth.convertToHtml({ arrayBuffer });
     let imageCounter = 0;
-    const result = await mammoth.convertToHtml({
-      arrayBuffer,
-      convertImage: mammoth.images.inline(async () => {
+    let html = result.value.replace(
+      /<img\b[^>]*\bsrc="data:[^"]*"[^>]*/gi,
+      () => {
         imageCounter++;
-        return { src: `[[圖片${imageCounter}]]` };
-      }),
-    });
+        return `<img src="[[圖片${imageCounter}]]" alt=""`;
+      },
+    );
 
     // 解析圖片佔位，從現有 ID 取期號和篇序
-    let html = result.value;
     const idMatch = form.value.id.match(/^(\d+)-(\d+)/);
     if (idMatch && imageCounter > 0) {
       const issue = idMatch[1];
