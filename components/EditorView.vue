@@ -557,6 +557,16 @@ const exportToWord = async () => {
   try {
     loading.value = true;
 
+    // 將 [[圖片N]] 替換為實際 Cloudinary URL，再送給 Python 腳本
+    const assets = form.value.media_assets || [];
+    const resolvedContent = form.value.content.replace(
+      /\[\[圖片(\d+)\]\]/g,
+      (match, orderStr) => {
+        const found = assets.find((m) => m.sort_order === parseInt(orderStr));
+        return found ? found.image_url : match;
+      }
+    );
+
     // 準備文章資料
     const articleData = {
       id: form.value.id,
@@ -567,7 +577,7 @@ const exportToWord = async () => {
       author_title: form.value.author_title,
       remark: form.value.remark,
       keyword: form.value.keyword,
-      content: form.value.content,
+      content: resolvedContent,
       footnotes: form.value.footnotes,
       issue: form.value.issue,
       issue_title: form.value.issue_title,
