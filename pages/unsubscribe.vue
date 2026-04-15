@@ -1,8 +1,106 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
+import { useLanguage } from "~/composables/useLanguage";
 
 useSeoMeta({ title: "取消訂閱 — 無境界者", robots: "noindex" });
+
+const { currentLang } = useLanguage();
+
+const i18n = {
+  "zh-TW": {
+    loading: "處理中…",
+    requestedMain: "已發送取消訂閱要求",
+    requestedSub: "我們確認後將完成處理，感謝您過去的支持。",
+    requestedToggle: "取消此申請",
+    cancelledMain: "已取消取消訂閱要求",
+    cancelledSub: "您將繼續收到《無境界者》的出刊通知。",
+    cancelledToggle: "重新申請取消訂閱",
+    demoMain: "（測試預覽）",
+    demoSub: "這是電子報中的取消訂閱連結外觀預覽，正式連結含有個人專屬 token。",
+    invalidMain: "連結無效或已失效",
+    invalidSub: "如需協助，請寄信至 nonchurch2025@gmail.com。",
+    errorMain: "發生錯誤",
+    home: "返回首頁",
+  },
+  "zh-HK": {
+    loading: "處理中…",
+    requestedMain: "已發送取消訂閱要求",
+    requestedSub: "我們確認後將完成處理，感謝您過去嘅支持。",
+    requestedToggle: "取消此申請",
+    cancelledMain: "已取消取消訂閱要求",
+    cancelledSub: "您將繼續收到《無境界者》嘅出刊通知。",
+    cancelledToggle: "重新申請取消訂閱",
+    demoMain: "（測試預覽）",
+    demoSub: "呢個係電子報中嘅取消訂閱連結外觀預覽，正式連結含有個人專屬 token。",
+    invalidMain: "連結無效或已失效",
+    invalidSub: "如需協助，請寄信至 nonchurch2025@gmail.com。",
+    errorMain: "發生錯誤",
+    home: "返回首頁",
+  },
+  "zh-CN": {
+    loading: "处理中…",
+    requestedMain: "已发送取消订阅要求",
+    requestedSub: "我们确认后将完成处理，感谢您过去的支持。",
+    requestedToggle: "取消此申请",
+    cancelledMain: "已取消取消订阅要求",
+    cancelledSub: "您将继续收到《无境界者》的出刊通知。",
+    cancelledToggle: "重新申请取消订阅",
+    demoMain: "（测试预览）",
+    demoSub: "这是电子报中的取消订阅链接外观预览，正式链接含有个人专属 token。",
+    invalidMain: "链接无效或已失效",
+    invalidSub: "如需协助，请发邮件至 nonchurch2025@gmail.com。",
+    errorMain: "发生错误",
+    home: "返回首页",
+  },
+  en: {
+    loading: "Processing…",
+    requestedMain: "Unsubscribe request sent",
+    requestedSub: "We will process your request after confirmation. Thank you for your support.",
+    requestedToggle: "Cancel this request",
+    cancelledMain: "Unsubscribe request cancelled",
+    cancelledSub: "You will continue to receive issue notifications from Faith Without Boundary.",
+    cancelledToggle: "Re-submit unsubscribe request",
+    demoMain: "(Preview mode)",
+    demoSub: "This is a preview of the unsubscribe link in newsletters. The actual link contains a personal token.",
+    invalidMain: "Invalid or expired link",
+    invalidSub: "For assistance, please email nonchurch2025@gmail.com.",
+    errorMain: "An error occurred",
+    home: "Back to Home",
+  },
+  ja: {
+    loading: "処理中…",
+    requestedMain: "購読解除リクエストを送信しました",
+    requestedSub: "確認後に処理を完了いたします。これまでのご支援に感謝します。",
+    requestedToggle: "このリクエストをキャンセル",
+    cancelledMain: "購読解除リクエストをキャンセルしました",
+    cancelledSub: "引き続き《無境界者》の発刊通知をお受け取りいただけます。",
+    cancelledToggle: "再度購読解除を申請する",
+    demoMain: "（テストプレビュー）",
+    demoSub: "これはメールマガジン内の購読解除リンクのプレビューです。実際のリンクには個人専用のトークンが含まれます。",
+    invalidMain: "リンクが無効または期限切れです",
+    invalidSub: "サポートが必要な場合は nonchurch2025@gmail.com までご連絡ください。",
+    errorMain: "エラーが発生しました",
+    home: "ホームへ戻る",
+  },
+  ko: {
+    loading: "처리 중…",
+    requestedMain: "구독 취소 요청이 전송되었습니다",
+    requestedSub: "확인 후 처리가 완료됩니다. 그동안의 지지에 감사드립니다.",
+    requestedToggle: "이 요청 취소하기",
+    cancelledMain: "구독 취소 요청이 철회되었습니다",
+    cancelledSub: "《무경계자》의 발간 알림을 계속 받으실 수 있습니다.",
+    cancelledToggle: "구독 취소 재신청",
+    demoMain: "（테스트 미리보기）",
+    demoSub: "이것은 뉴스레터의 구독 취소 링크 미리보기입니다. 실제 링크에는 개인 전용 토큰이 포함되어 있습니다.",
+    invalidMain: "링크가 유효하지 않거나 만료되었습니다",
+    invalidSub: "도움이 필요하시면 nonchurch2025@gmail.com 으로 문의해 주세요.",
+    errorMain: "오류가 발생했습니다",
+    home: "홈으로 돌아가기",
+  },
+};
+
+const t = computed(() => i18n[currentLang.value] || i18n["zh-TW"]);
 
 const route = useRoute();
 
@@ -51,46 +149,46 @@ function toggleAgain() {
     <!-- 處理中 -->
     <div v-if="status === 'loading'" class="box">
       <div class="spinner"></div>
-      <p>處理中…</p>
+      <p>{{ t.loading }}</p>
     </div>
 
     <!-- 已送出取消申請 -->
     <div v-else-if="status === 'requested'" class="box success-box">
       <div class="icon">✅</div>
-      <p class="main-msg">已發送取消訂閱要求</p>
-      <p class="sub-msg">我們確認後將完成處理，感謝您過去的支持。</p>
-      <button class="btn-toggle" @click="toggleAgain">取消此申請</button>
+      <p class="main-msg">{{ t.requestedMain }}</p>
+      <p class="sub-msg">{{ t.requestedSub }}</p>
+      <button class="btn-toggle" @click="toggleAgain">{{ t.requestedToggle }}</button>
     </div>
 
     <!-- 已取消申請（反悔了） -->
     <div v-else-if="status === 'cancelled'" class="box cancel-box">
       <div class="icon">↩️</div>
-      <p class="main-msg">已取消取消訂閱要求</p>
-      <p class="sub-msg">您將繼續收到《無境界者》的出刊通知。</p>
-      <button class="btn-toggle" @click="toggleAgain">重新申請取消訂閱</button>
+      <p class="main-msg">{{ t.cancelledMain }}</p>
+      <p class="sub-msg">{{ t.cancelledSub }}</p>
+      <button class="btn-toggle" @click="toggleAgain">{{ t.cancelledToggle }}</button>
     </div>
 
     <!-- 測試預覽 -->
     <div v-else-if="status === 'demo'" class="box demo-box">
       <div class="icon">🔍</div>
-      <p class="main-msg">（測試預覽）</p>
-      <p class="sub-msg">這是電子報中的取消訂閱連結外觀預覽，正式連結含有個人專屬 token。</p>
+      <p class="main-msg">{{ t.demoMain }}</p>
+      <p class="sub-msg">{{ t.demoSub }}</p>
     </div>
 
     <!-- 無效連結 -->
     <div v-else-if="status === 'invalid'" class="box error-box">
       <div class="icon">🔗</div>
-      <p class="main-msg">連結無效或已失效</p>
-      <p class="sub-msg">如需協助，請寄信至 nonchurch2025@gmail.com。</p>
-      <NuxtLink to="/" class="btn-home">返回首頁</NuxtLink>
+      <p class="main-msg">{{ t.invalidMain }}</p>
+      <p class="sub-msg">{{ t.invalidSub }}</p>
+      <NuxtLink to="/" class="btn-home">{{ t.home }}</NuxtLink>
     </div>
 
     <!-- 系統錯誤 -->
     <div v-else-if="status === 'error'" class="box error-box">
       <div class="icon">⚠️</div>
-      <p class="main-msg">發生錯誤</p>
+      <p class="main-msg">{{ t.errorMain }}</p>
       <p class="sub-msg">{{ errorMsg }}</p>
-      <NuxtLink to="/" class="btn-home">返回首頁</NuxtLink>
+      <NuxtLink to="/" class="btn-home">{{ t.home }}</NuxtLink>
     </div>
 
   </div>

@@ -1,6 +1,704 @@
 <script setup>
-import { ref, nextTick } from "vue";
+import { ref, computed, nextTick } from "vue";
 import { supabase } from "~/supabase";
+import { useLanguage } from "~/composables/useLanguage";
+
+const { currentLang } = useLanguage();
+
+const i18n = {
+  "zh-TW": {
+    tabNew: "✏️ 新增投稿",
+    tabModify: "🔄 修改已投稿",
+    lookupTitle: "查詢您的投稿記錄",
+    lookupHint: "請輸入您投稿時使用的姓名（本名或筆名）及 Email，即可查詢並修改稿件。",
+    lookupNameLabel: "投稿姓名（本名或筆名）",
+    lookupNamePh: "請輸入投稿時的姓名",
+    lookupEmailLabel: "投稿 Email",
+    lookupEmailPh: "請輸入投稿時的 Email",
+    lookupBtn: "🔍 查詢我的投稿",
+    lookupBtnLoading: "查詢中...",
+    lookupErrEmpty: "請填寫姓名與 Email",
+    lookupErrNotFound: "找不到符合的投稿記錄，請確認姓名（本名或筆名）與 Email 是否正確。",
+    lookupErrFail: "查詢失敗，請稍後再試。",
+    resultsTitle: (n) => `找到 ${n} 筆投稿記錄`,
+    resultsBack: "← 重新查詢",
+    selectEdit: "選擇修改",
+    converted: "已轉文章",
+    convertedAlert: "此投稿已轉換為文章，無法修改。",
+    loadingData: "載入投稿資料...",
+    loadFail: "載入失敗：",
+    editingBanner: "🔄 正在修改：",
+    cancelEdit: "取消修改",
+    successTitleNew: "投稿已送出！",
+    successTitleEdit: "修改已送出！",
+    successMsgNew: "感謝您的投稿，編輯團隊將盡快審閱並以 Email 回覆是否刊登。",
+    successMsgEdit: "您的稿件已更新，編輯團隊將盡快重新審閱。",
+    submitAgain: "再次投稿",
+    backToLookup: "返回查詢",
+    submittingTitle: "正在提交中，請稍候⋯",
+    errorTitle: "提交失敗",
+    backToEdit: "返回修改",
+    sectionAuthor: "作者資訊",
+    sectionArticle: "文章資訊",
+    sectionFiles: "檔案上傳",
+    realNameLabel: "作者真實姓名",
+    realNameHint: "本刊歡迎使用筆名發表，但在投稿時，仍請填寫真實姓名，以示自負文責。若使用筆名者，本刊不會對外透露真實姓名，在網站上的「專欄作者」區也會使用筆名顯示。",
+    realNamePh: "請填寫真實姓名",
+    displayNameLabel: "發表暱稱（筆名）",
+    displayNameHint: "若以本名發表者，無須填寫此欄位。若有多個筆名或同時用真名和筆名發表，網站上的「專欄作者」區也會有多個欄位。",
+    displayNamePh: "若以本名發表可留空",
+    oldAuthorBtn: "🔍 我是舊作者，帶入資料",
+    oldAuthorBtnLoading: "查詢中...",
+    oldAuthorHint: "（填寫本名或筆名後可點擊查詢）",
+    oldAuthorNoMatch: "找不到符合的作者記錄，請繼續填寫下方欄位。",
+    oldAuthorDismiss: "知道了",
+    oldAuthorMatchTitle: "找到以下作者，請選擇符合的一位：",
+    oldAuthorSelect: "選擇",
+    oldAuthorNotMe: "都不是我",
+    oldAuthorDone: "✅ 已帶入作者資料，如有需要可直接修改下方欄位。",
+    bioLabel: "作者身分",
+    bioHint: "可填信仰認同、工作、學歷、或其他身分。例如：約瑟──拿撒勒人、木匠、長老教會會友。",
+    bioPh: "例如：拿撒勒人、木匠、長老教會會友",
+    emailLabel: "聯絡 Email",
+    emailHint: "本刊會以電子信箱回覆是否刊登稿件。",
+    firstSubLabel: "是否是初次投稿本刊",
+    firstSubYes: "是，這是我第一次投稿",
+    firstSubNo: "否，我曾經投稿過",
+    introLabel: "作者自介",
+    introLabelUpdate: "（更新用，選填）",
+    introHint: "約100-150字，會刊登在網站上。若要更新自介亦可填寫，但請在後面附註（更新）。",
+    introPh: "請簡介自己的信仰背景與相關經歷（約100-150字）",
+    avatarLabel: "作者大頭貼",
+    avatarHint: "會刊登在網站上，若要更新亦可上傳。照片可以是本人、教堂、聖像、風景照、卡通人物照、手繪圖，確保圖片版權無虞即可。",
+    avatarClick: "點擊上傳大頭貼",
+    avatarRemove: "移除圖片",
+    titleLabel: "文章標題",
+    titlePh: "請填寫文章標題",
+    categoryLabel: "投稿類型",
+    categoryPh: "請選擇投稿類型",
+    summaryLabel: "投稿文章簡介",
+    summaryHint: "約100-150字，會刊登在網站上。",
+    summaryPh: "請簡介文章主旨（約100-150字）",
+    keywordLabel: "文章關鍵字",
+    keywordHint: "至多 5 個，輸入後按 Enter 或點「新增」。",
+    keywordPh: "輸入關鍵字",
+    keywordAdd: "新增",
+    keywordMax: "已達 5 個上限",
+    notesLabel: "備註",
+    notesPh: "如有其他補充事項，請填寫於此（選填）",
+    filesLabel: "投稿檔案",
+    filesHint: "請同時附上 Word 檔及 PDF 檔。（至少上傳一種）",
+    wordLabel: "📄 Word 檔（.docx）",
+    pdfLabel: "📑 PDF 檔（.pdf）",
+    existingFile: "已上傳原稿",
+    existingHint: "（如需更換請選擇新檔案）",
+    chooseFile: "選擇檔案",
+    replaceFile: "更換檔案",
+    reselect: "重新選擇",
+    remove: "移除",
+    imagesLabel: "文章附圖（選填，可多張）",
+    imagesHint: "若文章有附圖，請在此上傳圖片原檔。每張上限 10MB，最多 20 張。上傳後可調整順序。",
+    existingImagesTitle: "原有圖片（可調整順序或移除）",
+    newImagesTitle: "新增圖片",
+    orderLabel: "順序",
+    addImage: "＋ 新增圖片",
+    submitNew: "送出投稿",
+    submitEdit: "送出修改",
+    errRequired: "必填",
+    errEmailFormat: "Email 格式不正確",
+    errFirstSub: "請選擇",
+    errAuthorIntro: "初次投稿請填寫作者自介",
+    errCategory: "請選擇投稿類型",
+    errFiles: "請至少上傳 Word 或 PDF 其中一個",
+    uploadingWord: "正在上傳 Word 檔案...",
+    parsingWord: "正在解析 Word 內容...",
+    uploadingPdf: "正在上傳 PDF 檔案...",
+    uploadingImg: (i, total) => `正在上傳圖片 ${i} / ${total}...`,
+    uploadingAvatar: "正在上傳大頭貼...",
+    savingData: "正在儲存投稿資料...",
+    uploadFail: "上傳失敗",
+    saveFail: "儲存失敗",
+    errGeneric: "發生錯誤，請稍後再試",
+    statusLabel: { submitted: "待審核", reviewing: "審核中", accepted: "已接受", rejected: "已拒絕", converted: "已轉文章" },
+  },
+  "zh-HK": {
+    tabNew: "✏️ 新增投稿",
+    tabModify: "🔄 修改已投稿",
+    lookupTitle: "查詢您嘅投稿記錄",
+    lookupHint: "請輸入您投稿時使用嘅姓名（本名或筆名）及 Email，即可查詢並修改稿件。",
+    lookupNameLabel: "投稿姓名（本名或筆名）",
+    lookupNamePh: "請輸入投稿時嘅姓名",
+    lookupEmailLabel: "投稿 Email",
+    lookupEmailPh: "請輸入投稿時嘅 Email",
+    lookupBtn: "🔍 查詢我嘅投稿",
+    lookupBtnLoading: "查詢中...",
+    lookupErrEmpty: "請填寫姓名與 Email",
+    lookupErrNotFound: "搵唔到符合嘅投稿記錄，請確認姓名（本名或筆名）與 Email 係咪正確。",
+    lookupErrFail: "查詢失敗，請稍後再試。",
+    resultsTitle: (n) => `搵到 ${n} 筆投稿記錄`,
+    resultsBack: "← 重新查詢",
+    selectEdit: "選擇修改",
+    converted: "已轉文章",
+    convertedAlert: "此投稿已轉換為文章，無法修改。",
+    loadingData: "載入投稿資料...",
+    loadFail: "載入失敗：",
+    editingBanner: "🔄 正在修改：",
+    cancelEdit: "取消修改",
+    successTitleNew: "投稿已送出！",
+    successTitleEdit: "修改已送出！",
+    successMsgNew: "感謝您嘅投稿，編輯團隊將盡快審閱並以 Email 回覆係咪刊登。",
+    successMsgEdit: "您嘅稿件已更新，編輯團隊將盡快重新審閱。",
+    submitAgain: "再次投稿",
+    backToLookup: "返回查詢",
+    submittingTitle: "正在提交中，請稍候⋯",
+    errorTitle: "提交失敗",
+    backToEdit: "返回修改",
+    sectionAuthor: "作者資訊",
+    sectionArticle: "文章資訊",
+    sectionFiles: "檔案上傳",
+    realNameLabel: "作者真實姓名",
+    realNameHint: "本刊歡迎使用筆名發表，但投稿時仍請填寫真實姓名，以示自負文責。若使用筆名者，本刊唔會對外透露真實姓名，網站上嘅「專欄作者」區亦會使用筆名顯示。",
+    realNamePh: "請填寫真實姓名",
+    displayNameLabel: "發表暱稱（筆名）",
+    displayNameHint: "若以本名發表者，無須填寫此欄位。",
+    displayNamePh: "若以本名發表可留空",
+    oldAuthorBtn: "🔍 我係舊作者，帶入資料",
+    oldAuthorBtnLoading: "查詢中...",
+    oldAuthorHint: "（填寫本名或筆名後可點擊查詢）",
+    oldAuthorNoMatch: "搵唔到符合嘅作者記錄，請繼續填寫下方欄位。",
+    oldAuthorDismiss: "知道了",
+    oldAuthorMatchTitle: "搵到以下作者，請選擇符合嘅一位：",
+    oldAuthorSelect: "選擇",
+    oldAuthorNotMe: "都唔係我",
+    oldAuthorDone: "✅ 已帶入作者資料，如有需要可直接修改下方欄位。",
+    bioLabel: "作者身分",
+    bioHint: "可填信仰認同、工作、學歷、或其他身分。例如：約瑟──拿撒勒人、木匠、長老教會會友。",
+    bioPh: "例如：拿撒勒人、木匠、長老教會會友",
+    emailLabel: "聯絡 Email",
+    emailHint: "本刊會以電子信箱回覆係咪刊登稿件。",
+    firstSubLabel: "係咪初次投稿本刊",
+    firstSubYes: "係，呢係我第一次投稿",
+    firstSubNo: "唔係，我曾經投稿過",
+    introLabel: "作者自介",
+    introLabelUpdate: "（更新用，選填）",
+    introHint: "約100-150字，會刊登在網站上。若要更新自介亦可填寫，但請在後面附註（更新）。",
+    introPh: "請簡介自己嘅信仰背景與相關經歷（約100-150字）",
+    avatarLabel: "作者大頭貼",
+    avatarHint: "會刊登在網站上，若要更新亦可上傳。",
+    avatarClick: "點擊上傳大頭貼",
+    avatarRemove: "移除圖片",
+    titleLabel: "文章標題",
+    titlePh: "請填寫文章標題",
+    categoryLabel: "投稿類型",
+    categoryPh: "請選擇投稿類型",
+    summaryLabel: "投稿文章簡介",
+    summaryHint: "約100-150字，會刊登在網站上。",
+    summaryPh: "請簡介文章主旨（約100-150字）",
+    keywordLabel: "文章關鍵字",
+    keywordHint: "至多 5 個，輸入後按 Enter 或點「新增」。",
+    keywordPh: "輸入關鍵字",
+    keywordAdd: "新增",
+    keywordMax: "已達 5 個上限",
+    notesLabel: "備註",
+    notesPh: "如有其他補充事項，請填寫於此（選填）",
+    filesLabel: "投稿檔案",
+    filesHint: "請同時附上 Word 檔及 PDF 檔。（至少上傳一種）",
+    wordLabel: "📄 Word 檔（.docx）",
+    pdfLabel: "📑 PDF 檔（.pdf）",
+    existingFile: "已上傳原稿",
+    existingHint: "（如需更換請選擇新檔案）",
+    chooseFile: "選擇檔案",
+    replaceFile: "更換檔案",
+    reselect: "重新選擇",
+    remove: "移除",
+    imagesLabel: "文章附圖（選填，可多張）",
+    imagesHint: "若文章有附圖，請在此上傳圖片原檔。每張上限 10MB，最多 20 張。上傳後可調整順序。",
+    existingImagesTitle: "原有圖片（可調整順序或移除）",
+    newImagesTitle: "新增圖片",
+    orderLabel: "順序",
+    addImage: "＋ 新增圖片",
+    submitNew: "送出投稿",
+    submitEdit: "送出修改",
+    errRequired: "必填",
+    errEmailFormat: "Email 格式不正確",
+    errFirstSub: "請選擇",
+    errAuthorIntro: "初次投稿請填寫作者自介",
+    errCategory: "請選擇投稿類型",
+    errFiles: "請至少上傳 Word 或 PDF 其中一個",
+    uploadingWord: "正在上傳 Word 檔案...",
+    parsingWord: "正在解析 Word 內容...",
+    uploadingPdf: "正在上傳 PDF 檔案...",
+    uploadingImg: (i, total) => `正在上傳圖片 ${i} / ${total}...`,
+    uploadingAvatar: "正在上傳大頭貼...",
+    savingData: "正在儲存投稿資料...",
+    uploadFail: "上傳失敗",
+    saveFail: "儲存失敗",
+    errGeneric: "發生錯誤，請稍後再試",
+    statusLabel: { submitted: "待審核", reviewing: "審核中", accepted: "已接受", rejected: "已拒絕", converted: "已轉文章" },
+  },
+  "zh-CN": {
+    tabNew: "✏️ 新增投稿",
+    tabModify: "🔄 修改已投稿",
+    lookupTitle: "查询您的投稿记录",
+    lookupHint: "请输入您投稿时使用的姓名（真实姓名或笔名）及 Email，即可查询并修改稿件。",
+    lookupNameLabel: "投稿姓名（真实姓名或笔名）",
+    lookupNamePh: "请输入投稿时的姓名",
+    lookupEmailLabel: "投稿 Email",
+    lookupEmailPh: "请输入投稿时的 Email",
+    lookupBtn: "🔍 查询我的投稿",
+    lookupBtnLoading: "查询中...",
+    lookupErrEmpty: "请填写姓名与 Email",
+    lookupErrNotFound: "未找到符合的投稿记录，请确认姓名（真实姓名或笔名）与 Email 是否正确。",
+    lookupErrFail: "查询失败，请稍后再试。",
+    resultsTitle: (n) => `找到 ${n} 条投稿记录`,
+    resultsBack: "← 重新查询",
+    selectEdit: "选择修改",
+    converted: "已转文章",
+    convertedAlert: "此投稿已转换为文章，无法修改。",
+    loadingData: "正在加载投稿资料...",
+    loadFail: "加载失败：",
+    editingBanner: "🔄 正在修改：",
+    cancelEdit: "取消修改",
+    successTitleNew: "投稿已提交！",
+    successTitleEdit: "修改已提交！",
+    successMsgNew: "感谢您的投稿，编辑团队将尽快审阅并以 Email 回复是否刊登。",
+    successMsgEdit: "您的稿件已更新，编辑团队将尽快重新审阅。",
+    submitAgain: "再次投稿",
+    backToLookup: "返回查询",
+    submittingTitle: "正在提交中，请稍候⋯",
+    errorTitle: "提交失败",
+    backToEdit: "返回修改",
+    sectionAuthor: "作者信息",
+    sectionArticle: "文章信息",
+    sectionFiles: "文件上传",
+    realNameLabel: "作者真实姓名",
+    realNameHint: "本刊欢迎使用笔名发表，但投稿时仍请填写真实姓名，以示自负文责。若使用笔名者，本刊不会对外透露真实姓名。",
+    realNamePh: "请填写真实姓名",
+    displayNameLabel: "发表笔名",
+    displayNameHint: "若以本名发表者，无须填写此栏位。",
+    displayNamePh: "若以本名发表可留空",
+    oldAuthorBtn: "🔍 我是老作者，导入资料",
+    oldAuthorBtnLoading: "查询中...",
+    oldAuthorHint: "（填写本名或笔名后可点击查询）",
+    oldAuthorNoMatch: "未找到符合的作者记录，请继续填写下方栏位。",
+    oldAuthorDismiss: "知道了",
+    oldAuthorMatchTitle: "找到以下作者，请选择符合的一位：",
+    oldAuthorSelect: "选择",
+    oldAuthorNotMe: "都不是我",
+    oldAuthorDone: "✅ 已导入作者资料，如有需要可直接修改下方栏位。",
+    bioLabel: "作者身份",
+    bioHint: "可填信仰认同、工作、学历或其他身份。例如：约瑟──拿撒勒人、木匠、长老教会会友。",
+    bioPh: "例如：拿撒勒人、木匠、长老教会会友",
+    emailLabel: "联系 Email",
+    emailHint: "本刊会以电子邮件回复是否刊登稿件。",
+    firstSubLabel: "是否是初次投稿本刊",
+    firstSubYes: "是，这是我第一次投稿",
+    firstSubNo: "否，我曾经投稿过",
+    introLabel: "作者自介",
+    introLabelUpdate: "（更新用，选填）",
+    introHint: "约100-150字，会刊登在网站上。若要更新自介亦可填写，但请在后面附注（更新）。",
+    introPh: "请简介自己的信仰背景与相关经历（约100-150字）",
+    avatarLabel: "作者头像",
+    avatarHint: "会刊登在网站上，若要更新亦可上传。",
+    avatarClick: "点击上传头像",
+    avatarRemove: "移除图片",
+    titleLabel: "文章标题",
+    titlePh: "请填写文章标题",
+    categoryLabel: "投稿类型",
+    categoryPh: "请选择投稿类型",
+    summaryLabel: "投稿文章简介",
+    summaryHint: "约100-150字，会刊登在网站上。",
+    summaryPh: "请简介文章主旨（约100-150字）",
+    keywordLabel: "文章关键字",
+    keywordHint: "至多 5 个，输入后按 Enter 或点「添加」。",
+    keywordPh: "输入关键字",
+    keywordAdd: "添加",
+    keywordMax: "已达 5 个上限",
+    notesLabel: "备注",
+    notesPh: "如有其他补充事项，请填写于此（选填）",
+    filesLabel: "投稿文件",
+    filesHint: "请同时附上 Word 文件及 PDF 文件。（至少上传一种）",
+    wordLabel: "📄 Word 文件（.docx）",
+    pdfLabel: "📑 PDF 文件（.pdf）",
+    existingFile: "已上传原稿",
+    existingHint: "（如需更换请选择新文件）",
+    chooseFile: "选择文件",
+    replaceFile: "更换文件",
+    reselect: "重新选择",
+    remove: "移除",
+    imagesLabel: "文章附图（选填，可多张）",
+    imagesHint: "若文章有附图，请在此上传图片原文件。每张上限 10MB，最多 20 张。上传后可调整顺序。",
+    existingImagesTitle: "原有图片（可调整顺序或移除）",
+    newImagesTitle: "新增图片",
+    orderLabel: "顺序",
+    addImage: "＋ 新增图片",
+    submitNew: "提交投稿",
+    submitEdit: "提交修改",
+    errRequired: "必填",
+    errEmailFormat: "Email 格式不正确",
+    errFirstSub: "请选择",
+    errAuthorIntro: "初次投稿请填写作者自介",
+    errCategory: "请选择投稿类型",
+    errFiles: "请至少上传 Word 或 PDF 其中一个",
+    uploadingWord: "正在上传 Word 文件...",
+    parsingWord: "正在解析 Word 内容...",
+    uploadingPdf: "正在上传 PDF 文件...",
+    uploadingImg: (i, total) => `正在上传图片 ${i} / ${total}...`,
+    uploadingAvatar: "正在上传头像...",
+    savingData: "正在保存投稿资料...",
+    uploadFail: "上传失败",
+    saveFail: "保存失败",
+    errGeneric: "发生错误，请稍后再试",
+    statusLabel: { submitted: "待审核", reviewing: "审核中", accepted: "已接受", rejected: "已拒绝", converted: "已转文章" },
+  },
+  en: {
+    tabNew: "✏️ New Submission",
+    tabModify: "🔄 Edit Submission",
+    lookupTitle: "Look up your submission",
+    lookupHint: "Enter the name (real name or pen name) and email you used when submitting to find and edit your submission.",
+    lookupNameLabel: "Name used (real name or pen name)",
+    lookupNamePh: "Enter the name you submitted with",
+    lookupEmailLabel: "Email used",
+    lookupEmailPh: "Enter the email you submitted with",
+    lookupBtn: "🔍 Find my submission",
+    lookupBtnLoading: "Searching...",
+    lookupErrEmpty: "Please enter your name and email",
+    lookupErrNotFound: "No matching submission found. Please check your name (real name or pen name) and email.",
+    lookupErrFail: "Search failed. Please try again later.",
+    resultsTitle: (n) => `Found ${n} submission${n === 1 ? "" : "s"}`,
+    resultsBack: "← Search again",
+    selectEdit: "Edit",
+    converted: "Published",
+    convertedAlert: "This submission has been converted to an article and cannot be edited.",
+    loadingData: "Loading submission data...",
+    loadFail: "Load failed: ",
+    editingBanner: "🔄 Editing: ",
+    cancelEdit: "Cancel editing",
+    successTitleNew: "Submission sent!",
+    successTitleEdit: "Edit submitted!",
+    successMsgNew: "Thank you for your submission. The editorial team will review it and reply by email.",
+    successMsgEdit: "Your submission has been updated. The editorial team will review it again shortly.",
+    submitAgain: "Submit again",
+    backToLookup: "Back to search",
+    submittingTitle: "Submitting, please wait⋯",
+    errorTitle: "Submission failed",
+    backToEdit: "Go back",
+    sectionAuthor: "Author Information",
+    sectionArticle: "Article Information",
+    sectionFiles: "File Upload",
+    realNameLabel: "Author's real name",
+    realNameHint: "Pen names are welcome, but please provide your real name when submitting to acknowledge authorial responsibility. If you use a pen name, it will be displayed on the site instead of your real name.",
+    realNamePh: "Enter your real name",
+    displayNameLabel: "Pen name (display name)",
+    displayNameHint: "Leave blank if publishing under your real name.",
+    displayNamePh: "Leave blank to publish under your real name",
+    oldAuthorBtn: "🔍 I'm a returning author — import my info",
+    oldAuthorBtnLoading: "Searching...",
+    oldAuthorHint: "(Enter your name first, then click to search)",
+    oldAuthorNoMatch: "No matching author found. Please continue filling in the fields below.",
+    oldAuthorDismiss: "Got it",
+    oldAuthorMatchTitle: "Found the following authors. Please select the matching one:",
+    oldAuthorSelect: "Select",
+    oldAuthorNotMe: "None of these",
+    oldAuthorDone: "✅ Author info imported. You may edit the fields below as needed.",
+    bioLabel: "Author identity",
+    bioHint: "May include faith affiliation, occupation, education, or other identity. e.g. Joseph — Nazarene, carpenter, Presbyterian church member.",
+    bioPh: "e.g. Nazarene, carpenter, Presbyterian church member",
+    emailLabel: "Contact email",
+    emailHint: "We will email you our decision regarding your submission.",
+    firstSubLabel: "Is this your first submission to this publication?",
+    firstSubYes: "Yes, this is my first submission",
+    firstSubNo: "No, I have submitted before",
+    introLabel: "Author bio",
+    introLabelUpdate: "(for update, optional)",
+    introHint: "About 100–150 words, to be published on the website. You may also update your bio here — please add "(update)" at the end.",
+    introPh: "Brief description of your faith background and relevant experience (approx. 100–150 words)",
+    avatarLabel: "Author photo",
+    avatarHint: "To be published on the website. You may upload a portrait, church photo, icon, landscape, cartoon, or illustration — please ensure you have rights to the image.",
+    avatarClick: "Click to upload photo",
+    avatarRemove: "Remove image",
+    titleLabel: "Article title",
+    titlePh: "Enter the article title",
+    categoryLabel: "Submission type",
+    categoryPh: "Select a submission type",
+    summaryLabel: "Article summary",
+    summaryHint: "About 100–150 words, to be published on the website.",
+    summaryPh: "Brief summary of the article (approx. 100–150 words)",
+    keywordLabel: "Keywords",
+    keywordHint: "Up to 5 keywords. Press Enter or click 'Add' after each.",
+    keywordPh: "Enter a keyword",
+    keywordAdd: "Add",
+    keywordMax: "Maximum of 5 reached",
+    notesLabel: "Notes",
+    notesPh: "Any additional notes (optional)",
+    filesLabel: "Submission files",
+    filesHint: "Please upload both a Word file and a PDF file. (At least one is required.)",
+    wordLabel: "📄 Word file (.docx)",
+    pdfLabel: "📑 PDF file (.pdf)",
+    existingFile: "Previously uploaded",
+    existingHint: "(Select a new file to replace)",
+    chooseFile: "Choose file",
+    replaceFile: "Replace file",
+    reselect: "Reselect",
+    remove: "Remove",
+    imagesLabel: "Article images (optional, multiple allowed)",
+    imagesHint: "Upload original image files if your article includes images. Max 10MB per image, up to 20 images. You can reorder after uploading.",
+    existingImagesTitle: "Existing images (reorder or remove)",
+    newImagesTitle: "New images",
+    orderLabel: "Order",
+    addImage: "＋ Add image",
+    submitNew: "Submit",
+    submitEdit: "Submit changes",
+    errRequired: "Required",
+    errEmailFormat: "Invalid email format",
+    errFirstSub: "Please select",
+    errAuthorIntro: "First-time submitters must provide an author bio",
+    errCategory: "Please select a submission type",
+    errFiles: "Please upload at least one Word or PDF file",
+    uploadingWord: "Uploading Word file...",
+    parsingWord: "Parsing Word content...",
+    uploadingPdf: "Uploading PDF file...",
+    uploadingImg: (i, total) => `Uploading image ${i} / ${total}...`,
+    uploadingAvatar: "Uploading author photo...",
+    savingData: "Saving submission data...",
+    uploadFail: "Upload failed",
+    saveFail: "Save failed",
+    errGeneric: "An error occurred. Please try again later.",
+    statusLabel: { submitted: "Pending", reviewing: "Under review", accepted: "Accepted", rejected: "Rejected", converted: "Published" },
+  },
+  ja: {
+    tabNew: "✏️ 新規投稿",
+    tabModify: "🔄 投稿を修正",
+    lookupTitle: "投稿記録の検索",
+    lookupHint: "投稿時に使用した氏名（本名またはペンネーム）とメールアドレスを入力して、投稿を検索・修正できます。",
+    lookupNameLabel: "投稿時の氏名（本名またはペンネーム）",
+    lookupNamePh: "投稿時の氏名を入力してください",
+    lookupEmailLabel: "投稿時のメールアドレス",
+    lookupEmailPh: "投稿時のメールアドレスを入力してください",
+    lookupBtn: "🔍 投稿を検索する",
+    lookupBtnLoading: "検索中...",
+    lookupErrEmpty: "氏名とメールアドレスを入力してください",
+    lookupErrNotFound: "一致する投稿記録が見つかりません。氏名（本名またはペンネーム）とメールアドレスを確認してください。",
+    lookupErrFail: "検索に失敗しました。しばらくしてから再試行してください。",
+    resultsTitle: (n) => `${n} 件の投稿記録が見つかりました`,
+    resultsBack: "← 再検索",
+    selectEdit: "修正する",
+    converted: "掲載済み",
+    convertedAlert: "この投稿はすでに記事に変換されており、修正できません。",
+    loadingData: "投稿データを読み込み中...",
+    loadFail: "読み込み失敗：",
+    editingBanner: "🔄 修正中：",
+    cancelEdit: "修正をキャンセル",
+    successTitleNew: "投稿が送信されました！",
+    successTitleEdit: "修正が送信されました！",
+    successMsgNew: "ご投稿ありがとうございます。編集チームが審査し、掲載可否をメールでご連絡します。",
+    successMsgEdit: "原稿が更新されました。編集チームが改めて審査いたします。",
+    submitAgain: "再度投稿する",
+    backToLookup: "検索に戻る",
+    submittingTitle: "送信中、しばらくお待ちください⋯",
+    errorTitle: "送信に失敗しました",
+    backToEdit: "戻る",
+    sectionAuthor: "著者情報",
+    sectionArticle: "記事情報",
+    sectionFiles: "ファイルアップロード",
+    realNameLabel: "著者の本名",
+    realNameHint: "ペンネームでの投稿を歓迎しますが、投稿時は本名を記入してください。ペンネームを使用する場合、サイト上では本名は公開されません。",
+    realNamePh: "本名を入力してください",
+    displayNameLabel: "ペンネーム（表示名）",
+    displayNameHint: "本名で投稿する場合は空欄のままにしてください。",
+    displayNamePh: "本名で投稿する場合は空欄",
+    oldAuthorBtn: "🔍 既存の著者として情報を取り込む",
+    oldAuthorBtnLoading: "検索中...",
+    oldAuthorHint: "（本名またはペンネームを入力後にクリック）",
+    oldAuthorNoMatch: "一致する著者記録が見つかりません。下のフィールドに入力を続けてください。",
+    oldAuthorDismiss: "わかりました",
+    oldAuthorMatchTitle: "以下の著者が見つかりました。該当する方を選択してください：",
+    oldAuthorSelect: "選択",
+    oldAuthorNotMe: "該当なし",
+    oldAuthorDone: "✅ 著者情報を取り込みました。必要に応じて下のフィールドを編集してください。",
+    bioLabel: "著者の属性",
+    bioHint: "信仰の背景、職業、学歴などを記入できます。例：ヨセフ──ナザレ人、大工、長老教会員。",
+    bioPh: "例：ナザレ人、大工、長老教会員",
+    emailLabel: "連絡先メールアドレス",
+    emailHint: "掲載可否をこのアドレスにメールでお知らせします。",
+    firstSubLabel: "本誌への投稿は初めてですか？",
+    firstSubYes: "はい、初めての投稿です",
+    firstSubNo: "いいえ、以前に投稿したことがあります",
+    introLabel: "著者プロフィール",
+    introLabelUpdate: "（更新用、任意）",
+    introHint: "約100〜150字、ウェブサイトに掲載されます。更新する場合は末尾に「（更新）」と付記してください。",
+    introPh: "信仰の背景と関連経験を簡単に紹介してください（約100〜150字）",
+    avatarLabel: "著者写真",
+    avatarHint: "ウェブサイトに掲載されます。人物写真、教会、聖像、風景、イラストなど可。著作権にご注意ください。",
+    avatarClick: "クリックして写真をアップロード",
+    avatarRemove: "画像を削除",
+    titleLabel: "記事タイトル",
+    titlePh: "記事タイトルを入力してください",
+    categoryLabel: "投稿カテゴリー",
+    categoryPh: "カテゴリーを選択してください",
+    summaryLabel: "記事概要",
+    summaryHint: "約100〜150字、ウェブサイトに掲載されます。",
+    summaryPh: "記事の主旨を簡潔に説明してください（約100〜150字）",
+    keywordLabel: "キーワード",
+    keywordHint: "最大5個まで。入力後 Enter または「追加」をクリック。",
+    keywordPh: "キーワードを入力",
+    keywordAdd: "追加",
+    keywordMax: "上限の5個に達しました",
+    notesLabel: "備考",
+    notesPh: "その他の補足事項があればご記入ください（任意）",
+    filesLabel: "投稿ファイル",
+    filesHint: "Word ファイルと PDF ファイルの両方を添付してください。（少なくとも一方は必須）",
+    wordLabel: "📄 Word ファイル（.docx）",
+    pdfLabel: "📑 PDF ファイル（.pdf）",
+    existingFile: "アップロード済み",
+    existingHint: "（差し替える場合は新しいファイルを選択）",
+    chooseFile: "ファイルを選択",
+    replaceFile: "ファイルを差し替え",
+    reselect: "再選択",
+    remove: "削除",
+    imagesLabel: "記事画像（任意、複数可）",
+    imagesHint: "記事に画像がある場合は元のファイルをアップロードしてください。1枚最大10MB、最大20枚。アップロード後に順序を変更できます。",
+    existingImagesTitle: "既存の画像（順序変更・削除可）",
+    newImagesTitle: "新規画像",
+    orderLabel: "順序",
+    addImage: "＋ 画像を追加",
+    submitNew: "投稿する",
+    submitEdit: "修正を送信",
+    errRequired: "必須",
+    errEmailFormat: "メールアドレスの形式が正しくありません",
+    errFirstSub: "選択してください",
+    errAuthorIntro: "初めて投稿する場合は著者プロフィールが必要です",
+    errCategory: "カテゴリーを選択してください",
+    errFiles: "Word または PDF ファイルを少なくとも1つアップロードしてください",
+    uploadingWord: "Word ファイルをアップロード中...",
+    parsingWord: "Word の内容を解析中...",
+    uploadingPdf: "PDF ファイルをアップロード中...",
+    uploadingImg: (i, total) => `画像 ${i} / ${total} をアップロード中...`,
+    uploadingAvatar: "著者写真をアップロード中...",
+    savingData: "投稿データを保存中...",
+    uploadFail: "アップロードに失敗しました",
+    saveFail: "保存に失敗しました",
+    errGeneric: "エラーが発生しました。しばらくしてから再試行してください。",
+    statusLabel: { submitted: "審査待ち", reviewing: "審査中", accepted: "採用", rejected: "不採用", converted: "掲載済み" },
+  },
+  ko: {
+    tabNew: "✏️ 새 투고",
+    tabModify: "🔄 투고 수정",
+    lookupTitle: "투고 기록 조회",
+    lookupHint: "투고 시 사용한 이름（본명 또는 필명）과 이메일을 입력하면 투고 내용을 조회하고 수정할 수 있습니다.",
+    lookupNameLabel: "투고 시 이름（본명 또는 필명）",
+    lookupNamePh: "투고 시 사용한 이름을 입력해 주세요",
+    lookupEmailLabel: "투고 시 이메일",
+    lookupEmailPh: "투고 시 사용한 이메일을 입력해 주세요",
+    lookupBtn: "🔍 내 투고 찾기",
+    lookupBtnLoading: "조회 중...",
+    lookupErrEmpty: "이름과 이메일을 입력해 주세요",
+    lookupErrNotFound: "일치하는 투고 기록을 찾을 수 없습니다. 이름（본명 또는 필명）과 이메일을 확인해 주세요.",
+    lookupErrFail: "조회에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+    resultsTitle: (n) => `투고 기록 ${n}건을 찾았습니다`,
+    resultsBack: "← 다시 조회",
+    selectEdit: "수정 선택",
+    converted: "게재 완료",
+    convertedAlert: "이 투고는 이미 문서로 변환되어 수정할 수 없습니다.",
+    loadingData: "투고 데이터를 불러오는 중...",
+    loadFail: "불러오기 실패: ",
+    editingBanner: "🔄 수정 중: ",
+    cancelEdit: "수정 취소",
+    successTitleNew: "투고가 전송되었습니다！",
+    successTitleEdit: "수정이 전송되었습니다！",
+    successMsgNew: "투고해 주셔서 감사합니다. 편집팀이 검토 후 이메일로 게재 여부를 알려드리겠습니다.",
+    successMsgEdit: "원고가 업데이트되었습니다. 편집팀이 다시 검토하겠습니다.",
+    submitAgain: "다시 투고하기",
+    backToLookup: "조회로 돌아가기",
+    submittingTitle: "제출 중, 잠시 기다려 주세요⋯",
+    errorTitle: "제출 실패",
+    backToEdit: "돌아가기",
+    sectionAuthor: "저자 정보",
+    sectionArticle: "원고 정보",
+    sectionFiles: "파일 업로드",
+    realNameLabel: "저자 실명",
+    realNameHint: "필명 투고를 환영하지만, 투고 시에는 실명을 기재해 주세요. 필명을 사용하는 경우 실명은 외부에 공개되지 않습니다.",
+    realNamePh: "실명을 입력해 주세요",
+    displayNameLabel: "필명（표시 이름）",
+    displayNameHint: "본명으로 투고하는 경우 비워 두세요.",
+    displayNamePh: "본명으로 투고 시 비워 두세요",
+    oldAuthorBtn: "🔍 기존 저자입니다 — 정보 불러오기",
+    oldAuthorBtnLoading: "조회 중...",
+    oldAuthorHint: "（본명 또는 필명 입력 후 클릭）",
+    oldAuthorNoMatch: "일치하는 저자 기록을 찾을 수 없습니다. 아래 필드를 계속 작성해 주세요.",
+    oldAuthorDismiss: "알겠습니다",
+    oldAuthorMatchTitle: "다음 저자를 찾았습니다. 해당하는 분을 선택해 주세요:",
+    oldAuthorSelect: "선택",
+    oldAuthorNotMe: "해당 없음",
+    oldAuthorDone: "✅ 저자 정보를 불러왔습니다. 필요에 따라 아래 필드를 수정해 주세요.",
+    bioLabel: "저자 정체성",
+    bioHint: "신앙 정체성, 직업, 학력 등을 기재할 수 있습니다. 예: 요셉──나사렛 사람, 목수, 장로교 교인.",
+    bioPh: "예: 나사렛 사람, 목수, 장로교 교인",
+    emailLabel: "연락처 이메일",
+    emailHint: "게재 여부를 이 이메일로 알려드립니다.",
+    firstSubLabel: "이 잡지에 처음 투고하시나요？",
+    firstSubYes: "예, 처음 투고합니다",
+    firstSubNo: "아니요, 이전에 투고한 적이 있습니다",
+    introLabel: "저자 소개",
+    introLabelUpdate: "（업데이트용, 선택）",
+    introHint: "약 100-150자, 웹사이트에 게재됩니다. 소개를 업데이트하려면 끝에 '（업데이트）'를 붙여주세요.",
+    introPh: "신앙 배경과 관련 경험을 간략히 소개해 주세요（약 100-150자）",
+    avatarLabel: "저자 사진",
+    avatarHint: "웹사이트에 게재됩니다. 인물 사진, 교회, 성상, 풍경, 일러스트 등 가능 — 저작권이 있는 이미지를 사용해 주세요.",
+    avatarClick: "클릭하여 사진 업로드",
+    avatarRemove: "이미지 제거",
+    titleLabel: "원고 제목",
+    titlePh: "원고 제목을 입력해 주세요",
+    categoryLabel: "투고 유형",
+    categoryPh: "투고 유형을 선택해 주세요",
+    summaryLabel: "원고 요약",
+    summaryHint: "약 100-150자, 웹사이트에 게재됩니다.",
+    summaryPh: "원고의 주제를 간략히 요약해 주세요（약 100-150자）",
+    keywordLabel: "키워드",
+    keywordHint: "최대 5개. 입력 후 Enter 또는 '추가' 클릭.",
+    keywordPh: "키워드 입력",
+    keywordAdd: "추가",
+    keywordMax: "최대 5개에 도달했습니다",
+    notesLabel: "비고",
+    notesPh: "추가 사항이 있으면 여기에 기재해 주세요（선택）",
+    filesLabel: "투고 파일",
+    filesHint: "Word 파일과 PDF 파일을 모두 첨부해 주세요. （최소 하나 필수）",
+    wordLabel: "📄 Word 파일（.docx）",
+    pdfLabel: "📑 PDF 파일（.pdf）",
+    existingFile: "업로드된 원고",
+    existingHint: "（교체하려면 새 파일을 선택하세요）",
+    chooseFile: "파일 선택",
+    replaceFile: "파일 교체",
+    reselect: "다시 선택",
+    remove: "제거",
+    imagesLabel: "원고 이미지（선택, 여러 장 가능）",
+    imagesHint: "원고에 이미지가 있으면 원본 파일을 업로드해 주세요. 장당 최대 10MB, 최대 20장. 업로드 후 순서 조정 가능.",
+    existingImagesTitle: "기존 이미지（순서 변경 또는 제거 가능）",
+    newImagesTitle: "새 이미지",
+    orderLabel: "순서",
+    addImage: "＋ 이미지 추가",
+    submitNew: "투고 제출",
+    submitEdit: "수정 제출",
+    errRequired: "필수",
+    errEmailFormat: "이메일 형식이 올바르지 않습니다",
+    errFirstSub: "선택해 주세요",
+    errAuthorIntro: "처음 투고하는 경우 저자 소개가 필요합니다",
+    errCategory: "투고 유형을 선택해 주세요",
+    errFiles: "Word 또는 PDF 파일을 최소 하나 업로드해 주세요",
+    uploadingWord: "Word 파일 업로드 중...",
+    parsingWord: "Word 내용 분석 중...",
+    uploadingPdf: "PDF 파일 업로드 중...",
+    uploadingImg: (i, total) => `이미지 ${i} / ${total} 업로드 중...`,
+    uploadingAvatar: "저자 사진 업로드 중...",
+    savingData: "투고 데이터 저장 중...",
+    uploadFail: "업로드 실패",
+    saveFail: "저장 실패",
+    errGeneric: "오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+    statusLabel: { submitted: "검토 대기", reviewing: "검토 중", accepted: "채택", rejected: "거절", converted: "게재 완료" },
+  },
+};
+
+const t = computed(() => i18n[currentLang.value] || i18n["zh-TW"]);
 
 const props = defineProps({
   issueNumber: { type: Number, default: null },
@@ -37,13 +735,12 @@ const existingWordUrl = ref(null);
 const existingPdfUrl = ref(null);
 const existingImages = ref([]);
 
-const statusLabel = { submitted: "待審核", reviewing: "審核中", accepted: "已接受", rejected: "已拒絕", converted: "已轉文章" };
 const statusColor = { submitted: "#e67e22", reviewing: "#2980b9", accepted: "#27ae60", rejected: "#c0392b", converted: "#8e44ad" };
 
 const doLookup = async () => {
   lookupError.value = "";
   if (!lookupName.value.trim() || !lookupEmail.value.trim()) {
-    lookupError.value = "請填寫姓名與 Email";
+    lookupError.value = t.value.lookupErrEmpty;
     return;
   }
   lookupLoading.value = true;
@@ -56,11 +753,11 @@ const doLookup = async () => {
     if (!res.success) throw new Error();
     lookupResults.value = res.data || [];
     if (lookupResults.value.length === 0)
-      lookupError.value = "找不到符合的投稿記錄，請確認姓名（本名或筆名）與 Email 是否正確。";
+      lookupError.value = t.value.lookupErrNotFound;
     else
       step.value = "results";
   } catch {
-    lookupError.value = "查詢失敗，請稍後再試。";
+    lookupError.value = t.value.lookupErrFail;
   } finally {
     lookupLoading.value = false;
   }
@@ -68,11 +765,11 @@ const doLookup = async () => {
 
 const selectForEdit = async (sub) => {
   if (sub.status === "converted") {
-    alert("此投稿已轉換為文章，無法修改。");
+    alert(t.value.convertedAlert);
     return;
   }
   step.value = "submitting";
-  submitProgress.value = "載入投稿資料...";
+  submitProgress.value = t.value.loadingData;
   try {
     const res = await $fetch("/api/submission-lookup", {
       method: "POST",
@@ -108,7 +805,7 @@ const selectForEdit = async (sub) => {
 
     step.value = "editing";
   } catch (err) {
-    alert("載入失敗：" + (err.message || "請稍後再試"));
+    alert(t.value.loadFail + (err.message || t.value.errGeneric));
     step.value = "results";
   }
 };
@@ -263,18 +960,18 @@ const handleAvatarChange = (e) => {
 const errors = ref({});
 const validate = () => {
   const e = {};
-  if (!form.value.real_name.trim()) e.real_name = "必填";
-  if (!form.value.author_bio.trim()) e.author_bio = "必填";
-  if (!form.value.email.trim()) e.email = "必填";
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email)) e.email = "Email 格式不正確";
-  if (form.value.is_first_submission === null) e.is_first_submission = "請選擇";
-  if (form.value.is_first_submission && !form.value.author_intro.trim()) e.author_intro = "初次投稿請填寫作者自介";
-  if (!form.value.title.trim()) e.title = "必填";
-  if (!form.value.category) e.category = "請選擇投稿類型";
-  if (!form.value.article_summary.trim()) e.article_summary = "必填";
+  if (!form.value.real_name.trim()) e.real_name = t.value.errRequired;
+  if (!form.value.author_bio.trim()) e.author_bio = t.value.errRequired;
+  if (!form.value.email.trim()) e.email = t.value.errRequired;
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email)) e.email = t.value.errEmailFormat;
+  if (form.value.is_first_submission === null) e.is_first_submission = t.value.errFirstSub;
+  if (form.value.is_first_submission && !form.value.author_intro.trim()) e.author_intro = t.value.errAuthorIntro;
+  if (!form.value.title.trim()) e.title = t.value.errRequired;
+  if (!form.value.category) e.category = t.value.errCategory;
+  if (!form.value.article_summary.trim()) e.article_summary = t.value.errRequired;
   // 新投稿必須要有檔案；修改模式可以保留既有檔案
   const hasFile = wordFile.value || pdfFile.value || existingWordUrl.value || existingPdfUrl.value;
-  if (!hasFile) e.files = "請至少上傳 Word 或 PDF 其中一個";
+  if (!hasFile) e.files = t.value.errFiles;
   errors.value = e;
   return Object.keys(e).length === 0;
 };
@@ -287,7 +984,7 @@ const uploadFile = async (file, folder) => {
   formData.append("file", file);
   formData.append("path", folder);
   const res = await $fetch("/api/media", { method: "POST", body: formData });
-  if (!res.success) throw new Error(res.error || "上傳失敗");
+  if (!res.success) throw new Error(res.error || t.value.uploadFail);
   return res.data.secure_url;
 };
 
@@ -322,16 +1019,16 @@ const handleSubmit = async () => {
     let wordUrl = existingWordUrl.value;
     let parsedHtml = null;
     if (wordFile.value) {
-      submitProgress.value = "正在上傳 Word 檔案...";
+      submitProgress.value = t.value.uploadingWord;
       wordUrl = await uploadFile(wordFile.value, folder);
-      submitProgress.value = "正在解析 Word 內容...";
+      submitProgress.value = t.value.parsingWord;
       parsedHtml = await parseWord(wordFile.value);
     }
 
     // 決定 PDF URL
     let pdfUrl = existingPdfUrl.value;
     if (pdfFile.value) {
-      submitProgress.value = "正在上傳 PDF 檔案...";
+      submitProgress.value = t.value.uploadingPdf;
       pdfUrl = await uploadFile(pdfFile.value, folder);
     }
 
@@ -340,7 +1037,7 @@ const handleSubmit = async () => {
     if (imageFiles.value.length > 0) {
       const imgFolder = `${folder}/images`;
       for (let i = 0; i < imageFiles.value.length; i++) {
-        submitProgress.value = `正在上傳圖片 ${i+1} / ${imageFiles.value.length}...`;
+        submitProgress.value = t.value.uploadingImg(i + 1, imageFiles.value.length);
         const url = await uploadFile(imageFiles.value[i].file, imgFolder);
         uploadedNewImages.push({ url, name: imageFiles.value[i].name, order: existingImages.value.length + i + 1 });
       }
@@ -353,11 +1050,11 @@ const handleSubmit = async () => {
     // 大頭貼
     let avatarUrl = existingAvatarUrl.value;
     if (avatarFile.value) {
-      submitProgress.value = "正在上傳大頭貼...";
+      submitProgress.value = t.value.uploadingAvatar;
       avatarUrl = await uploadFile(avatarFile.value, "images/authors");
     }
 
-    submitProgress.value = "正在儲存投稿資料...";
+    submitProgress.value = t.value.savingData;
     const res = await $fetch("/api/submit", {
       method: "POST",
       body: {
@@ -382,10 +1079,10 @@ const handleSubmit = async () => {
       },
     });
 
-    if (!res.success) throw new Error("儲存失敗");
+    if (!res.success) throw new Error(t.value.saveFail);
     step.value = "success";
   } catch (err) {
-    errorMsg.value = err.message || "發生錯誤，請稍後再試";
+    errorMsg.value = err.message || t.value.errGeneric;
     step.value = "error";
   }
 };
@@ -420,36 +1117,36 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
 
     <!-- ── 模式切換 Tab ─────────────────────────────────────── -->
     <div class="mode-tabs">
-      <button :class="['mode-tab', { active: pageMode === 'new' }]" @click="switchMode('new')">✏️ 新增投稿</button>
-      <button :class="['mode-tab', { active: pageMode === 'modify' }]" @click="switchMode('modify')">🔄 修改已投稿</button>
+      <button :class="['mode-tab', { active: pageMode === 'new' }]" @click="switchMode('new')">{{ t.tabNew }}</button>
+      <button :class="['mode-tab', { active: pageMode === 'modify' }]" @click="switchMode('modify')">{{ t.tabModify }}</button>
     </div>
 
     <!-- ════════════════════════════════════════════════════════
          ── 修改模式：查詢畫面 ─────────────────────────────── -->
     <div v-if="pageMode === 'modify' && step === 'lookup'" class="lookup-box">
-      <h3>查詢您的投稿記錄</h3>
-      <p class="lookup-hint">請輸入您投稿時使用的姓名（本名或筆名）及 Email，即可查詢並修改稿件。</p>
+      <h3>{{ t.lookupTitle }}</h3>
+      <p class="lookup-hint">{{ t.lookupHint }}</p>
       <div class="lookup-fields">
         <div class="lookup-field">
-          <label>投稿姓名（本名或筆名）</label>
-          <input v-model="lookupName" type="text" placeholder="請輸入投稿時的姓名" @keydown.enter="doLookup" />
+          <label>{{ t.lookupNameLabel }}</label>
+          <input v-model="lookupName" type="text" :placeholder="t.lookupNamePh" @keydown.enter="doLookup" />
         </div>
         <div class="lookup-field">
-          <label>投稿 Email</label>
-          <input v-model="lookupEmail" type="email" placeholder="請輸入投稿時的 Email" @keydown.enter="doLookup" />
+          <label>{{ t.lookupEmailLabel }}</label>
+          <input v-model="lookupEmail" type="email" :placeholder="t.lookupEmailPh" @keydown.enter="doLookup" />
         </div>
       </div>
       <p v-if="lookupError" class="lookup-error">{{ lookupError }}</p>
       <button class="btn-lookup" :disabled="lookupLoading" @click="doLookup">
-        {{ lookupLoading ? '查詢中...' : '🔍 查詢我的投稿' }}
+        {{ lookupLoading ? t.lookupBtnLoading : t.lookupBtn }}
       </button>
     </div>
 
     <!-- ── 修改模式：結果列表 ──────────────────────────────── -->
     <div v-else-if="pageMode === 'modify' && step === 'results'" class="results-box">
       <div class="results-header">
-        <h3>找到 {{ lookupResults.length }} 筆投稿記錄</h3>
-        <button class="btn-back" @click="step = 'lookup'">← 重新查詢</button>
+        <h3>{{ t.resultsTitle(lookupResults.length) }}</h3>
+        <button class="btn-back" @click="step = 'lookup'">{{ t.resultsBack }}</button>
       </div>
       <div class="result-list">
         <div v-for="sub in lookupResults" :key="sub.id" class="result-item">
@@ -459,47 +1156,47 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
               <span class="tag-cat">{{ sub.category }}</span>
               <span v-if="sub.issue_number" class="result-issue">Vol.{{ sub.issue_number }}</span>
               <span class="result-date">{{ formatDate(sub.created_at) }}</span>
-              <span class="status-dot" :style="{ background: statusColor[sub.status] }">{{ statusLabel[sub.status] }}</span>
+              <span class="status-dot" :style="{ background: statusColor[sub.status] }">{{ t.statusLabel[sub.status] }}</span>
             </div>
           </div>
           <button
             v-if="sub.status !== 'converted'"
             class="btn-select-edit"
             @click="selectForEdit(sub)"
-          >選擇修改</button>
-          <span v-else class="converted-note">已轉文章</span>
+          >{{ t.selectEdit }}</button>
+          <span v-else class="converted-note">{{ t.converted }}</span>
         </div>
       </div>
     </div>
 
     <!-- ── 修改中 banner ────────────────────────────────────── -->
     <div v-if="step === 'editing'" class="editing-banner">
-      <span>🔄 正在修改：<strong>{{ editingTitle }}</strong></span>
-      <button class="btn-cancel-edit" @click="step = 'results'">取消修改</button>
+      <span>{{ t.editingBanner }}<strong>{{ editingTitle }}</strong></span>
+      <button class="btn-cancel-edit" @click="step = 'results'">{{ t.cancelEdit }}</button>
     </div>
 
     <!-- ════════════════════════════════════════════════════════
          ── 結果畫面 ────────────────────────────────────────── -->
     <div v-if="step === 'success'" class="result-box success">
       <div class="result-icon">✅</div>
-      <h3>{{ editingId ? '修改已送出！' : '投稿已送出！' }}</h3>
-      <p>{{ editingId ? '您的稿件已更新，編輯團隊將盡快重新審閱。' : '感謝您的投稿，編輯團隊將盡快審閱並以 Email 回覆是否刊登。' }}</p>
+      <h3>{{ editingId ? t.successTitleEdit : t.successTitleNew }}</h3>
+      <p>{{ editingId ? t.successMsgEdit : t.successMsgNew }}</p>
       <button class="btn-secondary" @click="resetForm(); step = pageMode === 'new' ? 'form' : 'lookup'">
-        {{ pageMode === 'new' ? '再次投稿' : '返回查詢' }}
+        {{ pageMode === 'new' ? t.submitAgain : t.backToLookup }}
       </button>
     </div>
 
     <div v-else-if="step === 'submitting'" class="result-box submitting">
       <div class="spinner"></div>
-      <h3>正在提交中，請稍候⋯</h3>
+      <h3>{{ t.submittingTitle }}</h3>
       <p class="progress-msg">{{ submitProgress }}</p>
     </div>
 
     <div v-else-if="step === 'error'" class="result-box error">
       <div class="result-icon">❌</div>
-      <h3>提交失敗</h3>
+      <h3>{{ t.errorTitle }}</h3>
       <p>{{ errorMsg }}</p>
-      <button class="btn-secondary" @click="step = editingId ? 'editing' : 'form'">返回修改</button>
+      <button class="btn-secondary" @click="step = editingId ? 'editing' : 'form'">{{ t.backToEdit }}</button>
     </div>
 
     <!-- ════════════════════════════════════════════════════════
@@ -508,19 +1205,19 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
 
       <!-- ■ 作者資訊 -->
       <div class="form-section">
-        <h3 class="section-title">作者資訊</h3>
+        <h3 class="section-title">{{ t.sectionAuthor }}</h3>
 
         <div class="field" :class="{ 'has-error': errors.real_name }">
-          <label>作者真實姓名 <span class="required">*</span></label>
-          <p class="field-hint">本刊歡迎使用筆名發表，但在投稿時，仍請填寫真實姓名，以示自負文責。若使用筆名者，本刊不會對外透露真實姓名，在網站上的「專欄作者」區也會使用筆名顯示。</p>
-          <input v-model="form.real_name" type="text" placeholder="請填寫真實姓名" />
+          <label>{{ t.realNameLabel }} <span class="required">*</span></label>
+          <p class="field-hint">{{ t.realNameHint }}</p>
+          <input v-model="form.real_name" type="text" :placeholder="t.realNamePh" />
           <span v-if="errors.real_name" class="field-error">{{ errors.real_name }}</span>
         </div>
 
         <div class="field">
-          <label>發表暱稱（筆名）</label>
-          <p class="field-hint">若以本名發表者，無須填寫此欄位。若有多個筆名或同時用真名和筆名發表，網站上的「專欄作者」區也會有多個欄位。</p>
-          <input v-model="form.display_name" type="text" placeholder="若以本名發表可留空" />
+          <label>{{ t.displayNameLabel }}</label>
+          <p class="field-hint">{{ t.displayNameHint }}</p>
+          <input v-model="form.display_name" type="text" :placeholder="t.displayNamePh" />
         </div>
 
         <!-- ── 舊作者帶入 ── -->
@@ -532,20 +1229,20 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
               :disabled="oldAuthorLoading || (!form.display_name.trim() && !form.real_name.trim())"
               @click="lookupOldAuthor"
             >
-              {{ oldAuthorLoading ? '查詢中...' : '🔍 我是舊作者，帶入資料' }}
+              {{ oldAuthorLoading ? t.oldAuthorBtnLoading : t.oldAuthorBtn }}
             </button>
-            <span class="old-author-hint-inline">（填寫本名或筆名後可點擊查詢）</span>
+            <span class="old-author-hint-inline">{{ t.oldAuthorHint }}</span>
           </div>
 
           <!-- 查無結果 -->
           <div v-if="oldAuthorSearched && !oldAuthorLoading && oldAuthorMatches.length === 0 && !oldAuthorDone" class="old-author-no-match">
-            找不到符合的作者記錄，請繼續填寫下方欄位。
-            <button type="button" class="btn-dismiss-old" @click="oldAuthorDone = true">知道了</button>
+            {{ t.oldAuthorNoMatch }}
+            <button type="button" class="btn-dismiss-old" @click="oldAuthorDone = true">{{ t.oldAuthorDismiss }}</button>
           </div>
 
           <!-- 有符合結果 -->
           <div v-if="oldAuthorMatches.length > 0" class="old-author-matches">
-            <p class="old-author-match-title">找到以下作者，請選擇符合的一位：</p>
+            <p class="old-author-match-title">{{ t.oldAuthorMatchTitle }}</p>
             <div v-for="author in oldAuthorMatches" :key="author.name" class="old-author-item">
               <img v-if="author.author_image" :src="author.author_image" class="old-author-thumb" />
               <div v-else class="old-author-thumb-placeholder">👤</div>
@@ -553,148 +1250,148 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
                 <div class="old-author-name">{{ author.name }}</div>
                 <div v-if="author.bio" class="old-author-bio">{{ author.bio.slice(0, 60) }}{{ author.bio.length > 60 ? '…' : '' }}</div>
               </div>
-              <button type="button" class="btn-select-author" @click="selectOldAuthor(author)">選擇</button>
+              <button type="button" class="btn-select-author" @click="selectOldAuthor(author)">{{ t.oldAuthorSelect }}</button>
             </div>
-            <button type="button" class="btn-dismiss-old" @click="dismissOldAuthor">都不是我</button>
+            <button type="button" class="btn-dismiss-old" @click="dismissOldAuthor">{{ t.oldAuthorNotMe }}</button>
           </div>
 
           <!-- 已帶入 -->
-          <div v-if="oldAuthorDone" class="old-author-done">✅ 已帶入作者資料，如有需要可直接修改下方欄位。</div>
+          <div v-if="oldAuthorDone" class="old-author-done">{{ t.oldAuthorDone }}</div>
         </div>
 
         <div class="field" :class="{ 'has-error': errors.author_bio }">
-          <label>作者身分 <span class="required">*</span></label>
-          <p class="field-hint">可填信仰認同、工作、學歷、或其他身分。例如：約瑟──拿撒勒人、木匠、長老教會會友。</p>
-          <input v-model="form.author_bio" type="text" placeholder="例如：拿撒勒人、木匠、長老教會會友" />
+          <label>{{ t.bioLabel }} <span class="required">*</span></label>
+          <p class="field-hint">{{ t.bioHint }}</p>
+          <input v-model="form.author_bio" type="text" :placeholder="t.bioPh" />
           <span v-if="errors.author_bio" class="field-error">{{ errors.author_bio }}</span>
         </div>
 
         <div class="field" :class="{ 'has-error': errors.email }">
-          <label>聯絡 Email <span class="required">*</span></label>
-          <p class="field-hint">本刊會以電子信箱回覆是否刊登稿件。</p>
+          <label>{{ t.emailLabel }} <span class="required">*</span></label>
+          <p class="field-hint">{{ t.emailHint }}</p>
           <input v-model="form.email" type="email" placeholder="example@email.com" :readonly="!!editingId" />
           <span v-if="errors.email" class="field-error">{{ errors.email }}</span>
         </div>
 
         <div class="field" :class="{ 'has-error': errors.is_first_submission }">
-          <label>是否是初次投稿本刊 <span class="required">*</span></label>
+          <label>{{ t.firstSubLabel }} <span class="required">*</span></label>
           <div class="radio-group">
-            <label class="radio-label"><input type="radio" :value="true" v-model="form.is_first_submission" /> 是，這是我第一次投稿</label>
-            <label class="radio-label"><input type="radio" :value="false" v-model="form.is_first_submission" /> 否，我曾經投稿過</label>
+            <label class="radio-label"><input type="radio" :value="true" v-model="form.is_first_submission" /> {{ t.firstSubYes }}</label>
+            <label class="radio-label"><input type="radio" :value="false" v-model="form.is_first_submission" /> {{ t.firstSubNo }}</label>
           </div>
           <span v-if="errors.is_first_submission" class="field-error">{{ errors.is_first_submission }}</span>
         </div>
 
         <div class="field first-extra" :class="{ 'has-error': errors.author_intro }">
           <label>
-            作者自介{{ form.is_first_submission === false ? '（更新用，選填）' : '' }}
+            {{ t.introLabel }}{{ form.is_first_submission === false ? t.introLabelUpdate : '' }}
             <span v-if="form.is_first_submission" class="required">*</span>
           </label>
-          <p class="field-hint">約100-150字，會刊登在網站上。若要更新自介亦可填寫，但請在後面附註（更新）。</p>
-          <textarea v-model="form.author_intro" rows="4" placeholder="請簡介自己的信仰背景與相關經歷（約100-150字）"></textarea>
-          <div class="char-count" :class="{ warn: form.author_intro.length > 160 }">{{ form.author_intro.length }} 字</div>
+          <p class="field-hint">{{ t.introHint }}</p>
+          <textarea v-model="form.author_intro" rows="4" :placeholder="t.introPh"></textarea>
+          <div class="char-count" :class="{ warn: form.author_intro.length > 160 }">{{ form.author_intro.length }}</div>
           <span v-if="errors.author_intro" class="field-error">{{ errors.author_intro }}</span>
         </div>
 
         <div class="field first-extra">
-          <label>作者大頭貼{{ form.is_first_submission === false ? '（更新用，選填）' : '' }}</label>
-          <p class="field-hint">會刊登在網站上，若要更新亦可上傳。照片可以是本人、教堂、聖像、風景照、卡通人物照、手繪圖，確保圖片版權無虞即可。</p>
+          <label>{{ t.avatarLabel }}{{ form.is_first_submission === false ? t.introLabelUpdate : '' }}</label>
+          <p class="field-hint">{{ t.avatarHint }}</p>
           <div class="avatar-upload" @click="avatarInput?.click()">
             <img v-if="avatarPreview" :src="avatarPreview" class="avatar-preview" />
             <div v-else class="avatar-placeholder">
-              <span>點擊上傳大頭貼</span>
+              <span>{{ t.avatarClick }}</span>
               <span class="hint-small">JPG / PNG / GIF / WebP</span>
             </div>
           </div>
           <input ref="avatarInput" type="file" accept="image/*" style="display:none" @change="handleAvatarChange" />
-          <button v-if="avatarFile || existingAvatarUrl" type="button" class="btn-remove-sm" @click="avatarFile=null; avatarPreview=null; existingAvatarUrl=null">移除圖片</button>
+          <button v-if="avatarFile || existingAvatarUrl" type="button" class="btn-remove-sm" @click="avatarFile=null; avatarPreview=null; existingAvatarUrl=null">{{ t.avatarRemove }}</button>
         </div>
       </div>
 
       <!-- ■ 文章資訊 -->
       <div class="form-section">
-        <h3 class="section-title">文章資訊</h3>
+        <h3 class="section-title">{{ t.sectionArticle }}</h3>
 
         <div class="field" :class="{ 'has-error': errors.title }">
-          <label>文章標題 <span class="required">*</span></label>
-          <input v-model="form.title" type="text" placeholder="請填寫文章標題" />
+          <label>{{ t.titleLabel }} <span class="required">*</span></label>
+          <input v-model="form.title" type="text" :placeholder="t.titlePh" />
           <span v-if="errors.title" class="field-error">{{ errors.title }}</span>
         </div>
 
         <div class="field" :class="{ 'has-error': errors.category }">
-          <label>投稿類型 <span class="required">*</span></label>
+          <label>{{ t.categoryLabel }} <span class="required">*</span></label>
           <select v-model="form.category">
-            <option value="">請選擇投稿類型</option>
+            <option value="">{{ t.categoryPh }}</option>
             <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
           </select>
           <span v-if="errors.category" class="field-error">{{ errors.category }}</span>
         </div>
 
         <div class="field" :class="{ 'has-error': errors.article_summary }">
-          <label>投稿文章簡介 <span class="required">*</span></label>
-          <p class="field-hint">約100-150字，會刊登在網站上。</p>
-          <textarea v-model="form.article_summary" rows="4" placeholder="請簡介文章主旨（約100-150字）"></textarea>
-          <div class="char-count" :class="{ warn: form.article_summary.length > 160 }">{{ form.article_summary.length }} 字</div>
+          <label>{{ t.summaryLabel }} <span class="required">*</span></label>
+          <p class="field-hint">{{ t.summaryHint }}</p>
+          <textarea v-model="form.article_summary" rows="4" :placeholder="t.summaryPh"></textarea>
+          <div class="char-count" :class="{ warn: form.article_summary.length > 160 }">{{ form.article_summary.length }}</div>
           <span v-if="errors.article_summary" class="field-error">{{ errors.article_summary }}</span>
         </div>
 
         <div class="field">
-          <label>文章關鍵字</label>
-          <p class="field-hint">至多 5 個，輸入後按 Enter 或點「新增」。</p>
+          <label>{{ t.keywordLabel }}</label>
+          <p class="field-hint">{{ t.keywordHint }}</p>
           <div class="keyword-tags">
             <span v-for="(kw, i) in keywords" :key="i" class="tag">
               {{ kw }}<button type="button" @click="removeKeyword(i)" class="tag-remove">×</button>
             </span>
           </div>
           <div v-if="keywords.length < 5" class="keyword-input-row">
-            <input v-model="keywordInput" type="text" placeholder="輸入關鍵字" @keydown="onKeydownKw" />
-            <button type="button" class="btn-add-kw" @click="addKeyword">新增</button>
+            <input v-model="keywordInput" type="text" :placeholder="t.keywordPh" @keydown="onKeydownKw" />
+            <button type="button" class="btn-add-kw" @click="addKeyword">{{ t.keywordAdd }}</button>
           </div>
-          <div v-else class="hint-small">已達 5 個上限</div>
+          <div v-else class="hint-small">{{ t.keywordMax }}</div>
         </div>
 
         <div class="field">
-          <label>備註</label>
-          <textarea v-model="form.notes" rows="3" placeholder="如有其他補充事項，請填寫於此（選填）"></textarea>
+          <label>{{ t.notesLabel }}</label>
+          <textarea v-model="form.notes" rows="3" :placeholder="t.notesPh"></textarea>
         </div>
       </div>
 
       <!-- ■ 檔案上傳 -->
       <div class="form-section">
-        <h3 class="section-title">檔案上傳</h3>
+        <h3 class="section-title">{{ t.sectionFiles }}</h3>
 
         <div class="field" :class="{ 'has-error': errors.files }">
-          <label>投稿檔案 <span class="required">*</span></label>
-          <p class="field-hint">請同時附上 Word 檔及 PDF 檔。（至少上傳一種）</p>
+          <label>{{ t.filesLabel }} <span class="required">*</span></label>
+          <p class="field-hint">{{ t.filesHint }}</p>
 
           <div class="file-row">
             <!-- Word -->
             <div class="file-slot" :class="{ filled: wordFile || existingWordUrl }">
-              <div class="file-slot-label">📄 Word 檔（.docx）</div>
+              <div class="file-slot-label">{{ t.wordLabel }}</div>
               <div v-if="existingWordUrl && !wordFile" class="existing-file">
-                <a :href="existingWordUrl" target="_blank">已上傳原稿</a>
-                <span class="hint-small">（如需更換請選擇新檔案）</span>
+                <a :href="existingWordUrl" target="_blank">{{ t.existingFile }}</a>
+                <span class="hint-small">{{ t.existingHint }}</span>
               </div>
               <div v-if="wordFile" class="file-name">{{ wordFile.name }}</div>
               <button type="button" class="btn-file" @click="wordInput?.click()">
-                {{ wordFile ? '重新選擇' : (existingWordUrl ? '更換檔案' : '選擇檔案') }}
+                {{ wordFile ? t.reselect : (existingWordUrl ? t.replaceFile : t.chooseFile) }}
               </button>
-              <button v-if="wordFile" type="button" class="btn-remove-sm" @click="wordFile=null">移除</button>
+              <button v-if="wordFile" type="button" class="btn-remove-sm" @click="wordFile=null">{{ t.remove }}</button>
               <input ref="wordInput" type="file" accept=".docx,.doc" style="display:none" @change="handleWordChange" />
             </div>
 
             <!-- PDF -->
             <div class="file-slot" :class="{ filled: pdfFile || existingPdfUrl }">
-              <div class="file-slot-label">📑 PDF 檔（.pdf）</div>
+              <div class="file-slot-label">{{ t.pdfLabel }}</div>
               <div v-if="existingPdfUrl && !pdfFile" class="existing-file">
-                <a :href="existingPdfUrl" target="_blank">已上傳原稿</a>
-                <span class="hint-small">（如需更換請選擇新檔案）</span>
+                <a :href="existingPdfUrl" target="_blank">{{ t.existingFile }}</a>
+                <span class="hint-small">{{ t.existingHint }}</span>
               </div>
               <div v-if="pdfFile" class="file-name">{{ pdfFile.name }}</div>
               <button type="button" class="btn-file" @click="pdfInput?.click()">
-                {{ pdfFile ? '重新選擇' : (existingPdfUrl ? '更換檔案' : '選擇檔案') }}
+                {{ pdfFile ? t.reselect : (existingPdfUrl ? t.replaceFile : t.chooseFile) }}
               </button>
-              <button v-if="pdfFile" type="button" class="btn-remove-sm" @click="pdfFile=null">移除</button>
+              <button v-if="pdfFile" type="button" class="btn-remove-sm" @click="pdfFile=null">{{ t.remove }}</button>
               <input ref="pdfInput" type="file" accept=".pdf" style="display:none" @change="handlePdfChange" />
             </div>
           </div>
@@ -703,17 +1400,17 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
 
         <!-- 附圖 -->
         <div class="field">
-          <label>文章附圖（選填，可多張）</label>
-          <p class="field-hint">若文章有附圖，請在此上傳圖片原檔。每張上限 10MB，最多 20 張。上傳後可調整順序。</p>
+          <label>{{ t.imagesLabel }}</label>
+          <p class="field-hint">{{ t.imagesHint }}</p>
 
           <!-- 既有圖片（修改模式） -->
-          <div v-if="existingImages.length > 0" class="image-list-label">原有圖片（可調整順序或移除）</div>
+          <div v-if="existingImages.length > 0" class="image-list-label">{{ t.existingImagesTitle }}</div>
           <div v-if="existingImages.length > 0" class="image-list">
             <div v-for="(img, i) in existingImages" :key="'e'+i" class="image-item existing-img">
               <img :src="img.url" class="img-thumb" />
-              <div class="img-name">{{ img.name || `圖片 ${i+1}` }}</div>
+              <div class="img-name">{{ img.name || `${i+1}` }}</div>
               <div class="img-actions">
-                <label class="order-label">順序</label>
+                <label class="order-label">{{ t.orderLabel }}</label>
                 <input type="number" class="order-input" :value="i+1" min="1" :max="existingImages.length" @change="reorderExistingImage(i, +$event.target.value)" />
                 <button type="button" @click="removeExistingImage(i)" class="btn-remove-sm">✕</button>
               </div>
@@ -721,28 +1418,28 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
           </div>
 
           <!-- 新上傳圖片 -->
-          <div v-if="imageFiles.length > 0" class="image-list-label">新增圖片</div>
+          <div v-if="imageFiles.length > 0" class="image-list-label">{{ t.newImagesTitle }}</div>
           <div v-if="imageFiles.length > 0" class="image-list">
             <div v-for="(img, i) in imageFiles" :key="'n'+i" class="image-item">
               <img v-if="img.previewUrl" :src="img.previewUrl" class="img-thumb" />
               <div v-else class="img-thumb-placeholder">📎</div>
               <div class="img-name">{{ img.name }}</div>
               <div class="img-actions">
-                <label class="order-label">順序</label>
+                <label class="order-label">{{ t.orderLabel }}</label>
                 <input type="number" class="order-input" :value="i+1" min="1" :max="imageFiles.length" @change="reorderNewImage(i, +$event.target.value)" />
                 <button type="button" @click="removeImage(i)" class="btn-remove-sm">✕</button>
               </div>
             </div>
           </div>
 
-          <button type="button" class="btn-file" @click="imgInput?.click()" style="margin-top:8px">＋ 新增圖片</button>
+          <button type="button" class="btn-file" @click="imgInput?.click()" style="margin-top:8px">{{ t.addImage }}</button>
           <input ref="imgInput" type="file" accept="image/*" multiple style="display:none" @change="handleImgChange" />
         </div>
       </div>
 
       <div class="submit-row">
         <button type="submit" class="btn-submit">
-          {{ editingId ? '送出修改' : '送出投稿' }}
+          {{ editingId ? t.submitEdit : t.submitNew }}
         </button>
       </div>
     </form>
