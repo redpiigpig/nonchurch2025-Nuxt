@@ -1511,6 +1511,7 @@ def generate_article_docx(article_data, output_path):
     if article_data.get('keyword'):
         generator.add_keywords(article_data['keyword'])
         generator._add_blank_line()
+        generator._add_blank_line()
 
     if article_data.get('content'):
         generator.add_content(article_data['content'])
