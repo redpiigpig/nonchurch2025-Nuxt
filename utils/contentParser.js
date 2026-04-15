@@ -44,6 +44,14 @@ export async function parseAndClassifyDocument(
       specContent,
       issueContext,
     );
+    // Gemini 有 token 限制，長文章 content 會被截斷。
+    // 改用 mammoth 完整 HTML 重新提取內文，確保不遺失後半段。
+    classified.content = extractContentFromHtml(rawContent.html);
+    // footnotes 也從完整 HTML 重新提取（Gemini 可能漏掉）
+    const fullFootnotes = extractFootnotesFromHtml(rawContent.html);
+    if (fullFootnotes.length > 0) {
+      classified.footnotes = fullFootnotes;
+    }
   } else {
     classified = classifyWithRules(rawContent);
   }
@@ -416,6 +424,56 @@ function convertToMarkdown(element) {
   return text;
 }
 
+/**
+ * 從 mammoth 完整 HTML 提取內文（段落轉 Markdown，保留圖片佔位）
+ * 用於 AI 模式下替換 Gemini 截斷的 content，確保長文不遺失後半段。
+ */
+function extractContentFromHtml(html) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  const contentParts = [];
+
+  Array.from(doc.body.children).forEach((el) => {
+    const text = el.textContent.trim();
+    if (!text) return;
+    // 腳注段落跳過（由 extractFootnotesFromHtml 處理）
+    if (/^\[\^(\d+)\][：:]/.test(text)) return;
+
+    if (el.querySelector("img") || el.innerHTML.includes("[[圖片")) {
+      contentParts.push(el.outerHTML);
+    } else if (el.tagName === "H2") {
+      contentParts.push(`## ${text}`);
+    } else if (el.tagName === "H3") {
+      contentParts.push(`### ${text}`);
+    } else if (el.tagName === "BLOCKQUOTE") {
+      contentParts.push(
+        `<blockquote>\n${text}\n<div class="rel">── 出處</div>\n</blockquote>`,
+      );
+    } else {
+      contentParts.push(text);
+    }
+  });
+
+  return contentParts.join("\n\n");
+}
+
+/**
+ * 從 mammoth 完整 HTML 提取腳注陣列 [{id, text}, ...]
+ */
+function extractFootnotesFromHtml(html) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  const footnotes = [];
+
+  Array.from(doc.body.children).forEach((el) => {
+    const text = el.textContent.trim();
+    const m = text.match(/^\[\^(\d+)\][：:]\s*(.*)/);
+    if (m) footnotes.push({ id: parseInt(m[1]), text: m[2] });
+  });
+
+  return footnotes;
+}
+
 // layout 對應的 CSS class
 const LAYOUT_CLASS = {
   center: "img-bottom px-600",
@@ -427,7 +485,7 @@ const LAYOUT_CLASS = {
  * 將 content 中的 [[圖片N:layout]] 佔位標記替換為正式 figure HTML
  * 🌟 修改：不再寫死實體路徑，保留 [[圖片N]] 供前端從 media_assets 動態替換
  */
-function replaceImagePlaceholders(content, issue, articleSeq) {
+function replaceImagePlaceholders(content, _issue, articleSeq) {
   if (!content) return content;
   // 同時相容舊格式 [[圖片N]] 和新格式 [[圖片N:layout]]
   return content.replace(

@@ -423,11 +423,13 @@ const handleReupload = async (event) => {
 
   loading.value = true;
   try {
-    const mammoth = await import("mammoth");
+    // 動態載入 mammoth，確保拿到真正的預設 export（修正 CJS/ESM 互操作問題）
+    const mammothModule = await import("mammoth");
+    const mammoth = mammothModule.default ?? mammothModule;
     const arrayBuffer = await file.arrayBuffer();
 
     let imageCounter = 0;
-    const result = await mammoth.default.convertToHtml({
+    const result = await mammoth.convertToHtml({
       arrayBuffer,
       convertImage: mammoth.images.inline(async () => {
         imageCounter++;
