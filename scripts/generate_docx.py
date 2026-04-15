@@ -106,6 +106,13 @@ class ProfessionalDocxGenerator:
             rf.set(qn('w:eastAsia'), east_font)
         if color:
             run.font.color.rgb = RGBColor(*color)
+        # 明確設定 w:szCs（複合腳本字型大小），確保中文字也套用正確字級
+        half_pts = str(int(size * 2))
+        szCs = rPr.find(qn('w:szCs'))
+        if szCs is None:
+            szCs = OxmlElement('w:szCs')
+            rPr.append(szCs)
+        szCs.set(qn('w:val'), half_pts)
 
     def _hex_rgb(self, hex_color):
         h = hex_color.lstrip('#')
@@ -1260,13 +1267,21 @@ class ProfessionalDocxGenerator:
             title = title[1:]
         title = title.strip()
 
-        # 前置空行（比 space_before 可靠，不受 contextualSpacing 影響）
+        # 前置空行
         self._add_blank_line()
 
         p = self.doc.add_paragraph()
         p.paragraph_format.first_line_indent = Pt(0)
-        p.paragraph_format.space_before      = Pt(9)   # 前 0.5 行距（≈9pt）
-        p.paragraph_format.space_after       = Pt(9)   # 後 0.5 行距（≈9pt）
+
+        # 明確覆蓋 Normal style 的 1.5× 行距，改為單行；前後各 0.5 行距（≈9pt）
+        pPr = p._element.get_or_add_pPr()
+        sp = OxmlElement('w:spacing')
+        sp.set(qn('w:before'),   '180')   # 9pt × 20 = 180 twips
+        sp.set(qn('w:after'),    '180')   # 9pt × 20 = 180 twips
+        sp.set(qn('w:line'),     '240')   # 單行行距（240 = 1×）
+        sp.set(qn('w:lineRule'), 'auto')
+        pPr.append(sp)
+
         run = p.add_run(title)
         self._apply_font(run, 'Times New Roman', 'NSimSun', size=14, bold=True)
 
