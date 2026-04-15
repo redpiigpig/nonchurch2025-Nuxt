@@ -423,10 +423,8 @@ class ProfessionalDocxGenerator:
                             portrait_border=False):
         """浮動表格：圖片＋圖說組成矩形群組，整體文繞圖
         portrait_border=True 時加人物照片單層3px粗框（DrawingML，與行內圖一致）"""
-        # 人物照片需要在框線外留 0.5cm margin，table 要加寬
-        margin_cm = 0.5 if portrait_border else 0.0
-        margin_dxa = int(margin_cm * 567)
-        table_width_dxa = int(width_cm * 567) + 2 * margin_dxa  # 圖片寬 + 左右各 0.5cm
+        margin_dxa = 0
+        table_width_dxa = int(width_cm * 567)
 
         tbl = self.doc.add_table(rows=1, cols=1)
 
@@ -504,11 +502,11 @@ class ProfessionalDocxGenerator:
             tcBorders.append(b)
         tcPr.append(tcBorders)
 
-        # 儲存格 margin：人物照片四周留 0.5cm，一般圖片為 0
+        # 儲存格 margin：全部 0，圖片緊貼邊界
         tcMar = OxmlElement('w:tcMar')
         for side in ('top', 'left', 'bottom', 'right'):
             m = OxmlElement(f'w:{side}')
-            m.set(qn('w:w'),    str(margin_dxa))
+            m.set(qn('w:w'),    '0')
             m.set(qn('w:type'), 'dxa')
             tcMar.append(m)
         tcPr.append(tcMar)
@@ -1141,6 +1139,13 @@ class ProfessionalDocxGenerator:
 
         for ln_el in list(spPr_el.findall(f'{{{A_NS}}}ln')):
             spPr_el.remove(ln_el)
+        for geom_el in list(spPr_el.findall(f'{{{A_NS}}}prstGeom')):
+            spPr_el.remove(geom_el)
+
+        # 明確宣告矩形形狀，框線才不會被截斷
+        geom_el = lxml_etree.SubElement(
+            spPr_el, f'{{{A_NS}}}prstGeom', attrib={'prst': 'rect'})
+        lxml_etree.SubElement(geom_el, f'{{{A_NS}}}avLst')
 
         # thinThick：細線（內）+ 自動空格 + 粗線（外）
         # 總寬 ≈ 5pt → 細線≈1pt、空格≈1pt、粗線≈3pt
