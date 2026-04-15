@@ -384,7 +384,12 @@ class ProfessionalDocxGenerator:
             'border'  in img_style_m.group(1).lower()
         )
 
-        img_stream = self._download_image(src) if src else None
+        # 人物照片：正方形裁切 + 固定 7cm；一般圖片正常下載
+        if has_portrait_border:
+            img_stream = self._download_and_crop_square(src) if src else None
+            width_cm = 7.0
+        else:
+            img_stream = self._download_image(src) if src else None
 
         if not img_stream:
             p = self.doc.add_paragraph()
@@ -511,7 +516,12 @@ class ProfessionalDocxGenerator:
         img_para.paragraph_format.space_before = Pt(0)
         img_para.paragraph_format.space_after  = Pt(0)
         img_run = img_para.add_run()
-        img_run.add_picture(img_stream, width=Cm(width_cm))
+        if portrait_border:
+            # 人物照片：寬高都是 7cm（已正方形裁切），套雙框線
+            img_run.add_picture(img_stream, width=Cm(width_cm), height=Cm(width_cm))
+            self._add_portrait_double_border(img_run)
+        else:
+            img_run.add_picture(img_stream, width=Cm(width_cm))
 
         # 圖說（第 2 段，支援 <br> 換行）
         if caption_lines:
@@ -1109,6 +1119,35 @@ class ProfessionalDocxGenerator:
                     self._apply_font(run, 'Times New Roman', 'NSimSun',
                                      size=11, bold=(ctag.lower() == 'th'))
         self._add_blank_line()
+
+    def _add_portrait_double_border(self, run):
+        """人物照片雙框線：1pt 細線 + 1pt 空格 + 3pt 粗線（DrawingML thinThick compound）"""
+        from lxml import etree as lxml_etree
+        PIC_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture'
+        A_NS   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        drawing = run._r.find(qn('w:drawing'))
+        if drawing is None:
+            return
+        pic_el = drawing.find('.//' + f'{{{PIC_NS}}}pic')
+        if pic_el is None:
+            return
+        spPr_el = pic_el.find(f'{{{PIC_NS}}}spPr')
+        if spPr_el is None:
+            spPr_el = lxml_etree.SubElement(pic_el, f'{{{PIC_NS}}}spPr')
+
+        for ln_el in list(spPr_el.findall(f'{{{A_NS}}}ln')):
+            spPr_el.remove(ln_el)
+
+        # thinThick：細線（內）+ 自動空格 + 粗線（外）
+        # 總寬 ≈ 5pt → 細線≈1pt、空格≈1pt、粗線≈3pt
+        total_emu = int(5 * 12700)
+        ln_el = lxml_etree.SubElement(
+            spPr_el, f'{{{A_NS}}}ln',
+            attrib={'w': str(total_emu), 'cap': 'flat', 'cmpd': 'thinThick', 'algn': 'ctr'})
+        sf_el = lxml_etree.SubElement(ln_el, f'{{{A_NS}}}solidFill')
+        lxml_etree.SubElement(sf_el, f'{{{A_NS}}}srgbClr', attrib={'val': '000000'})
+        lxml_etree.SubElement(ln_el, f'{{{A_NS}}}prstDash', attrib={'val': 'solid'})
 
     def _add_picture_border(self, run, border_pt=0.75, color='000000'):
         """在已插入圖片的 run 上加 drawingML 內框線（模擬 CSS border）。"""
