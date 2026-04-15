@@ -411,7 +411,7 @@ const i18n = {
     firstSubNo: "No, I have submitted before",
     introLabel: "Author bio",
     introLabelUpdate: "(for update, optional)",
-    introHint: "About 100–150 words, to be published on the website. You may also update your bio here — please add "(update)" at the end.",
+    introHint: "About 100–150 words, to be published on the website. You may also update your bio here — please add '(update)' at the end.",
     introPh: "Brief description of your faith background and relevant experience (approx. 100–150 words)",
     avatarLabel: "Author photo",
     avatarHint: "To be published on the website. You may upload a portrait, church photo, icon, landscape, cartoon, or illustration — please ensure you have rights to the image.",
