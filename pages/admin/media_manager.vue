@@ -197,9 +197,15 @@ const uploadArtImage = async (event) => {
 
   try {
     for (const file of files) {
+      const issueNum = selectedIssue.value;
+      const artSort = selectedArticle.value.sort_order;
+      const imgOrder = nextOrder;
+      const filename = `issue${issueNum}_${artSort}-${imgOrder}`;
+
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("path", `articles/issue-${selectedIssue.value}`);
+      formData.append("path", `articles/issue-${issueNum}`);
+      formData.append("filename", filename);
 
       const uploadRes = await $fetch("/api/media", { method: "POST", body: formData });
       if (!uploadRes.success) throw new Error(uploadRes.error);

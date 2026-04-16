@@ -311,7 +311,7 @@
   text-align: justify;
 }
 
-.footnotes li a:last-of-type {
+.footnotes li .footnote-backref {
   opacity: 0;
   position: absolute;
   left: 0;

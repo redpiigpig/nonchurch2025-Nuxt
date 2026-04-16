@@ -47,8 +47,11 @@ const generateTocContent = () => {
 // ── 自訂 Tiptap Extension ─────────────────────────────────────────
 
 // 1. FootnoteRef：保留腳注引用 <sup class="footnote-ref">
-const FootnoteRef = Mark.create({
+const FootnoteRef = Node.create({
   name: "footnoteRef",
+  group: "inline",
+  inline: true,
+  atom: true,
   addAttributes() {
     return {
       fnId: { default: null },
@@ -64,8 +67,8 @@ const FootnoteRef = Mark.create({
       },
     ];
   },
-  renderHTML({ HTMLAttributes }) {
-    const id = HTMLAttributes.fnId || "?";
+  renderHTML({ node }) {
+    const id = node.attrs.fnId || "?";
     return [
       "sup",
       { class: "footnote-ref" },
@@ -118,12 +121,110 @@ const RawBlock = Node.create({
     ];
   },
   addNodeView() {
-    return ({ node }) => {
-      const dom = document.createElement("div");
-      dom.className = "raw-block-view";
-      dom.contentEditable = "false";
-      dom.innerHTML = node.attrs.html;
-      return { dom };
+    return ({ node, getPos, editor }) => {
+      // 解析 [[圖片N]] 佔位符為實際 URL
+      const resolveHtml = (html) => {
+        const assets = form.value?.media_assets || [];
+        return html.replace(/src="\[\[圖片(\d+)\]\]"/g, (match, orderStr) => {
+          const found = assets.find((m) => m.sort_order === parseInt(orderStr));
+          return found ? `src="${found.image_url}"` : match;
+        });
+      };
+
+      let currentHtml = node.attrs.html;
+
+      // ── 外層 wrapper ──────────────────────────────────────
+      const wrapper = document.createElement("div");
+      wrapper.className = "raw-block-wrapper";
+
+      // ── 預覽區 ────────────────────────────────────────────
+      const preview = document.createElement("div");
+      preview.className = "raw-block-view";
+      preview.contentEditable = "false";
+      preview.innerHTML = resolveHtml(currentHtml);
+
+      // ── 編輯按鈕 ──────────────────────────────────────────
+      const editBtn = document.createElement("button");
+      editBtn.textContent = "✏️ 編輯";
+      editBtn.type = "button";
+      editBtn.className = "raw-block-edit-btn";
+
+      // ── 編輯區（初始隱藏）────────────────────────────────
+      const editArea = document.createElement("div");
+      editArea.className = "raw-block-edit-area";
+      editArea.style.display = "none";
+
+      const textarea = document.createElement("textarea");
+      textarea.value = currentHtml;
+      textarea.className = "raw-block-textarea";
+      textarea.rows = 8;
+      textarea.spellcheck = false;
+
+      const btnRow = document.createElement("div");
+      btnRow.className = "raw-block-btn-row";
+
+      const saveBtn = document.createElement("button");
+      saveBtn.textContent = "✅ 儲存";
+      saveBtn.type = "button";
+      saveBtn.className = "raw-block-save-btn";
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.textContent = "✖ 取消";
+      cancelBtn.type = "button";
+      cancelBtn.className = "raw-block-cancel-btn";
+
+      btnRow.appendChild(saveBtn);
+      btnRow.appendChild(cancelBtn);
+      editArea.appendChild(textarea);
+      editArea.appendChild(btnRow);
+
+      // ── 事件 ──────────────────────────────────────────────
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        textarea.value = currentHtml;
+        editArea.style.display = "block";
+        editBtn.style.display = "none";
+        preview.style.opacity = "0.4";
+        textarea.focus();
+      });
+
+      saveBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const newHtml = textarea.value;
+        if (typeof getPos === "function") {
+          editor.chain().command(({ tr }) => {
+            tr.setNodeMarkup(getPos(), undefined, { html: newHtml });
+            return true;
+          }).run();
+        }
+        currentHtml = newHtml;
+        preview.innerHTML = resolveHtml(newHtml);
+        editArea.style.display = "none";
+        editBtn.style.display = "";
+        preview.style.opacity = "";
+      });
+
+      cancelBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        editArea.style.display = "none";
+        editBtn.style.display = "";
+        preview.style.opacity = "";
+      });
+
+      wrapper.appendChild(preview);
+      wrapper.appendChild(editBtn);
+      wrapper.appendChild(editArea);
+
+      return {
+        dom: wrapper,
+        update(updatedNode) {
+          if (updatedNode.type.name !== "rawBlock") return false;
+          currentHtml = updatedNode.attrs.html;
+          preview.innerHTML = resolveHtml(currentHtml);
+          textarea.value = currentHtml;
+          return true;
+        },
+      };
     };
   },
 });
@@ -1358,13 +1459,18 @@ const removeFootnote = (index) => {
 }
 
 /* RawBlock 外觀 */
+:deep(.raw-block-wrapper) {
+  position: relative;
+  margin: 12px 0;
+}
+
 :deep(.raw-block-view) {
   border: 2px dashed #c7d2fe;
   border-radius: 6px;
-  margin: 12px 0;
   padding: 4px;
   background: #f8f9ff;
   position: relative;
+  transition: opacity 0.2s;
 }
 
 :deep(.raw-block-view::before) {
@@ -1378,6 +1484,67 @@ const removeFootnote = (index) => {
   padding: 1px 6px;
   border-radius: 4px;
   font-family: sans-serif;
+}
+
+:deep(.raw-block-edit-btn) {
+  display: block;
+  margin: 4px 0 0 auto;
+  padding: 3px 10px;
+  font-size: 12px;
+  background: #4338ca;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+:deep(.raw-block-edit-btn:hover) {
+  background: #3730a3;
+}
+
+:deep(.raw-block-edit-area) {
+  margin-top: 6px;
+  border: 1px solid #c7d2fe;
+  border-radius: 6px;
+  padding: 8px;
+  background: #f0f4ff;
+}
+
+:deep(.raw-block-textarea) {
+  width: 100%;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid #a5b4fc;
+  border-radius: 4px;
+  padding: 6px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+:deep(.raw-block-btn-row) {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+:deep(.raw-block-save-btn),
+:deep(.raw-block-cancel-btn) {
+  padding: 4px 14px;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+:deep(.raw-block-save-btn) {
+  background: #16a34a;
+  color: white;
+}
+
+:deep(.raw-block-cancel-btn) {
+  background: #9ca3af;
+  color: white;
 }
 
 /* 原始碼模式 */

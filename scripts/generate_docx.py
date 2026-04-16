@@ -29,6 +29,7 @@ class ProfessionalDocxGenerator:
         self.doc = Document()
         self._setup_page()
         self._setup_styles()
+        self._inject_footnote_ref_style()
         self._clear_numbering()  # 清除預設列表定義，防止 keepNext 觸發圓點
         self._footnotes = []    # [(word_id, text), ...]
         self._fn_counter = 1
@@ -61,6 +62,28 @@ class ProfessionalDocxGenerator:
         pf.line_spacing = 1.5
         pf.space_before = Pt(0)
         pf.space_after  = Pt(0)
+
+    def _inject_footnote_ref_style(self):
+        """注入 FootnoteReference 字元樣式（上標），python-docx 空白文件不含此樣式"""
+        styles_el = self.doc.styles.element
+        for style in styles_el.findall(qn('w:style')):
+            if style.get(qn('w:styleId')) == 'FootnoteReference':
+                return  # 已存在，不重複注入
+        fn_style = OxmlElement('w:style')
+        fn_style.set(qn('w:type'), 'character')
+        fn_style.set(qn('w:styleId'), 'FootnoteReference')
+        name_el = OxmlElement('w:name')
+        name_el.set(qn('w:val'), 'footnote reference')
+        fn_style.append(name_el)
+        based = OxmlElement('w:basedOn')
+        based.set(qn('w:val'), 'DefaultParagraphFont')
+        fn_style.append(based)
+        rPr = OxmlElement('w:rPr')
+        vertAlign = OxmlElement('w:vertAlign')
+        vertAlign.set(qn('w:val'), 'superscript')
+        rPr.append(vertAlign)
+        fn_style.append(rPr)
+        styles_el.append(fn_style)
 
     def _clear_numbering(self):
         """清除文件預設的所有列表編號定義（abstractNum / num）
@@ -132,13 +155,9 @@ class ProfessionalDocxGenerator:
 
         run = paragraph.add_run()
         rPr = OxmlElement('w:rPr')
-        # 明確設定上標 + 小字，確保顯示為右上角數字
-        vertAlign = OxmlElement('w:vertAlign')
-        vertAlign.set(qn('w:val'), 'superscript')
-        rPr.append(vertAlign)
-        sz = OxmlElement('w:sz');   sz.set(qn('w:val'), '24')   # 12pt
-        szCs = OxmlElement('w:szCs'); szCs.set(qn('w:val'), '24')
-        rPr.append(sz); rPr.append(szCs)
+        rStyle = OxmlElement('w:rStyle')
+        rStyle.set(qn('w:val'), 'FootnoteReference')
+        rPr.append(rStyle)
         run._element.insert(0, rPr)
         fnRef = OxmlElement('w:footnoteReference')
         fnRef.set(qn('w:id'), str(word_id))
@@ -694,7 +713,15 @@ class ProfessionalDocxGenerator:
             if seg_type == 'figure':
                 self._add_figure(seg_html)
             elif seg_type == 'blockquote':
-                inner = re.sub(r'<[^>]+>', '', seg_html, flags=re.DOTALL).strip()
+                inner = seg_html
+                # 換行語義：<br> / </p> → \n
+                inner = re.sub(r'<br\s*/?>', '\n', inner, flags=re.IGNORECASE)
+                inner = re.sub(r'</p\s*>', '\n', inner, flags=re.IGNORECASE)
+                # 只剝除塊級結構標籤；保留 inline 格式標籤供 _add_inline 解析
+                inner = re.sub(
+                    r'</?(?:blockquote|p|div|section|article|header|footer|ul|ol|li)\b[^>]*>',
+                    '', inner, flags=re.IGNORECASE | re.DOTALL)
+                inner = inner.strip()
                 if inner:
                     self._add_blockquote(inner)
             elif seg_type == 'div':

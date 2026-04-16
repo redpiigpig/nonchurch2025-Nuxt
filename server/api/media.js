@@ -79,17 +79,24 @@ export default defineEventHandler(async (event) => {
 
       const fileField = formData.find((f) => f.name === "file");
       const pathField = formData.find((f) => f.name === "path");
+      const filenameField = formData.find((f) => f.name === "filename");
       if (!fileField) throw new Error("No file provided");
 
       const folderPath = pathField ? pathField.data.toString() : "";
+      const customFilename = filenameField ? filenameField.data.toString() : null;
       const base64Data = `data:${fileField.type || "application/octet-stream"};base64,${fileField.data.toString("base64")}`;
 
-      const result = await cloudinary.uploader.upload(base64Data, {
-        folder: folderPath,
-        use_filename: true,
-        unique_filename: false,
-        resource_type: "auto",
-      });
+      const uploadOptions = { resource_type: "auto" };
+      if (customFilename) {
+        // 完整指定 public_id（含資料夾路徑），精確命名
+        uploadOptions.public_id = folderPath ? `${folderPath}/${customFilename}` : customFilename;
+      } else {
+        uploadOptions.folder = folderPath;
+        uploadOptions.use_filename = true;
+        uploadOptions.unique_filename = false;
+      }
+
+      const result = await cloudinary.uploader.upload(base64Data, uploadOptions);
 
       return { success: true, data: result };
     } catch (error) {
