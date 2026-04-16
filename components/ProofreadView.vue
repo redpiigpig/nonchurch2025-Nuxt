@@ -498,12 +498,14 @@ onBeforeUnmount(() => {
             v-for="ann in annotations"
             :key="ann.id"
             class="annotation-item"
+            :class="{ 'ann-resolved': ann.resolved }"
             :style="{ borderLeftColor: ann.color }"
             @click="jumpToAnnotation(ann)"
           >
             <div class="ann-header">
               <span class="ann-color-dot" :style="{ background: ann.color }"></span>
               <span class="ann-text">「{{ ann.selectedText }}」</span>
+              <span v-if="ann.resolved" class="ann-resolved-tag">✓ 已解決</span>
               <button
                 v-if="proofreadStatus !== 'completed'"
                 class="ann-remove-btn"
@@ -512,6 +514,11 @@ onBeforeUnmount(() => {
               >×</button>
             </div>
             <p v-if="ann.note" class="ann-note">💬 {{ ann.note }}</p>
+            <!-- 編輯者回應 -->
+            <div v-if="ann.editorNote" class="ann-editor-reply">
+              <span class="ann-editor-reply-label">編輯：</span>{{ ann.editorNote }}
+            </div>
+            <div v-if="ann.editorAction === 'adopted'" class="ann-adopted-tag">✅ 已採用替換</div>
           </div>
         </div>
 
@@ -854,6 +861,36 @@ onBeforeUnmount(() => {
   margin: 4px 0 0;
   font-style: italic;
   line-height: 1.4;
+}
+.ann-resolved { opacity: 0.75; }
+.ann-resolved-tag {
+  font-size: 0.7rem;
+  color: #16a34a;
+  font-weight: 600;
+  background: #dcfce7;
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.ann-editor-reply {
+  font-size: 0.78rem;
+  color: #444;
+  margin: 4px 0 0;
+  background: #f0fdf4;
+  border-left: 2px solid #4ade80;
+  padding: 3px 6px;
+  border-radius: 0 4px 4px 0;
+}
+.ann-editor-reply-label {
+  font-weight: 600;
+  color: #16a34a;
+  margin-right: 4px;
+}
+.ann-adopted-tag {
+  font-size: 0.72rem;
+  color: #065f46;
+  font-weight: 600;
+  margin-top: 3px;
 }
 
 .panel-footer {

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useEditor, EditorContent } from "@tiptap/vue-3";
 import StarterKit from "@tiptap/starter-kit";
@@ -7,6 +7,8 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Link from "@tiptap/extension-link";
 import { Mark, Node, Extension, mergeAttributes } from "@tiptap/core";
+import { Plugin } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { supabase } from "~/supabase";
 
 // ── 目錄模式 ─────────────────────────────────────────────────────
@@ -43,6 +45,10 @@ const generateTocContent = () => {
   form.value.content = html;
   editor.value?.commands.setContent(html);
 };
+
+// ── 校對標記（早期宣告，供 AnnotationMarkers 閉包使用）────────────
+const proofreadAnnotations = ref([]);
+const proofreadStatus = ref("pending");
 
 // ── 自訂 Tiptap Extension ─────────────────────────────────────────
 
@@ -143,11 +149,35 @@ const RawBlock = Node.create({
       preview.contentEditable = "false";
       preview.innerHTML = resolveHtml(currentHtml);
 
+      // ── 按鈕列（編輯 + 複製）────────────────────────────
+      const btnBarTop = document.createElement("div");
+      btnBarTop.className = "raw-block-btn-bar";
+
       // ── 編輯按鈕 ──────────────────────────────────────────
       const editBtn = document.createElement("button");
       editBtn.textContent = "✏️ 編輯";
       editBtn.type = "button";
       editBtn.className = "raw-block-edit-btn";
+
+      // ── 複製按鈕 ──────────────────────────────────────────
+      const copyBtn = document.createElement("button");
+      copyBtn.textContent = "📋 複製";
+      copyBtn.type = "button";
+      copyBtn.className = "raw-block-copy-btn";
+
+      copyBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(currentHtml);
+          copyBtn.textContent = "✅ 已複製";
+          setTimeout(() => { copyBtn.textContent = "📋 複製"; }, 1800);
+        } catch {
+          copyBtn.textContent = "📋 複製";
+        }
+      });
+
+      btnBarTop.appendChild(editBtn);
+      btnBarTop.appendChild(copyBtn);
 
       // ── 編輯區（初始隱藏）────────────────────────────────
       const editArea = document.createElement("div");
@@ -159,6 +189,11 @@ const RawBlock = Node.create({
       textarea.className = "raw-block-textarea";
       textarea.rows = 8;
       textarea.spellcheck = false;
+
+      // 防止打字事件被 ProseMirror 攔截
+      ["keydown", "keypress", "keyup"].forEach((ev) => {
+        textarea.addEventListener(ev, (e) => e.stopPropagation());
+      });
 
       const btnRow = document.createElement("div");
       btnRow.className = "raw-block-btn-row";
@@ -183,7 +218,7 @@ const RawBlock = Node.create({
         e.stopPropagation();
         textarea.value = currentHtml;
         editArea.style.display = "block";
-        editBtn.style.display = "none";
+        btnBarTop.style.display = "none";
         preview.style.opacity = "0.4";
         textarea.focus();
       });
@@ -200,19 +235,19 @@ const RawBlock = Node.create({
         currentHtml = newHtml;
         preview.innerHTML = resolveHtml(newHtml);
         editArea.style.display = "none";
-        editBtn.style.display = "";
+        btnBarTop.style.display = "";
         preview.style.opacity = "";
       });
 
       cancelBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         editArea.style.display = "none";
-        editBtn.style.display = "";
+        btnBarTop.style.display = "";
         preview.style.opacity = "";
       });
 
       wrapper.appendChild(preview);
-      wrapper.appendChild(editBtn);
+      wrapper.appendChild(btnBarTop);
       wrapper.appendChild(editArea);
 
       return {
@@ -244,6 +279,62 @@ const ClassPreserver = Extension.create({
           },
         },
       },
+    ];
+  },
+});
+
+// 4. AnnotationMarkers：在段落起點插入校對標記小點（ProseMirror Decoration）
+const activeAnnId = ref(null);
+
+const AnnotationMarkers = Extension.create({
+  name: "annotationMarkers",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          decorations(state) {
+            const annotations = proofreadAnnotations.value || [];
+            const unresolved = annotations.filter((a) => !a.resolved);
+            if (!unresolved.length) return DecorationSet.empty;
+
+            const decorations = [];
+            let blockIdx = 0;
+
+            state.doc.forEach((node, offset) => {
+              const annsForBlock = unresolved.filter(
+                (a) => a.paragraphIndex === blockIdx,
+              );
+              if (annsForBlock.length) {
+                const widgetEl = document.createElement("span");
+                widgetEl.className = "ann-dots-widget";
+                annsForBlock.forEach((ann) => {
+                  const dot = document.createElement("span");
+                  dot.className = "ann-dot-marker";
+                  dot.style.background = ann.color || "#ffeb3b";
+                  dot.title = ann.note ? `校對：${ann.note}` : "校對標記";
+                  dot.dataset.annId = String(ann.id);
+                  dot.addEventListener("mousedown", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    activeAnnId.value =
+                      activeAnnId.value === ann.id ? null : ann.id;
+                    nextTick(() => {
+                      document
+                        .querySelector(`[data-ann-card="${ann.id}"]`)
+                        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                    });
+                  });
+                  widgetEl.appendChild(dot);
+                });
+                decorations.push(Decoration.widget(offset + 1, widgetEl, { side: -1 }));
+              }
+              blockIdx++;
+            });
+
+            return DecorationSet.create(state.doc, decorations);
+          },
+        },
+      }),
     ];
   },
 });
@@ -314,8 +405,6 @@ const categoryColor = computed(() => {
 });
 
 const isPublished = ref(false);
-const proofreadAnnotations = ref([]);
-const proofreadStatus = ref("pending");
 const issuesMap = ref({});
 
 watch(
@@ -337,12 +426,25 @@ const editor = useEditor({
     Link.configure({ openOnClick: false, autolink: true }),
     FootnoteRef,
     RawBlock,
+    AnnotationMarkers,
   ],
   content: "",
   onUpdate: ({ editor }) => {
     form.value.content = cleanHTML(editor.getHTML());
   },
 });
+
+// 校對標記變更時，觸發 ProseMirror 重新計算 decorations
+watch(
+  proofreadAnnotations,
+  () => {
+    if (editor.value?.view) {
+      const { state, view } = editor.value;
+      view.dispatch(state.tr);
+    }
+  },
+  { deep: true },
+);
 
 onBeforeUnmount(() => {
   editor.value?.destroy();
@@ -351,11 +453,9 @@ onBeforeUnmount(() => {
 // ── 原始碼切換 ────────────────────────────────────────────────────
 const toggleSource = () => {
   if (!showSource.value) {
-    // 切到原始碼：把 editor 內容輸出為 clean HTML
     sourceHtml.value = cleanHTML(editor.value?.getHTML() || "");
     showSource.value = true;
   } else {
-    // 切回 WYSIWYG：把 textarea 的 HTML 載入 editor
     editor.value?.commands.setContent(sourceHtml.value);
     form.value.content = sourceHtml.value;
     showSource.value = false;
@@ -457,6 +557,7 @@ const saveArticle = async () => {
     next_id: form.value.next_id || null,
     seo: seoParsed,
     is_published: isPublished.value,
+    proofread_annotations: proofreadAnnotations.value,
     updated_at: new Date().toISOString(),
   };
   delete payload.media_assets;
@@ -508,7 +609,6 @@ const handleReupload = async (event) => {
       ],
     });
 
-    // 替換 base64 圖片為 [[圖片N]] 佔位符
     let html = result.value.replace(
       /<img\b[^>]*\bsrc="data:[^"]*"[^>]*/gi,
       () => {
@@ -517,12 +617,10 @@ const handleReupload = async (event) => {
       },
     );
 
-    // 解析 DOM 做後處理
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
     const newFootnotes = [];
 
-    // 提取腳注列表
     const footnotesOl = doc.querySelector("ol.footnotes");
     if (footnotesOl) {
       footnotesOl.querySelectorAll("li").forEach((li) => {
@@ -536,7 +634,6 @@ const handleReupload = async (event) => {
       footnotesOl.parentElement?.removeChild(footnotesOl);
     }
 
-    // 舊式 [^N]: 腳注行 → 移除並記錄
     doc.querySelectorAll("p").forEach((p) => {
       const m = p.textContent.trim().match(/^\[\^(\d+)\][：:]\s*(.*)/);
       if (m) {
@@ -545,7 +642,6 @@ const handleReupload = async (event) => {
       }
     });
 
-    // 短全粗體段落 → 轉 h2
     doc.querySelectorAll("p").forEach((p) => {
       const inner = p.innerHTML.trim();
       if (/^<strong>[^<]*<\/strong>$/.test(inner) && p.textContent.length <= 40) {
@@ -555,7 +651,6 @@ const handleReupload = async (event) => {
       }
     });
 
-    // 圖片 → 包進 figure
     const idMatch = form.value.id.match(/^(\d+)-(\d+)/);
     const seq = idMatch ? idMatch[2] : "0";
     doc.querySelectorAll("img").forEach((img) => {
@@ -702,6 +797,89 @@ const removeFootnote = (index) => {
     fn.id = idx + 1;
   });
 };
+
+// ── 校對標記審閱 ─────────────────────────────────────────────────
+const annReplaceTexts = ref({});
+const annEditorNotes = ref({});
+
+const unresolvedAnnotations = computed(() =>
+  proofreadAnnotations.value.filter((a) => !a.resolved),
+);
+
+const toggleAnn = (id) => {
+  activeAnnId.value = activeAnnId.value === id ? null : id;
+};
+
+const applyReplacement = (ann) => {
+  const replaceWith = annReplaceTexts.value[ann.id] || "";
+  if (!replaceWith.trim()) {
+    alert("請輸入替換文字");
+    return;
+  }
+  const selectedText = ann.selectedText;
+  const currentHtml = form.value.content;
+  if (currentHtml.includes(selectedText)) {
+    const newHtml = currentHtml.replace(selectedText, replaceWith);
+    editor.value?.commands.setContent(newHtml);
+    form.value.content = newHtml;
+    // 自動標記為已解決
+    const idx = proofreadAnnotations.value.findIndex((a) => a.id === ann.id);
+    if (idx !== -1) {
+      proofreadAnnotations.value[idx] = {
+        ...proofreadAnnotations.value[idx],
+        resolved: true,
+        editorNote: annEditorNotes.value[ann.id] || `已替換為：${replaceWith}`,
+        editorAction: "adopted",
+      };
+    }
+    activeAnnId.value = null;
+  } else {
+    alert("找不到標記的原文，可能內文已被修改，請手動更改。");
+  }
+};
+
+const resolveAnnotation = async (ann) => {
+  const idx = proofreadAnnotations.value.findIndex((a) => a.id === ann.id);
+  if (idx === -1) return;
+  proofreadAnnotations.value[idx] = {
+    ...proofreadAnnotations.value[idx],
+    resolved: true,
+    editorNote: annEditorNotes.value[ann.id] || "",
+    editorAction: "resolved",
+  };
+  // 自動儲存 annotations 回資料庫
+  await supabase
+    .from("articles")
+    .update({ proofread_annotations: proofreadAnnotations.value })
+    .eq("id", form.value.id);
+  activeAnnId.value = null;
+};
+
+const unresolveAnnotation = async (id) => {
+  const idx = proofreadAnnotations.value.findIndex((a) => a.id === id);
+  if (idx === -1) return;
+  proofreadAnnotations.value[idx] = {
+    ...proofreadAnnotations.value[idx],
+    resolved: false,
+    editorNote: "",
+    editorAction: "none",
+  };
+  await supabase
+    .from("articles")
+    .update({ proofread_annotations: proofreadAnnotations.value })
+    .eq("id", form.value.id);
+};
+
+const colorLabel = (color) => {
+  const map = {
+    "#ffeb3b": "黃｜一般",
+    "#ff9800": "橙｜需重寫",
+    "#f44336": "紅｜有錯誤",
+    "#4caf50": "綠｜待確認",
+    "#2196f3": "藍｜補充",
+  };
+  return map[color] || "標記";
+};
 </script>
 
 <template>
@@ -782,90 +960,13 @@ const removeFootnote = (index) => {
       </table>
     </div>
 
-    <!-- ── 主體 ── -->
-    <div class="editor-layout">
-      <!-- ── 表單欄位 ── -->
-      <div class="form-group">
-        <label>文章 ID (必填，不可重複)</label>
-        <input v-model="form.id" placeholder="例如：5-13話語與肉身" :readonly="isEditMode" />
-      </div>
+    <!-- ── 主體：左側工具列 + 右側內容 ── -->
+    <div class="editor-main-row">
 
-      <div class="form-row">
-        <div class="form-group half">
-          <label>主標題 (Title)</label>
-          <input v-model="form.title" placeholder="主標題" />
-        </div>
-        <div class="form-group half">
-          <label>副標題 (Subtitle)</label>
-          <input v-model="form.subtitle" placeholder="副標題" />
-        </div>
-      </div>
+      <!-- ── 左側 sticky 工具列 ── -->
+      <div v-if="!showSource && editor" class="toolbar-sidebar">
+        <div class="tiptap-toolbar">
 
-      <div class="form-row">
-        <div class="form-group quarter">
-          <label>期數 (Issue)</label>
-          <input v-model.number="form.issue" type="number" />
-        </div>
-        <div class="form-group quarter">
-          <label>期數標題</label>
-          <input v-model="form.issue_title" />
-        </div>
-        <div class="form-group quarter">
-          <label>分類 (Category)</label>
-          <select v-model="form.category">
-            <option value="">(無)</option>
-            <option v-for="cat in categories" :key="cat.name" :value="cat.name">
-              {{ cat.name }}
-            </option>
-          </select>
-        </div>
-        <div class="form-group quarter">
-          <label>次分類 (Section)</label>
-          <input v-model="form.section" />
-        </div>
-      </div>
-
-      <div v-if="!isTocMode" class="form-row">
-        <div class="form-group third">
-          <label>作者 (Author)</label>
-          <input v-model="form.author" />
-        </div>
-        <div class="form-group third">
-          <label>作者頭銜</label>
-          <input v-model="form.author_title" />
-        </div>
-        <div class="form-group third">
-          <label>備註 (Remark)</label>
-          <input v-model="form.remark" />
-        </div>
-      </div>
-
-      <div v-if="!isTocMode" class="form-group">
-        <label>文章摘要 (Summary)</label>
-        <textarea v-model="form.summary" rows="3"></textarea>
-      </div>
-
-      <div v-if="!isTocMode" class="form-group">
-        <label>關鍵字</label>
-        <textarea v-model="form.keyword" rows="2"></textarea>
-      </div>
-
-      <!-- ── WYSIWYG 編輯器 ── -->
-      <div class="form-group">
-        <div class="content-label-row">
-          <label>內文</label>
-          <button
-            type="button"
-            class="btn-source"
-            :class="{ active: showSource }"
-            @click="toggleSource"
-          >
-            {{ showSource ? "✏️ 切回編輯" : "🔧 原始碼" }}
-          </button>
-        </div>
-
-        <!-- 工具列 -->
-        <div v-if="!showSource" class="tiptap-toolbar">
           <div class="toolbar-group">
             <button
               type="button"
@@ -898,7 +999,7 @@ const removeFootnote = (index) => {
               class="tool-btn kaiti-btn"
               :class="{ active: editor?.isActive('italic') }"
               @click="editor?.chain().focus().toggleItalic().run()"
-              title="楷書體（*文字*）"
+              title="楷書體"
             >楷</button>
             <button
               type="button"
@@ -912,18 +1013,8 @@ const removeFootnote = (index) => {
           <div class="toolbar-sep"></div>
 
           <div class="toolbar-group">
-            <button
-              type="button"
-              class="tool-btn"
-              @click="insertLink"
-              title="插入連結"
-            >🔗</button>
-            <button
-              type="button"
-              class="tool-btn"
-              @click="removeLink"
-              title="移除連結"
-            >✂️</button>
+            <button type="button" class="tool-btn" @click="insertLink" title="插入連結">🔗</button>
+            <button type="button" class="tool-btn" @click="removeLink" title="移除連結">✂️</button>
           </div>
 
           <div class="toolbar-sep"></div>
@@ -973,9 +1064,11 @@ const removeFootnote = (index) => {
             >≡→</button>
           </div>
 
-          <!-- 插入元件列 -->
-          <div class="toolbar-full-row">
-            <span class="group-label">插入：</span>
+          <div class="toolbar-sep"></div>
+
+          <!-- 插入元件 -->
+          <div class="toolbar-section-label">插入：</div>
+          <div class="toolbar-insert-col">
             <button type="button" class="tool-btn comp-btn"
               @click="insertRaw(`<div class='book-quote'>引用的內容...<div class='book-quote-rel'> ──《書名》，頁數 </div></div>`)">
               ✍ 書本引言
@@ -1007,60 +1100,253 @@ const removeFootnote = (index) => {
           </div>
 
           <!-- 文章圖片快速插入 -->
-          <div v-if="sortedMediaAssets.length > 0" class="media-insert-bar">
-            <span class="group-label">文章圖片：</span>
-            <div v-for="img in sortedMediaAssets" :key="img.sort_order" class="media-insert-item">
-              <img :src="img.image_url" class="media-thumb" :title="`圖片 ${img.sort_order}`" />
-              <span class="media-order">#{{ img.sort_order }}</span>
-              <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'left')">左</button>
-              <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'center')">中</button>
-              <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'right')">右</button>
+          <template v-if="sortedMediaAssets.length > 0">
+            <div class="toolbar-sep"></div>
+            <div class="toolbar-section-label">圖片：</div>
+            <div class="toolbar-media-col">
+              <div v-for="img in sortedMediaAssets" :key="img.sort_order" class="media-insert-item">
+                <img :src="img.image_url" class="media-thumb" :title="`圖片 ${img.sort_order}`" />
+                <span class="media-order">#{{ img.sort_order }}</span>
+                <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'left')">左</button>
+                <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'center')">中</button>
+                <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'right')">右</button>
+              </div>
+            </div>
+          </template>
+
+        </div>
+      </div>
+
+      <!-- ── 右側：表單 + 編輯器 ── -->
+      <div class="editor-content-col">
+        <div class="editor-layout">
+
+          <!-- ── 表單欄位 ── -->
+          <div class="form-group">
+            <label>文章 ID (必填，不可重複)</label>
+            <input v-model="form.id" placeholder="例如：5-13話語與肉身" :readonly="isEditMode" />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group half">
+              <label>主標題 (Title)</label>
+              <input v-model="form.title" placeholder="主標題" />
+            </div>
+            <div class="form-group half">
+              <label>副標題 (Subtitle)</label>
+              <input v-model="form.subtitle" placeholder="副標題" />
             </div>
           </div>
+
+          <div class="form-row">
+            <div class="form-group quarter">
+              <label>期數 (Issue)</label>
+              <input v-model.number="form.issue" type="number" />
+            </div>
+            <div class="form-group quarter">
+              <label>期數標題</label>
+              <input v-model="form.issue_title" />
+            </div>
+            <div class="form-group quarter">
+              <label>分類 (Category)</label>
+              <select v-model="form.category">
+                <option value="">(無)</option>
+                <option v-for="cat in categories" :key="cat.name" :value="cat.name">
+                  {{ cat.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group quarter">
+              <label>次分類 (Section)</label>
+              <input v-model="form.section" />
+            </div>
+          </div>
+
+          <div v-if="!isTocMode" class="form-row">
+            <div class="form-group third">
+              <label>作者 (Author)</label>
+              <input v-model="form.author" />
+            </div>
+            <div class="form-group third">
+              <label>作者頭銜</label>
+              <input v-model="form.author_title" />
+            </div>
+            <div class="form-group third">
+              <label>備註 (Remark)</label>
+              <input v-model="form.remark" />
+            </div>
+          </div>
+
+          <div v-if="!isTocMode" class="form-group">
+            <label>文章摘要 (Summary)</label>
+            <textarea v-model="form.summary" rows="3"></textarea>
+          </div>
+
+          <div v-if="!isTocMode" class="form-group">
+            <label>關鍵字</label>
+            <textarea v-model="form.keyword" rows="2"></textarea>
+          </div>
+
+          <!-- ── WYSIWYG 編輯器 ── -->
+          <div class="form-group">
+            <div class="content-label-row">
+              <label>內文</label>
+              <button
+                type="button"
+                class="btn-source"
+                :class="{ active: showSource }"
+                @click="toggleSource"
+              >
+                {{ showSource ? "✏️ 切回編輯" : "🔧 原始碼" }}
+              </button>
+            </div>
+
+            <!-- Tiptap 編輯器本體 -->
+            <div v-if="!showSource" class="tiptap-editor-container">
+              <editor-content :editor="editor" class="tiptap-editor article-content markdown-body" />
+            </div>
+
+            <!-- 原始碼模式 -->
+            <div v-if="showSource" class="source-mode">
+              <div class="source-hint">直接編輯 HTML 原始碼，完成後點「切回編輯」</div>
+              <textarea v-model="sourceHtml" class="source-textarea" rows="30"></textarea>
+            </div>
+          </div>
+
+          <!-- ── SEO ── -->
+          <div v-if="!isTocMode" class="form-group">
+            <label>SEO 資料 (JSON 格式)</label>
+            <textarea v-model="seoJson" rows="6" class="code-font"></textarea>
+          </div>
+
+          <!-- ── 腳注 ── -->
+          <div class="form-group">
+            <label>
+              註腳 (Footnotes)
+              <span class="footnote-hint">在內文中插入 [^N] 引用</span>
+            </label>
+            <div v-for="(fn, index) in form.footnotes" :key="index" class="footnote-item">
+              <span class="fn-id">[{{ fn.id }}]</span>
+              <input v-model="fn.text" placeholder="輸入註腳內容" />
+              <button class="btn btn-sm btn-danger" @click="removeFootnote(index)">X</button>
+            </div>
+            <button class="btn btn-sm" @click="addFootnote">+ 新增註腳</button>
+          </div>
+
+          <!-- ── 校對標記審閱 ── -->
+          <div v-if="proofreadAnnotations.length" class="ann-review-section">
+            <div class="ann-review-header">
+              <span class="ann-review-title">
+                🔍 校對標記
+                <span class="ann-count-badge" :class="{ all_done: !unresolvedAnnotations.length }">
+                  {{ unresolvedAnnotations.length
+                    ? `${unresolvedAnnotations.length} 條待處理`
+                    : "✓ 全部已解決" }}
+                </span>
+              </span>
+              <span class="ann-color-legend">
+                <span v-for="ann in proofreadAnnotations.slice(0, 5)" :key="ann.id"
+                  class="ann-legend-dot" :style="{ background: ann.color }"
+                  :title="colorLabel(ann.color)"></span>
+              </span>
+            </div>
+
+            <div class="ann-list">
+              <div
+                v-for="ann in proofreadAnnotations"
+                :key="ann.id"
+                class="ann-card"
+                :class="{ resolved: ann.resolved, active: activeAnnId === ann.id }"
+                :data-ann-card="ann.id"
+              >
+                <!-- 收合列：小點 + 段落 + 文字摘要 -->
+                <div class="ann-summary" @click="toggleAnn(ann.id)">
+                  <span class="ann-dot-inline" :style="{ background: ann.color }"></span>
+                  <span class="ann-para-tag">§{{ ann.paragraphIndex + 1 }}</span>
+                  <span class="ann-text-preview">
+                    "{{ ann.selectedText?.slice(0, 28) }}{{ ann.selectedText?.length > 28 ? "…" : "" }}"
+                  </span>
+                  <span v-if="ann.resolved" class="ann-resolved-badge">✓ 已解決</span>
+                  <span v-else class="ann-expand-icon">{{ activeAnnId === ann.id ? "▲" : "▼" }}</span>
+                </div>
+
+                <!-- 展開內容 -->
+                <div v-if="activeAnnId === ann.id" class="ann-body">
+                  <div class="ann-info-row">
+                    <div class="ann-field">
+                      <span class="ann-field-label">標記文字：</span>
+                      <span class="ann-highlighted" :style="{ background: ann.color + 'bb' }">
+                        {{ ann.selectedText }}
+                      </span>
+                    </div>
+                    <div class="ann-field">
+                      <span class="ann-field-label">校對備注：</span>
+                      <span class="ann-note-text">{{ ann.note || "（無備注）" }}</span>
+                    </div>
+                  </div>
+
+                  <!-- 未解決：顯示操作區 -->
+                  <div v-if="!ann.resolved" class="ann-actions">
+                    <div class="ann-replace-group">
+                      <label class="ann-action-label">📝 替換為：</label>
+                      <div class="ann-replace-row">
+                        <input
+                          v-model="annReplaceTexts[ann.id]"
+                          placeholder="輸入替換文字，替換後自動標記解決..."
+                          class="ann-replace-input"
+                        />
+                        <button class="btn-ann-apply" @click="applyReplacement(ann)">
+                          替換
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="ann-note-group">
+                      <label class="ann-action-label">💬 編輯留言（說明改或不改的原因）：</label>
+                      <textarea
+                        v-model="annEditorNotes[ann.id]"
+                        placeholder="說明處理方式或原因..."
+                        class="ann-note-input"
+                        rows="2"
+                      ></textarea>
+                    </div>
+
+                    <label class="ann-resolve-label">
+                      <input type="checkbox" @change="resolveAnnotation(ann)" />
+                      ✓ 標記為已解決（不替換，僅記錄留言）
+                    </label>
+                  </div>
+
+                  <!-- 已解決：顯示結果 -->
+                  <div v-else class="ann-resolved-detail">
+                    <div v-if="ann.editorNote" class="ann-editor-response">
+                      <strong>編輯留言：</strong> {{ ann.editorNote }}
+                    </div>
+                    <div v-if="ann.editorAction === 'adopted'" class="ann-action-tag adopted">
+                      ✅ 已採用替換
+                    </div>
+                    <button class="btn-ann-unresolve" @click="unresolveAnnotation(ann.id)">
+                      ↩ 重新開啟
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── 校對通知 ── -->
+          <div v-if="proofreadAnnotations.length" class="proofread-notice">
+            <span>有 <strong>{{ proofreadAnnotations.length }}</strong> 條校對標記（{{
+              proofreadStatus === "completed" ? "✅ 已校對完成"
+              : proofreadStatus === "in_progress" ? "🔄 校對中"
+              : "⬜ 待校對"
+            }}）</span>
+            <NuxtLink :to="`/admin/proofread/${form.id}`" class="proofread-notice-link">
+              查看校對頁面 →
+            </NuxtLink>
+          </div>
+
         </div>
-
-        <!-- Tiptap 編輯器本體 -->
-        <div v-if="!showSource" class="tiptap-editor-container">
-          <editor-content :editor="editor" class="tiptap-editor article-content markdown-body" />
-        </div>
-
-        <!-- 原始碼模式 -->
-        <div v-if="showSource" class="source-mode">
-          <div class="source-hint">直接編輯 HTML 原始碼，完成後點「切回編輯」</div>
-          <textarea v-model="sourceHtml" class="source-textarea" rows="30"></textarea>
-        </div>
-      </div>
-
-      <!-- ── SEO ── -->
-      <div v-if="!isTocMode" class="form-group">
-        <label>SEO 資料 (JSON 格式)</label>
-        <textarea v-model="seoJson" rows="6" class="code-font"></textarea>
-      </div>
-
-      <!-- ── 腳注 ── -->
-      <div class="form-group">
-        <label>
-          註腳 (Footnotes)
-          <span class="footnote-hint">在內文中插入 [^N] 引用</span>
-        </label>
-        <div v-for="(fn, index) in form.footnotes" :key="index" class="footnote-item">
-          <span class="fn-id">[{{ fn.id }}]</span>
-          <input v-model="fn.text" placeholder="輸入註腳內容" />
-          <button class="btn btn-sm btn-danger" @click="removeFootnote(index)">X</button>
-        </div>
-        <button class="btn btn-sm" @click="addFootnote">+ 新增註腳</button>
-      </div>
-
-      <!-- ── 校對通知 ── -->
-      <div v-if="proofreadAnnotations.length" class="proofread-notice">
-        <span>有 <strong>{{ proofreadAnnotations.length }}</strong> 條校對標記（{{
-          proofreadStatus === "completed" ? "✅ 已校對完成"
-          : proofreadStatus === "in_progress" ? "🔄 校對中"
-          : "⬜ 待校對"
-        }}）</span>
-        <NuxtLink :to="`/admin/proofread/${form.id}`" class="proofread-notice-link">
-          查看校對頁面 →
-        </NuxtLink>
       </div>
     </div>
   </div>
@@ -1068,10 +1354,10 @@ const removeFootnote = (index) => {
 
 <style scoped>
 .editor-wrapper {
-  padding: 20px;
+  padding: 12px 16px;
   background: #f9f9f9;
   min-height: 100vh;
-  max-width: 960px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -1079,9 +1365,9 @@ const removeFootnote = (index) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   background: white;
-  padding: 15px 20px;
+  padding: 12px 20px;
   border-radius: 8px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
@@ -1183,7 +1469,7 @@ const removeFootnote = (index) => {
   background: white;
   border-radius: 8px;
   padding: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
 }
 
@@ -1221,7 +1507,120 @@ const removeFootnote = (index) => {
 .toc-page-input { width: 60px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; }
 .toc-saving { color: #888; font-size: 0.8rem; }
 
-/* ── 主體 ── */
+/* ── 主體雙欄佈局 ── */
+.editor-main-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+/* ── 左側 sticky 工具列 ── */
+.toolbar-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 16px;
+  align-self: flex-start;
+}
+
+.tiptap-toolbar {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.toolbar-sep {
+  height: 1px;
+  width: 100%;
+  background: #dee2e6;
+  margin: 3px 0;
+}
+
+.tool-btn {
+  padding: 4px 9px;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #444;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.tool-btn:hover { background: #e9ecef; border-color: #adb5bd; }
+.tool-btn.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+
+.kaiti-btn { font-family: "DFKai-SB", "標楷體", serif; }
+
+.comp-btn { background: #f0f4ff; border-color: #c7d2fe; color: #4338ca; }
+.comp-btn:hover { background: #e0e7ff; }
+
+.img-btn { padding: 3px 7px; font-size: 0.78rem; }
+
+.toolbar-section-label {
+  font-size: 0.75rem;
+  color: #888;
+  font-weight: 600;
+  padding: 2px 2px 0;
+}
+
+.toolbar-insert-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.toolbar-insert-col .comp-btn {
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+}
+
+.toolbar-media-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.media-insert-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 3px 6px;
+  flex-wrap: wrap;
+}
+
+.media-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 3px;
+}
+
+.media-order { font-size: 0.72rem; color: #888; }
+
+/* ── 右側內容欄 ── */
+.editor-content-col {
+  flex: 1;
+  min-width: 0;
+}
+
 .editor-layout {
   background: white;
   border-radius: 8px;
@@ -1282,97 +1681,10 @@ const removeFootnote = (index) => {
   border-color: #3b82f6;
 }
 
-/* ── Tiptap 工具列 ── */
-.tiptap-toolbar {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
-  padding: 8px 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
-
-.toolbar-group { display: flex; gap: 3px; align-items: center; }
-.toolbar-sep { width: 1px; height: 22px; background: #dee2e6; margin: 0 4px; }
-
-.tool-btn {
-  padding: 4px 9px;
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #444;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-
-.tool-btn:hover { background: #e9ecef; border-color: #adb5bd; }
-.tool-btn.active { background: #3b82f6; color: white; border-color: #3b82f6; }
-
-.kaiti-btn { font-family: "DFKai-SB", "標楷體", serif; }
-
-.comp-btn { background: #f0f4ff; border-color: #c7d2fe; color: #4338ca; }
-.comp-btn:hover { background: #e0e7ff; }
-
-.img-btn { padding: 3px 7px; font-size: 0.78rem; }
-
-.group-label {
-  font-size: 0.8rem;
-  color: #888;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.toolbar-full-row {
-  width: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  padding-top: 6px;
-  border-top: 1px solid #eee;
-  margin-top: 4px;
-}
-
-.media-insert-bar {
-  width: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  padding-top: 8px;
-  border-top: 1px solid #eee;
-  margin-top: 4px;
-}
-
-.media-insert-item {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  padding: 3px 6px;
-}
-
-.media-thumb {
-  width: 32px;
-  height: 32px;
-  object-fit: cover;
-  border-radius: 3px;
-}
-
-.media-order { font-size: 0.75rem; color: #888; }
-
 /* ── Tiptap 編輯器本體 ── */
 .tiptap-editor-container {
   border: 1px solid #dee2e6;
-  border-radius: 0 0 8px 8px;
+  border-radius: 8px;
   background: white;
   min-height: 500px;
 }
@@ -1383,7 +1695,6 @@ const removeFootnote = (index) => {
   outline: none;
 }
 
-/* 讓 Tiptap 編輯器內容使用文章字體 */
 :deep(.ProseMirror) {
   outline: none;
   min-height: 460px;
@@ -1442,12 +1753,36 @@ const removeFootnote = (index) => {
   line-height: 0;
 }
 
-/* 游標對焦框 */
 :deep(.ProseMirror-focused) {
   box-shadow: none;
 }
 
-/* RawBlock 外觀 */
+/* ── 校對標記小點 ── */
+:deep(.ann-dots-widget) {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  vertical-align: middle;
+  margin-right: 3px;
+  line-height: 0;
+}
+
+:deep(.ann-dot-marker) {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.15);
+  flex-shrink: 0;
+  transition: transform 0.1s;
+}
+
+:deep(.ann-dot-marker:hover) {
+  transform: scale(1.4);
+}
+
+/* ── RawBlock 外觀 ── */
 :deep(.raw-block-wrapper) {
   position: relative;
   margin: 12px 0;
@@ -1475,9 +1810,14 @@ const removeFootnote = (index) => {
   font-family: sans-serif;
 }
 
-:deep(.raw-block-edit-btn) {
-  display: block;
+:deep(.raw-block-btn-bar) {
+  display: flex;
+  gap: 4px;
   margin: 4px 0 0 auto;
+  width: fit-content;
+}
+
+:deep(.raw-block-edit-btn) {
   padding: 3px 10px;
   font-size: 12px;
   background: #4338ca;
@@ -1489,6 +1829,20 @@ const removeFootnote = (index) => {
 
 :deep(.raw-block-edit-btn:hover) {
   background: #3730a3;
+}
+
+:deep(.raw-block-copy-btn) {
+  padding: 3px 10px;
+  font-size: 12px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+:deep(.raw-block-copy-btn:hover) {
+  background: #4f46e5;
 }
 
 :deep(.raw-block-edit-area) {
@@ -1526,15 +1880,8 @@ const removeFootnote = (index) => {
   cursor: pointer;
 }
 
-:deep(.raw-block-save-btn) {
-  background: #16a34a;
-  color: white;
-}
-
-:deep(.raw-block-cancel-btn) {
-  background: #9ca3af;
-  color: white;
-}
+:deep(.raw-block-save-btn) { background: #16a34a; color: white; }
+:deep(.raw-block-cancel-btn) { background: #9ca3af; color: white; }
 
 /* 原始碼模式 */
 .source-mode { border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; }
@@ -1588,6 +1935,270 @@ const removeFootnote = (index) => {
   border-radius: 4px;
 }
 
+/* ── 校對標記審閱面板 ── */
+.ann-review-section {
+  margin-top: 8px;
+  margin-bottom: 18px;
+  border: 1px solid #e0e7ff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ann-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #f0f4ff;
+  border-bottom: 1px solid #e0e7ff;
+}
+
+.ann-review-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #3730a3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ann-count-badge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: #fbbf24;
+  color: #78350f;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+.ann-count-badge.all_done {
+  background: #bbf7d0;
+  color: #14532d;
+}
+
+.ann-color-legend {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.ann-legend-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.15);
+}
+
+.ann-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ann-card {
+  border-bottom: 1px solid #e0e7ff;
+  transition: background 0.15s;
+}
+
+.ann-card:last-child { border-bottom: none; }
+.ann-card.resolved { opacity: 0.7; }
+.ann-card.active { background: #f8faff; }
+
+.ann-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ann-summary:hover { background: #eef2ff; }
+
+.ann-dot-inline {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,0.15);
+}
+
+.ann-para-tag {
+  font-size: 0.75rem;
+  color: #6366f1;
+  font-weight: 600;
+  white-space: nowrap;
+  background: #e0e7ff;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.ann-text-preview {
+  font-size: 0.85rem;
+  color: #555;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+
+.ann-resolved-badge {
+  font-size: 0.75rem;
+  color: #16a34a;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ann-expand-icon {
+  font-size: 0.7rem;
+  color: #aaa;
+  margin-left: auto;
+}
+
+.ann-body {
+  padding: 12px 16px;
+  background: #fbfcff;
+  border-top: 1px solid #e0e7ff;
+}
+
+.ann-info-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.ann-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.88rem;
+}
+
+.ann-field-label {
+  color: #777;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.ann-highlighted {
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 0.88rem;
+}
+
+.ann-note-text {
+  color: #444;
+  font-size: 0.88rem;
+}
+
+.ann-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ann-action-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #555;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.ann-replace-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ann-replace-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #a5b4fc;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  outline: none;
+}
+
+.ann-replace-input:focus { border-color: #6366f1; }
+
+.btn-ann-apply {
+  padding: 6px 14px;
+  background: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.btn-ann-apply:hover { background: #4338ca; }
+
+.ann-note-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.ann-resolve-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #16a34a;
+  cursor: pointer;
+}
+
+.ann-resolve-label input { cursor: pointer; }
+
+.ann-resolved-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ann-editor-response {
+  font-size: 0.88rem;
+  color: #444;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.ann-action-tag {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.ann-action-tag.adopted { background: #d1fae5; color: #065f46; }
+
+.btn-ann-unresolve {
+  padding: 4px 12px;
+  background: #f3f4f6;
+  color: #555;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  width: fit-content;
+}
+
+.btn-ann-unresolve:hover { background: #e5e7eb; }
+
 /* ── 校對通知 ── */
 .proofread-notice {
   display: flex;
@@ -1611,6 +2222,27 @@ const removeFootnote = (index) => {
 }
 
 .code-font { font-family: "Consolas", "Monaco", monospace; font-size: 0.85rem; }
+
+@media (max-width: 900px) {
+  .editor-main-row { flex-direction: column; }
+  .toolbar-sidebar {
+    width: 100%;
+    position: static;
+  }
+  .tiptap-toolbar {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .toolbar-insert-col, .toolbar-media-col {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .toolbar-sep {
+    width: 1px;
+    height: 22px;
+    margin: 0 3px;
+  }
+}
 
 @media (max-width: 768px) {
   .form-row { flex-direction: column; }

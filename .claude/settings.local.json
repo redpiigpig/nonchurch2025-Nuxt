@@ -6,7 +6,10 @@
       "Bash(node scripts/migrate_content_to_html.mjs)",
       "Bash(node scripts/migrate_content_to_html.mjs --apply)",
       "Bash(node -e ' *)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(grep -n \"footnote\\\\|sup\\\\|FootnoteRef\\\\|\\\\[\\\\\\\\^\" \"c:/Users/user/Desktop/無境界者網站/nonchurch-nuxt/components/EditorView.vue\")",
+      "Bash(grep -rn \"createClient\" c:/Users/user/Desktop/無境界者網站/nonchurch-nuxt/supabase.*)",
+      "Bash(npx nuxt *)"
     ]
   }
 }
