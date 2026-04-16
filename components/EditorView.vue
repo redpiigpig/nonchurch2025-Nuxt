@@ -6,7 +6,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Link from "@tiptap/extension-link";
-import { Mark, Node, Extension, mergeAttributes } from "@tiptap/core";
+import { Node, Extension } from "@tiptap/core";
 import { Plugin } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { supabase } from "~/supabase";
@@ -190,8 +190,9 @@ const RawBlock = Node.create({
       textarea.rows = 8;
       textarea.spellcheck = false;
 
-      // 防止打字事件被 ProseMirror 攔截
-      ["keydown", "keypress", "keyup"].forEach((ev) => {
+      // 阻止所有輸入事件冒泡到 ProseMirror（雙重保險）
+      ["keydown", "keypress", "keyup", "beforeinput", "input",
+       "paste", "cut", "mousedown", "mouseup"].forEach((ev) => {
         textarea.addEventListener(ev, (e) => e.stopPropagation());
       });
 
@@ -252,6 +253,14 @@ const RawBlock = Node.create({
 
       return {
         dom: wrapper,
+        // 告訴 ProseMirror：不要處理這個 NodeView 內部的任何事件
+        stopEvent(event) {
+          return wrapper.contains(event.target);
+        },
+        // 告訴 ProseMirror：忽略這個 NodeView 內部的 DOM 變更（textarea 打字不觸發重解析）
+        ignoreMutation() {
+          return true;
+        },
         update(updatedNode) {
           if (updatedNode.type.name !== "rawBlock") return false;
           currentHtml = updatedNode.attrs.html;
@@ -285,6 +294,7 @@ const ClassPreserver = Extension.create({
 
 // 4. AnnotationMarkers：在段落起點插入校對標記小點（ProseMirror Decoration）
 const activeAnnId = ref(null);
+const annPopupPos = ref({ x: 0, y: 0 });
 
 const AnnotationMarkers = Extension.create({
   name: "annotationMarkers",
@@ -305,9 +315,24 @@ const AnnotationMarkers = Extension.create({
                 (a) => a.paragraphIndex === blockIdx,
               );
               if (annsForBlock.length) {
-                const widgetEl = document.createElement("span");
-                widgetEl.className = "ann-dots-widget";
+                const blockText = node.textContent;
                 annsForBlock.forEach((ann) => {
+                  // 文字反白 + 小點放在反白文字右上
+                  let dotPos = offset + 1;
+                  if (ann.selectedText) {
+                    const charIdx = blockText.indexOf(ann.selectedText);
+                    if (charIdx !== -1) {
+                      const from = offset + 1 + charIdx;
+                      const to = from + ann.selectedText.length;
+                      decorations.push(
+                        Decoration.inline(from, to, {
+                          style: `background: ${ann.color}55; border-radius: 2px;`,
+                          class: "ann-text-highlight",
+                        }),
+                      );
+                      dotPos = to;
+                    }
+                  }
                   const dot = document.createElement("span");
                   dot.className = "ann-dot-marker";
                   dot.style.background = ann.color || "#ffeb3b";
@@ -316,17 +341,15 @@ const AnnotationMarkers = Extension.create({
                   dot.addEventListener("mousedown", (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    activeAnnId.value =
-                      activeAnnId.value === ann.id ? null : ann.id;
-                    nextTick(() => {
-                      document
-                        .querySelector(`[data-ann-card="${ann.id}"]`)
-                        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                    });
+                    if (activeAnnId.value === ann.id) {
+                      activeAnnId.value = null;
+                    } else {
+                      activeAnnId.value = ann.id;
+                      annPopupPos.value = { x: e.clientX, y: e.clientY };
+                    }
                   });
-                  widgetEl.appendChild(dot);
+                  decorations.push(Decoration.widget(dotPos, dot, { side: 1 }));
                 });
-                decorations.push(Decoration.widget(offset + 1, widgetEl, { side: -1 }));
               }
               blockIdx++;
             });
@@ -399,13 +422,29 @@ const categories = [
   { name: "文獻與翻譯", color: "#6c3535" },
 ];
 
-const categoryColor = computed(() => {
-  const cat = categories.find((c) => c.name === form.value.category);
-  return cat ? cat.color : "#444";
-});
 
 const isPublished = ref(false);
 const issuesMap = ref({});
+
+// ── 工具列：捲動後切 fixed ──────────────────────────────────────────
+const toolbarIsFixed = ref(false);
+let _toolbarNaturalTop = 0; // 工具列在文件中的原始 Y 位置
+let _scrollHandler = null;
+const TOOLBAR_FIXED_TOP = 10;
+
+const measureToolbarNaturalTop = async () => {
+  if (!import.meta.client) return;
+  await nextTick();
+  const sidebar = document.querySelector(".toolbar-sidebar");
+  if (sidebar) {
+    _toolbarNaturalTop = Math.round(
+      sidebar.getBoundingClientRect().top + window.scrollY,
+    );
+  }
+};
+
+// 文章載入後 header 多了按鈕，需重新量測
+watch(isEditMode, (val) => { if (val) measureToolbarNaturalTop(); });
 
 watch(
   () => form.value.issue,
@@ -446,8 +485,12 @@ watch(
   { deep: true },
 );
 
+let _annClickOutside = null;
+
 onBeforeUnmount(() => {
   editor.value?.destroy();
+  if (_scrollHandler) window.removeEventListener("scroll", _scrollHandler);
+  if (_annClickOutside) document.removeEventListener("mousedown", _annClickOutside);
 });
 
 // ── 原始碼切換 ────────────────────────────────────────────────────
@@ -522,6 +565,27 @@ onMounted(async () => {
   }
   const id = route.params.id || route.query.id;
   if (id) loadArticle(id);
+
+  // 初次量測（新文章模式，isEditMode 不會切換）
+  await nextTick();
+  measureToolbarNaturalTop();
+
+  // 捲動時判斷是否切換 fixed
+  _scrollHandler = () => {
+    if (!_toolbarNaturalTop) return;
+    toolbarIsFixed.value = window.scrollY > _toolbarNaturalTop - TOOLBAR_FIXED_TOP;
+  };
+  window.addEventListener("scroll", _scrollHandler, { passive: true });
+
+  // 點擊彈窗外部關閉
+  _annClickOutside = (e) => {
+    if (activeAnnId.value === null) return;
+    const popup = document.querySelector(".ann-popup");
+    if (popup && popup.contains(e.target)) return;
+    if (e.target.closest(".ann-dot-marker")) return;
+    activeAnnId.value = null;
+  };
+  document.addEventListener("mousedown", _annClickOutside);
 });
 
 // ── 儲存 ─────────────────────────────────────────────────────────
@@ -802,13 +866,29 @@ const removeFootnote = (index) => {
 const annReplaceTexts = ref({});
 const annEditorNotes = ref({});
 
+const activeAnn = computed(() =>
+  proofreadAnnotations.value.find((a) => a.id === activeAnnId.value) || null,
+);
+
+const annPopupStyle = computed(() => {
+  if (!import.meta.client) return {};
+  const { x, y } = annPopupPos.value;
+  const W = 320;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let left = x + 14;
+  let top = y - 10;
+  if (left + W > vw - 10) left = x - W - 14;
+  if (left < 10) left = 10;
+  if (top + 360 > vh - 10) top = vh - 370;
+  if (top < 10) top = 10;
+  return { left: left + "px", top: top + "px" };
+});
+
 const unresolvedAnnotations = computed(() =>
   proofreadAnnotations.value.filter((a) => !a.resolved),
 );
 
-const toggleAnn = (id) => {
-  activeAnnId.value = activeAnnId.value === id ? null : id;
-};
 
 const applyReplacement = (ann) => {
   const replaceWith = annReplaceTexts.value[ann.id] || "";
@@ -965,7 +1045,7 @@ const colorLabel = (color) => {
 
       <!-- ── 左側 sticky 工具列 ── -->
       <div v-if="!showSource && editor" class="toolbar-sidebar">
-        <div class="tiptap-toolbar">
+        <div class="tiptap-toolbar" :class="{ 'is-fixed': toolbarIsFixed }">
 
           <div class="toolbar-group">
             <button
@@ -1080,6 +1160,14 @@ const colorLabel = (color) => {
             <button type="button" class="tool-btn comp-btn"
               @click="insertRaw(`<blockquote><p>引用的內容...</p><div class='rel'>── 出處</div></blockquote>`)">
               💬 一般引言
+            </button>
+            <button type="button" class="tool-btn comp-btn"
+              @click="insertRaw(`<figure class='img-right px-300'><img src='圖片網址' alt='受訪者姓名' style='border: 1px solid #000; outline: 4.5px solid #000; outline-offset: 1px;'></figure>`)">
+              🖼 受訪者照片
+            </button>
+            <button type="button" class="tool-btn comp-btn"
+              @click="insertRaw(`<div class='theme-image'><img src='圖片網址' alt='主題圖片說明'></div>`)">
+              🎨 主題圖片
             </button>
             <button type="button" class="tool-btn comp-btn"
               @click="insertRaw(`<div class='custom-divider'></div>`)">
@@ -1233,107 +1321,6 @@ const colorLabel = (color) => {
             <button class="btn btn-sm" @click="addFootnote">+ 新增註腳</button>
           </div>
 
-          <!-- ── 校對標記審閱 ── -->
-          <div v-if="proofreadAnnotations.length" class="ann-review-section">
-            <div class="ann-review-header">
-              <span class="ann-review-title">
-                🔍 校對標記
-                <span class="ann-count-badge" :class="{ all_done: !unresolvedAnnotations.length }">
-                  {{ unresolvedAnnotations.length
-                    ? `${unresolvedAnnotations.length} 條待處理`
-                    : "✓ 全部已解決" }}
-                </span>
-              </span>
-              <span class="ann-color-legend">
-                <span v-for="ann in proofreadAnnotations.slice(0, 5)" :key="ann.id"
-                  class="ann-legend-dot" :style="{ background: ann.color }"
-                  :title="colorLabel(ann.color)"></span>
-              </span>
-            </div>
-
-            <div class="ann-list">
-              <div
-                v-for="ann in proofreadAnnotations"
-                :key="ann.id"
-                class="ann-card"
-                :class="{ resolved: ann.resolved, active: activeAnnId === ann.id }"
-                :data-ann-card="ann.id"
-              >
-                <!-- 收合列：小點 + 段落 + 文字摘要 -->
-                <div class="ann-summary" @click="toggleAnn(ann.id)">
-                  <span class="ann-dot-inline" :style="{ background: ann.color }"></span>
-                  <span class="ann-para-tag">§{{ ann.paragraphIndex + 1 }}</span>
-                  <span class="ann-text-preview">
-                    "{{ ann.selectedText?.slice(0, 28) }}{{ ann.selectedText?.length > 28 ? "…" : "" }}"
-                  </span>
-                  <span v-if="ann.resolved" class="ann-resolved-badge">✓ 已解決</span>
-                  <span v-else class="ann-expand-icon">{{ activeAnnId === ann.id ? "▲" : "▼" }}</span>
-                </div>
-
-                <!-- 展開內容 -->
-                <div v-if="activeAnnId === ann.id" class="ann-body">
-                  <div class="ann-info-row">
-                    <div class="ann-field">
-                      <span class="ann-field-label">標記文字：</span>
-                      <span class="ann-highlighted" :style="{ background: ann.color + 'bb' }">
-                        {{ ann.selectedText }}
-                      </span>
-                    </div>
-                    <div class="ann-field">
-                      <span class="ann-field-label">校對備注：</span>
-                      <span class="ann-note-text">{{ ann.note || "（無備注）" }}</span>
-                    </div>
-                  </div>
-
-                  <!-- 未解決：顯示操作區 -->
-                  <div v-if="!ann.resolved" class="ann-actions">
-                    <div class="ann-replace-group">
-                      <label class="ann-action-label">📝 替換為：</label>
-                      <div class="ann-replace-row">
-                        <input
-                          v-model="annReplaceTexts[ann.id]"
-                          placeholder="輸入替換文字，替換後自動標記解決..."
-                          class="ann-replace-input"
-                        />
-                        <button class="btn-ann-apply" @click="applyReplacement(ann)">
-                          替換
-                        </button>
-                      </div>
-                    </div>
-
-                    <div class="ann-note-group">
-                      <label class="ann-action-label">💬 編輯留言（說明改或不改的原因）：</label>
-                      <textarea
-                        v-model="annEditorNotes[ann.id]"
-                        placeholder="說明處理方式或原因..."
-                        class="ann-note-input"
-                        rows="2"
-                      ></textarea>
-                    </div>
-
-                    <label class="ann-resolve-label">
-                      <input type="checkbox" @change="resolveAnnotation(ann)" />
-                      ✓ 標記為已解決（不替換，僅記錄留言）
-                    </label>
-                  </div>
-
-                  <!-- 已解決：顯示結果 -->
-                  <div v-else class="ann-resolved-detail">
-                    <div v-if="ann.editorNote" class="ann-editor-response">
-                      <strong>編輯留言：</strong> {{ ann.editorNote }}
-                    </div>
-                    <div v-if="ann.editorAction === 'adopted'" class="ann-action-tag adopted">
-                      ✅ 已採用替換
-                    </div>
-                    <button class="btn-ann-unresolve" @click="unresolveAnnotation(ann.id)">
-                      ↩ 重新開啟
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- ── 校對通知 ── -->
           <div v-if="proofreadAnnotations.length" class="proofread-notice">
             <span>有 <strong>{{ proofreadAnnotations.length }}</strong> 條校對標記（{{
@@ -1350,6 +1337,67 @@ const colorLabel = (color) => {
       </div>
     </div>
   </div>
+
+  <!-- ── 校對標記浮動對話框 ── -->
+  <Teleport to="body">
+    <div
+      v-if="activeAnn"
+      class="ann-popup"
+      :style="annPopupStyle"
+      @mousedown.stop
+    >
+      <!-- Header -->
+      <div class="ann-popup-header">
+        <span class="ann-popup-dot" :style="{ background: activeAnn.color }"></span>
+        <span class="ann-popup-para">§{{ activeAnn.paragraphIndex + 1 }}</span>
+        <span v-if="activeAnn.resolved" class="ann-popup-resolved-tag">✓ 已解決</span>
+        <button class="ann-popup-close" @click="activeAnnId = null">×</button>
+      </div>
+
+      <!-- 標記文字 -->
+      <div class="ann-popup-selected" :style="{ background: activeAnn.color + '44' }">
+        「{{ activeAnn.selectedText }}」
+      </div>
+
+      <!-- 校對員備注 -->
+      <div v-if="activeAnn.note" class="ann-popup-note">
+        <span class="ann-popup-note-label">校對：</span>{{ activeAnn.note }}
+      </div>
+
+      <!-- 未解決操作 -->
+      <template v-if="!activeAnn.resolved">
+        <div class="ann-popup-replace-row">
+          <input
+            v-model="annReplaceTexts[activeAnn.id]"
+            placeholder="替換為..."
+            class="ann-popup-input"
+          />
+          <button class="btn-popup-apply" @click="applyReplacement(activeAnn)">替換</button>
+        </div>
+        <textarea
+          v-model="annEditorNotes[activeAnn.id]"
+          placeholder="回覆校對員..."
+          class="ann-popup-reply"
+          rows="2"
+        ></textarea>
+        <button class="btn-popup-resolve" @click="resolveAnnotation(activeAnn)">
+          ✓ 標記解決
+        </button>
+      </template>
+
+      <!-- 已解決 -->
+      <template v-else>
+        <div v-if="activeAnn.editorNote" class="ann-popup-editor-note">
+          <span class="ann-popup-note-label">編輯：</span>{{ activeAnn.editorNote }}
+        </div>
+        <div class="ann-popup-action-row">
+          <span v-if="activeAnn.editorAction === 'adopted'" class="ann-action-tag adopted">✅ 已採用</span>
+          <span v-else class="ann-action-tag resolved">✓ 已標記解決</span>
+          <button class="btn-popup-unresolve" @click="unresolveAnnotation(activeAnn.id)">↩ 重開</button>
+        </div>
+      </template>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -1514,16 +1562,15 @@ const colorLabel = (color) => {
   align-items: flex-start;
 }
 
-/* ── 左側 sticky 工具列 ── */
+/* ── 左側工具列 ── */
 .toolbar-sidebar {
   width: 200px;
   flex-shrink: 0;
-  position: sticky;
-  top: 16px;
   align-self: flex-start;
 }
 
 .tiptap-toolbar {
+  width: 100%;
   background: #f8f9fa;
   border: 1px solid #dee2e6;
   border-radius: 8px;
@@ -1531,6 +1578,21 @@ const colorLabel = (color) => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* 預設：正常排版，不超出螢幕底部 */
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.tiptap-toolbar::-webkit-scrollbar { display: none; }
+
+/* 捲動後切換成 fixed，AppHeader 已捲走，距頂端 10px */
+.tiptap-toolbar.is-fixed {
+  position: fixed;
+  top: 10px;
+  left: calc(250px + 40px + 16px);
+  width: 200px;
+  max-height: calc(100vh - 20px);
 }
 
 .toolbar-group {
@@ -2221,15 +2283,181 @@ const colorLabel = (color) => {
   font-size: 0.85rem;
 }
 
+/* ── 校對標記浮動對話框 ── */
+.ann-popup {
+  position: fixed;
+  z-index: 9999;
+  width: 320px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid #e0e7ff;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.88rem;
+}
+
+.ann-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ann-popup-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,0.15);
+}
+
+.ann-popup-para {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6366f1;
+  background: #e0e7ff;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.ann-popup-resolved-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #16a34a;
+  background: #dcfce7;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.ann-popup-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: #aaa;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.ann-popup-close:hover { color: #333; }
+
+.ann-popup-selected {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #222;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.ann-popup-note {
+  font-size: 0.85rem;
+  color: #444;
+  line-height: 1.5;
+}
+
+.ann-popup-note-label {
+  font-weight: 700;
+  color: #6b7280;
+  margin-right: 2px;
+}
+
+.ann-popup-replace-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ann-popup-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #a5b4fc;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  outline: none;
+  min-width: 0;
+}
+.ann-popup-input:focus { border-color: #6366f1; }
+
+.btn-popup-apply {
+  padding: 6px 12px;
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.83rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.btn-popup-apply:hover { background: #4338ca; }
+
+.ann-popup-reply {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.btn-popup-resolve {
+  padding: 7px 0;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: center;
+}
+.btn-popup-resolve:hover { background: #bbf7d0; }
+
+.ann-popup-editor-note {
+  font-size: 0.85rem;
+  color: #444;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  line-height: 1.5;
+}
+
+.ann-popup-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ann-action-tag.resolved { background: #f0f9ff; color: #0369a1; }
+
+.btn-popup-unresolve {
+  margin-left: auto;
+  padding: 4px 12px;
+  background: #f3f4f6;
+  color: #555;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.btn-popup-unresolve:hover { background: #e5e7eb; }
+
 .code-font { font-family: "Consolas", "Monaco", monospace; font-size: 0.85rem; }
 
 @media (max-width: 900px) {
   .editor-main-row { flex-direction: column; }
   .toolbar-sidebar {
     width: 100%;
-    position: static;
+    position: static; /* 手機版回到正常流 */
   }
   .tiptap-toolbar {
+    max-height: none;
     flex-direction: row;
     flex-wrap: wrap;
   }
