@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { marked } from "marked";
 import { supabase } from "~/supabase";
 
 definePageMeta({ layout: "admin", middleware: "auth" });
@@ -59,26 +58,26 @@ const syncFromCfp = () => {
   const cfp = selectedCfp.value;
   if (!cfp) return alert("請先選擇要同步的期次");
 
-  const lines = [];
+  const parts = [];
   if (cfp.cfp_title) {
-    lines.push(`## ☆下期徵稿主題：《${cfp.cfp_title}》`);
+    parts.push(`<h2>☆下期徵稿主題：《${cfp.cfp_title}》</h2>`);
   }
   if (cfp.cfp_deadline) {
-    lines.push(`📌 截稿期限：${cfp.cfp_deadline}`);
+    parts.push(`<p>📌 截稿期限：${cfp.cfp_deadline}</p>`);
   }
   if (cfp.cfp_theme) {
-    lines.push(`\n${cfp.cfp_theme}`);
+    parts.push(`<p>${cfp.cfp_theme}</p>`);
   }
   if (cfp.intro_cfp) {
-    lines.push(`\n---\n\n${cfp.intro_cfp}`);
+    parts.push(`<hr/><p>${cfp.intro_cfp}</p>`);
   }
 
-  form.value.content = lines.join("\n\n");
+  form.value.content = parts.join("\n");
   alert("✅ 已從 CFP 資料同步內文，請確認後儲存。");
 };
 
-// ── 預覽 ──────────────────────────────────────────────────────────
-const previewHtml = computed(() => marked.parse(form.value.content || ""));
+// ── 預覽（content 已是 HTML）──────────────────────────────────────
+const previewHtml = computed(() => form.value.content || "");
 
 // ── 載入 ─────────────────────────────────────────────────────────
 const loadArticle = async () => {
@@ -272,7 +271,7 @@ onMounted(loadArticle);
             v-model="form.content"
             class="content-textarea"
             rows="28"
-            placeholder="輸入 Markdown 內文..."
+            placeholder="輸入 HTML 內文..."
           ></textarea>
         </div>
       </div>

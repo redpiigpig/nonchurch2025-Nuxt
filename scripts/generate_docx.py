@@ -165,7 +165,8 @@ class ProfessionalDocxGenerator:
             r'(\*\*[^*\n]+?\*\*'
             r'|\*[^*\n]+?\*'
             r'|<(?:b|strong)>[^<]*</(?:b|strong)>'
-            r'|<(?:i|em)>[^<]*</(?:i|em)>'
+            r'|<em>[^<]*</em>'
+            r'|<i>[^<]*</i>'
             r'|<[^>]+>)',
             re.IGNORECASE)
 
@@ -176,7 +177,8 @@ class ProfessionalDocxGenerator:
             bold_md     = re.fullmatch(r'\*\*([^*]+)\*\*', seg)
             kaiti_md    = re.fullmatch(r'\*([^*]+)\*', seg)
             bold_html   = re.fullmatch(r'<(?:b|strong)>([^<]*)</(?:b|strong)>', seg, re.IGNORECASE)
-            italic_html = re.fullmatch(r'<(?:i|em)>([^<]*)</(?:i|em)>', seg, re.IGNORECASE)
+            em_html     = re.fullmatch(r'<em>([^<]*)</em>', seg, re.IGNORECASE)
+            italic_html = re.fullmatch(r'<i>([^<]*)</i>', seg, re.IGNORECASE)
             html_tag    = re.fullmatch(r'<[^>]+>', seg)
 
             if bold_md or bold_html:
@@ -187,8 +189,8 @@ class ProfessionalDocxGenerator:
                     f' w:eastAsia="PMingLiU"/></w:rPr>'
                     f'<w:t xml:space="preserve">{esc(c)}</w:t></w:r>'
                 )
-            elif kaiti_md:
-                c = kaiti_md.group(1)
+            elif kaiti_md or em_html:
+                c = (kaiti_md or em_html).group(1)
                 parts.append(
                     f'<w:r><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/>'
                     f'<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"'
@@ -1332,7 +1334,8 @@ class ProfessionalDocxGenerator:
           **text**           → 粗體
           *text*             → 標楷體（行內引用）
           <b>/<strong>       → 粗體
-          <i>/<em>           → 斜體
+          <em>               → 標楷體
+          <i>                → 斜體
           <br>               → 段落內換行（w:br）
           <span style="..."> → 小字體 / 置右等樣式
           [^N]               → Word 腳注引用
@@ -1343,9 +1346,11 @@ class ProfessionalDocxGenerator:
             r'(\*\*[^*\n]+?\*\*'
             r'|\*[^*\n]+?\*'
             r'|<(?:b|strong)>[^<]*</(?:b|strong)>'
-            r'|<(?:i|em)>[^<]*</(?:i|em)>'
+            r'|<em>[^<]*</em>'
+            r'|<i>[^<]*</i>'
             r'|<br\s*/?>'
             r'|<span\b[^>]*>.*?</span>'
+            r'|<sup\b[^>]*class="footnote-ref"[^>]*><a\b[^>]*>\d+</a></sup>'
             r'|<[^>]+>'
             r'|\[\^\d+\])',
             re.IGNORECASE | re.DOTALL)
@@ -1355,9 +1360,11 @@ class ProfessionalDocxGenerator:
             bold_md     = re.fullmatch(r'\*\*([^*]+)\*\*', seg)
             kaiti_md    = re.fullmatch(r'\*([^*]+)\*', seg)
             bold_html   = re.fullmatch(r'<(?:b|strong)>([^<]*)</(?:b|strong)>', seg, re.IGNORECASE)
-            italic_html = re.fullmatch(r'<(?:i|em)>([^<]*)</(?:i|em)>', seg, re.IGNORECASE)
+            em_html     = re.fullmatch(r'<em>([^<]*)</em>', seg, re.IGNORECASE)
+            italic_html = re.fullmatch(r'<i>([^<]*)</i>', seg, re.IGNORECASE)
             br_tag      = re.fullmatch(r'<br\s*/?>', seg, re.IGNORECASE)
             span_m      = re.fullmatch(r'<span\b([^>]*)>(.*?)</span>', seg, re.IGNORECASE | re.DOTALL)
+            fn_sup      = re.search(r'<a\b[^>]*>(\d+)</a>', seg) if seg.startswith('<sup') else None
             fn_m        = re.fullmatch(r'\[\^(\d+)\]', seg)
             html_tag    = re.fullmatch(r'<[^>]+>', seg)
 
@@ -1370,6 +1377,9 @@ class ProfessionalDocxGenerator:
             elif bold_html:
                 run = paragraph.add_run(bold_html.group(1))
                 self._apply_font(run, ascii_font, east_font, size=12, bold=True)
+            elif em_html:
+                run = paragraph.add_run(em_html.group(1))
+                self._apply_font(run, ascii_font, '標楷體', size=12)
             elif italic_html:
                 run = paragraph.add_run(italic_html.group(1))
                 self._apply_font(run, ascii_font, east_font, size=12, italic=True)
@@ -1394,6 +1404,8 @@ class ProfessionalDocxGenerator:
                     # 其他 span → 以正常字型輸出
                     run = paragraph.add_run(inner)
                     self._apply_font(run, ascii_font, east_font, size=12)
+            elif fn_sup:
+                self._add_footnote_ref(paragraph, fn_sup.group(1))
             elif fn_m:
                 self._add_footnote_ref(paragraph, fn_m.group(1))
             elif html_tag:

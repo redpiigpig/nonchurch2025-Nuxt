@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { marked } from "marked";
 import { supabase } from "~/supabase";
 
 const route = useRoute();
@@ -45,20 +44,17 @@ const colorOptions = [
   { value: "#2196f3", label: "藍｜補充說明" },
 ];
 
-// ── 段落切割 ─────────────────────────────────────────────────────────
+// ── 段落切割（content 已是 HTML，依區塊標籤切分）────────────────────
 const paragraphs = computed(() => {
   if (!article.value?.content) return [];
-  return article.value.content.split(/\n\n+/).filter((p) => p.trim());
+  const matches = article.value.content.match(
+    /<(?:p|blockquote|figure|div|h[1-6])\b[^>]*>[\s\S]*?<\/(?:p|blockquote|figure|div|h[1-6])>/gi,
+  );
+  return matches || [];
 });
 
-// ── 渲染單一段落（不含高亮）─────────────────────────────────────────
-const renderPara = (para) => {
-  const withRefs = para.replace(
-    /\[\^(\d+)\]/g,
-    (_, id) => `<sup class="footnote-ref">[${id}]</sup>`,
-  );
-  return marked.parse(withRefs, { gfm: true, breaks: true });
-};
+// ── 渲染單一段落（content 已是 HTML，直接回傳）───────────────────────
+const renderPara = (para) => para;
 
 // ── DOM 文字高亮注入（純函式，不依賴 Vue 響應式）────────────────────
 const injectHighlight = (container, startOff, endOff, color, annId, note) => {

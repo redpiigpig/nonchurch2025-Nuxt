@@ -1,9 +1,5 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { marked } from "marked";
-import markedFootnote from "marked-footnote";
-
-marked.use(markedFootnote({ prefixId: "footnote-" }));
 
 const article = ref(null);
 const loading = ref(true);
@@ -47,22 +43,14 @@ const formatTextWithFootnote = (text) => {
 };
 
 /**
- * 🌟 核心預覽邏輯：直接依賴媒體庫的 url (因為是預覽，不會即時抓 DB)
- * 如果遇到舊版純檔名，直接導向 Cloudinary
+ * 核心預覽邏輯：content 已是 HTML，直接處理佔位符與圖片路徑
  */
 const htmlContent = computed(() => {
   if (!article.value?.content) return "";
-  let fullText = article.value.content;
+  let html = article.value.content;
 
-  fullText = fullText.replace(/\[\^(\d+)\]/g, (match, id) => {
-    return `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`;
-  });
-
-  let parsedHtml = marked.parse(fullText, { gfm: true, breaks: true });
-
-  // 由於預覽模式無法即時 JOIN media_assets，若使用者尚未存檔，會先保留 [[圖片N]]
-  // 對於舊版寫死檔名的邏輯，直接加上 Cloudinary base URL
-  parsedHtml = parsedHtml.replace(/src="([^"]+)"/g, (match, srcValue) => {
+  // 相容未帶 http 的純檔名路徑
+  html = html.replace(/src="([^"]+)"/g, (match, srcValue) => {
     if (
       srcValue.startsWith("http") ||
       srcValue.startsWith("data:") ||
@@ -71,37 +59,27 @@ const htmlContent = computed(() => {
     ) {
       return match;
     }
-
-    // 徹底棄用 Supabase Storage
     return `src="https://res.cloudinary.com/nonchurch2025/image/upload/${srcValue}"`;
   });
 
   if (article.value.footnotes?.length > 0) {
     const listItems = article.value.footnotes
-      .map((note) => {
-        return `<li id="footnote-${note.id}">
-          <p>
-            ${note.text}
-            <a href="#footnote-ref-${note.id}" class="footnote-backref">↩</a>
-          </p>
-        </li>`;
-      })
+      .map(
+        (note) =>
+          `<li id="footnote-${note.id}"><p>${note.text}<a href="#footnote-ref-${note.id}" class="footnote-backref">↩</a></p></li>`,
+      )
       .join("");
-
-    parsedHtml += `
-      <div class="footnotes">
-        <hr />
-        <ol>${listItems}</ol>
-      </div>
-    `;
+    html += `<div class="footnotes"><hr /><ol>${listItems}</ol></div>`;
   }
 
-  return parsedHtml;
+  return html;
 });
 
 const keywordContent = computed(() => {
   if (!article.value?.keyword) return "";
-  return marked.parse(article.value.keyword);
+  const kw = article.value.keyword;
+  const hasPrefix = /🌿|關鍵字/.test(kw);
+  return hasPrefix ? `<p>${kw}</p>` : `<p><strong>🌿 關鍵字：</strong>${kw}</p>`;
 });
 
 const categoryColor = computed(() => {

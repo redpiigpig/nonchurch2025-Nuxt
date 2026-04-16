@@ -1,14 +1,10 @@
 <script setup>
 import { computed, defineAsyncComponent } from "vue";
 import { useRoute } from "vue-router";
-import { marked } from "marked";
-import markedFootnote from "marked-footnote";
 import { supabase } from "~/supabase";
 import { useTempArticlesStore } from "~/stores/tempArticles";
 import { useLanguage } from "~/composables/useLanguage";
 import { useEditorMode } from "~/composables/useEditorMode";
-
-marked.use(markedFootnote({ prefixId: "footnote-" }));
 
 const route = useRoute();
 const { currentLang } = useLanguage();
@@ -371,30 +367,22 @@ const formatTextWithFootnote = (text) => {
 };
 
 /**
- * 🌟 核心渲染邏輯：完全改為 Cloudinary (移除所有 Supabase Storage 依賴)
+ * 核心渲染邏輯：content 已是 HTML，直接處理佔位符與圖片路徑
  */
 const htmlContent = computed(() => {
   if (!article.value?.content) return "";
-  let fullText = article.value.content.replace(
-    /\[\^(\d+)\]/g,
-    (_, id) =>
-      `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`,
-  );
-  let parsedHtml = marked.parse(fullText, { gfm: true, breaks: true });
+  let html = article.value.content;
 
   // 1. 處理新版：替換 [[圖片N]] 佔位符
   const mediaAssets = article.value?.media_assets || [];
-  parsedHtml = parsedHtml.replace(
-    /src="\[\[圖片(\d+)\]\]"/g,
-    (match, orderStr) => {
-      const order = parseInt(orderStr);
-      const found = mediaAssets.find((m) => m.sort_order === order);
-      return found ? `src="${found.image_url}"` : match;
-    },
-  );
+  html = html.replace(/src="\[\[圖片(\d+)\]\]"/g, (match, orderStr) => {
+    const order = parseInt(orderStr);
+    const found = mediaAssets.find((m) => m.sort_order === order);
+    return found ? `src="${found.image_url}"` : match;
+  });
 
-  // 2. 處理舊版：相容舊文章中未帶 http 的純檔名路徑 (直接導向 Cloudinary)
-  parsedHtml = parsedHtml.replace(/src="([^"]+)"/g, (match, srcValue) => {
+  // 2. 處理舊版：相容未帶 http 的純檔名路徑
+  html = html.replace(/src="([^"]+)"/g, (match, srcValue) => {
     if (
       srcValue.startsWith("http") ||
       srcValue.startsWith("data:") ||
@@ -403,11 +391,10 @@ const htmlContent = computed(() => {
     ) {
       return match;
     }
-    // 徹底棄用 Supabase Storage，直接使用 Cloudinary URL (假設你舊圖也上傳到 Cloudinary 根目錄或相對應目錄了)
     return `src="https://res.cloudinary.com/nonchurch2025/image/upload/${srcValue}"`;
   });
 
-  return parsedHtml;
+  return html;
 });
 
 const footnotesHtml = computed(() => {
@@ -424,9 +411,8 @@ const footnotesHtml = computed(() => {
 const keywordContent = computed(() => {
   if (!displayArticle.value?.keyword) return "";
   const kw = displayArticle.value.keyword;
-  // 若 keyword 欄位已含前綴（舊文章）則直接解析；否則補上前綴
   const hasPrefix = /🌿|關鍵字/.test(kw);
-  return marked.parse(hasPrefix ? kw : `🌿 **關鍵字：** ${kw}`);
+  return hasPrefix ? `<p>${kw}</p>` : `<p><strong>🌿 關鍵字：</strong>${kw}</p>`;
 });
 </script>
 
