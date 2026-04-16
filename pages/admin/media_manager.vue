@@ -210,14 +210,17 @@ const uploadArtImage = async (event) => {
       const uploadRes = await $fetch("/api/media", { method: "POST", body: formData });
       if (!uploadRes.success) throw new Error(uploadRes.error);
 
-      const { error: dbErr } = await supabase.from("media_assets").insert({
-        issue_id: selectedIssue.value,
-        article_id: selectedArticle.value.id,
-        cloudinary_id: uploadRes.data.public_id,
-        image_url: uploadRes.data.secure_url,
-        sort_order: nextOrder++,
+      const dbRes = await $fetch("/api/media-assets", {
+        method: "POST",
+        body: {
+          issue_id: selectedIssue.value,
+          article_id: selectedArticle.value.id,
+          cloudinary_id: uploadRes.data.public_id,
+          image_url: uploadRes.data.secure_url,
+          sort_order: nextOrder++,
+        },
       });
-      if (dbErr) throw dbErr;
+      if (!dbRes.success) throw new Error(dbRes.error);
     }
     await loadArticleImages();
   } catch (err) {
@@ -240,11 +243,7 @@ const reorderImage = async (img, newPos) => {
 
   loadingUI.value = true;
   const updates = images.map((im, i) => ({ id: im.id, sort_order: i + 1 }));
-  await Promise.all(
-    updates.map(({ id, sort_order }) =>
-      supabase.from("media_assets").update({ sort_order }).eq("id", id)
-    )
-  );
+  await $fetch("/api/media-assets", { method: "PATCH", body: { updates } });
   await loadArticleImages();
 };
 
@@ -266,7 +265,11 @@ const deleteArtImage = async (img) => {
       },
     });
 
-    await supabase.from("media_assets").delete().eq("id", img.id);
+    const dbRes = await $fetch("/api/media-assets", {
+      method: "DELETE",
+      body: { id: img.id },
+    });
+    if (!dbRes.success) throw new Error(dbRes.error);
 
     const { data: remaining } = await supabase
       .from("media_assets")

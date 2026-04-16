@@ -840,17 +840,6 @@ const removeFootnote = (index) => {
         </div>
       </div>
 
-      <div class="form-row">
-        <div class="form-group half">
-          <label>上一篇 ID</label>
-          <input v-model="form.prev_id" />
-        </div>
-        <div class="form-group half">
-          <label>下一篇 ID</label>
-          <input v-model="form.next_id" />
-        </div>
-      </div>
-
       <div v-if="!isTocMode" class="form-group">
         <label>文章摘要 (Summary)</label>
         <textarea v-model="form.summary" rows="3"></textarea>
