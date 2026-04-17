@@ -6,7 +6,8 @@ import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Link from "@tiptap/extension-link";
-import { Node, Extension } from "@tiptap/core";
+import { Node, Extension, mergeAttributes } from "@tiptap/core";
+import Italic from "@tiptap/extension-italic";
 import { Plugin } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { supabase } from "~/supabase";
@@ -52,6 +53,17 @@ const proofreadStatus = ref("pending");
 
 // ── 自訂 Tiptap Extension ─────────────────────────────────────────
 
+// 0. ItalicI：獨立 <i> 斜體 mark（與 <em> 楷書體分開）
+const ItalicI = Italic.extend({
+  name: "italicI",
+  parseHTML() {
+    return [{ tag: "i" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["i", mergeAttributes(HTMLAttributes)];
+  },
+});
+
 // 1. FootnoteRef：保留腳注引用 <sup class="footnote-ref">
 const FootnoteRef = Node.create({
   name: "footnoteRef",
@@ -95,6 +107,7 @@ const RawBlock = Node.create({
   name: "rawBlock",
   group: "block",
   atom: true,
+  draggable: true,
   addAttributes() {
     return {
       html: { default: "" },
@@ -176,8 +189,36 @@ const RawBlock = Node.create({
         }
       });
 
+      // ── 刪除按鈕 ──────────────────────────────────────────
+      const deleteBtn = document.createElement("button");
+      deleteBtn.textContent = "🗑️";
+      deleteBtn.type = "button";
+      deleteBtn.className = "raw-block-delete-btn";
+      deleteBtn.title = "刪除此區塊";
+
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const pos = typeof getPos === "function" ? getPos() : null;
+        if (typeof pos === "number") {
+          const { tr } = editor.state;
+          tr.delete(pos, pos + node.nodeSize);
+          tr.setMeta("addToHistory", true);
+          editor.view.dispatch(tr);
+        }
+      });
+
+      // ── 拖曳把手 ──────────────────────────────────────────────
+      const dragHandle = document.createElement("div");
+      dragHandle.className = "raw-block-drag-handle";
+      dragHandle.contentEditable = "false";
+      dragHandle.draggable = true;
+      dragHandle.title = "拖曳移動";
+      dragHandle.textContent = "⠿";
+
+      btnBarTop.appendChild(dragHandle);
       btnBarTop.appendChild(editBtn);
       btnBarTop.appendChild(copyBtn);
+      btnBarTop.appendChild(deleteBtn);
 
       // ── 編輯區（初始隱藏）────────────────────────────────
       const editArea = document.createElement("div");
@@ -254,7 +295,9 @@ const RawBlock = Node.create({
       return {
         dom: wrapper,
         // 告訴 ProseMirror：不要處理這個 NodeView 內部的任何事件
+        // 拖曳事件例外：讓 ProseMirror 處理 draggable 節點的搬移
         stopEvent(event) {
+          if (dragHandle.contains(event.target)) return false;
           return wrapper.contains(event.target);
         },
         // 告訴 ProseMirror：忽略這個 NodeView 內部的 DOM 變更（textarea 打字不觸發重解析）
@@ -376,6 +419,45 @@ function cleanHTML(raw) {
   );
 }
 
+// ── 將純文字形式的 HTML 標記還原成真正的格式 ────────────────────
+// Phase 1：inline marks（使用者在 WYSIWYG 直接打 <b> 等）
+// Phase 2：block HTML（貼上的 <figure>/<table>/<div> 整段被存成文字）
+function normalizeInlineTags(html) {
+  if (!html) return html;
+
+  // ── Phase 1: inline marks ──────────────────────────────────────
+  let result = html
+    .replace(/&lt;b&gt;/g, "<strong>")
+    .replace(/&lt;\/b&gt;/g, "</strong>")
+    .replace(/&lt;strong&gt;/g, "<strong>")
+    .replace(/&lt;\/strong&gt;/g, "</strong>")
+    .replace(/&lt;i&gt;/g, "<i>")
+    .replace(/&lt;\/i&gt;/g, "</i>")
+    .replace(/&lt;em&gt;/g, "<em>")
+    .replace(/&lt;\/em&gt;/g, "</em>")
+    .replace(/&lt;u&gt;/g, "<u>")
+    .replace(/&lt;\/u&gt;/g, "</u>");
+
+  // ── Phase 2: block HTML ────────────────────────────────────────
+  // 若一個 <p> 的全部內容都是 escaped block HTML，解包還原
+  const BLOCK_RE = /^<(figure|table|div[\s>]|blockquote|iframe|video|audio)\b/i;
+  result = result.replace(
+    /<p(?:[^>]*)>([\s\S]*?)<\/p>/g,
+    (match, inner) => {
+      const trimmed = inner.trim();
+      if (!trimmed.startsWith("&lt;")) return match;
+      const decoded = trimmed
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"');
+      return BLOCK_RE.test(decoded) ? decoded : match;
+    },
+  );
+
+  return result;
+}
+
 // ── Form 狀態 ─────────────────────────────────────────────────────
 const route = useRoute();
 const router = useRouter();
@@ -459,6 +541,7 @@ watch(
 const editor = useEditor({
   extensions: [
     StarterKit.configure({ heading: { levels: [2, 3] } }),
+    ItalicI,
     ClassPreserver,
     Underline,
     TextAlign.configure({ types: ["heading", "paragraph"] }),
@@ -505,12 +588,18 @@ const toggleSource = () => {
   }
 };
 
+// ── 手動重解析內文 inline HTML tag ────────────────────────────────
+const reprocessInlineTags = () => {
+  const html = normalizeInlineTags(cleanHTML(editor.value?.getHTML() || ""));
+  editor.value?.commands.setContent(html);
+};
+
 // ── 載入文章 ──────────────────────────────────────────────────────
 const loadArticle = async (id) => {
   loading.value = true;
   const { data, error } = await supabase
     .from("articles")
-    .select("*, media_assets(image_url, sort_order)")
+    .select("*, media_assets(id, image_url, sort_order, cloudinary_id)")
     .eq("id", id)
     .single();
 
@@ -547,7 +636,7 @@ const loadArticle = async (id) => {
     proofreadAnnotations.value = data.proofread_annotations || [];
     proofreadStatus.value = data.proofread_status || "pending";
 
-    editor.value?.commands.setContent(data.content || "");
+    editor.value?.commands.setContent(normalizeInlineTags(data.content || ""));
 
     if (data.article_type === "toc") {
       await loadTocArticles(data.issue);
@@ -812,12 +901,174 @@ const sortedMediaAssets = computed(() =>
 );
 
 const insertImageBlock = (sortOrder, style) => {
-  const templates = {
-    left: `<figure class="img-left px-300"><img src="[[圖片${sortOrder}]]" alt="描述"><figcaption>圖片說明</figcaption></figure>`,
-    center: `<figure class="img-bottom px-600"><img src="[[圖片${sortOrder}]]" alt="描述"><figcaption>圖片說明文字</figcaption></figure>`,
-    right: `<figure class="img-right px-300"><img src="[[圖片${sortOrder}]]" alt="描述"><figcaption>圖片說明</figcaption></figure>`,
+  const figureClassMap = {
+    left: "img-left px-300",
+    center: "img-bottom px-600",
+    right: "img-right px-300",
   };
-  editor.value?.commands.insertContent(templates[style]);
+  const newClass = figureClassMap[style];
+  const placeholder = `[[圖片${sortOrder}]]`;
+
+  // 先在 editor 中找有沒有已包含這張圖的 rawBlock
+  const editorInst = editor.value;
+  if (editorInst) {
+    let foundPos = null;
+    let foundNode = null;
+    editorInst.state.doc.descendants((node, pos) => {
+      if (
+        node.type.name === "rawBlock" &&
+        node.attrs.html.includes(placeholder)
+      ) {
+        foundPos = pos;
+        foundNode = node;
+        return false;
+      }
+    });
+
+    if (foundNode !== null && foundPos !== null) {
+      // 找到現有 figure → 只改 class，不插入新塊
+      const newHtml = foundNode.attrs.html.replace(
+        /(<figure\s+class=")[^"]*(")/,
+        `$1${newClass}$2`,
+      );
+      editorInst
+        .chain()
+        .command(({ tr }) => {
+          tr.setNodeMarkup(foundPos, undefined, { html: newHtml });
+          return true;
+        })
+        .run();
+      form.value.content = cleanHTML(editorInst.getHTML());
+      return;
+    }
+  }
+
+  // 找不到 → 在游標位置插入新 figure
+  const templates = {
+    left: `<figure class="img-left px-300"><img src="${placeholder}" alt="描述"><figcaption>圖片說明</figcaption></figure>`,
+    center: `<figure class="img-bottom px-600"><img src="${placeholder}" alt="描述"><figcaption>圖片說明文字</figcaption></figure>`,
+    right: `<figure class="img-right px-300"><img src="${placeholder}" alt="描述"><figcaption>圖片說明</figcaption></figure>`,
+  };
+  editorInst?.commands.insertContent(templates[style]);
+};
+
+// ── 圖片排序（上移/下移，交換 sort_order）───────────────────────
+const mediaAssetsLoading = ref(false);
+
+const moveMediaAsset = async (index, direction) => {
+  const assets = [...(form.value.media_assets || [])].sort(
+    (a, b) => a.sort_order - b.sort_order,
+  );
+  const swapIndex = index + direction;
+  if (swapIndex < 0 || swapIndex >= assets.length) return;
+
+  const a = assets[index];
+  const b = assets[swapIndex];
+  const tmp = a.sort_order;
+  a.sort_order = b.sort_order;
+  b.sort_order = tmp;
+
+  mediaAssetsLoading.value = true;
+  const res = await fetch("/api/media-assets", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      updates: [
+        { id: a.id, sort_order: a.sort_order },
+        { id: b.id, sort_order: b.sort_order },
+      ],
+    }),
+  });
+  const data = await res.json();
+  if (!data.success) alert("排序更新失敗：" + data.error);
+  else form.value.media_assets = assets;
+  mediaAssetsLoading.value = false;
+};
+
+// ── 圖片手動指定序號（整批重排）─────────────────────────────────
+const reorderMediaAsset = async (img, newOrder) => {
+  const assets = [...(form.value.media_assets || [])].sort(
+    (a, b) => a.sort_order - b.sort_order,
+  );
+  const clamped = Math.max(1, Math.min(Math.round(newOrder), assets.length));
+  const fromIdx = assets.findIndex((a) => a.id === img.id);
+  if (fromIdx === -1 || fromIdx === clamped - 1) return;
+
+  const [item] = assets.splice(fromIdx, 1);
+  assets.splice(clamped - 1, 0, item);
+  assets.forEach((a, i) => { a.sort_order = i + 1; });
+
+  mediaAssetsLoading.value = true;
+  const res = await fetch("/api/media-assets", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      updates: assets.map((a) => ({ id: a.id, sort_order: a.sort_order })),
+    }),
+  });
+  const data = await res.json();
+  if (!data.success) alert("排序更新失敗：" + data.error);
+  else form.value.media_assets = assets;
+  mediaAssetsLoading.value = false;
+};
+
+// ── 新增圖片（支援多選）────────────────────────────────────────
+const handleMediaUpload = async (event) => {
+  const files = Array.from(event.target.files);
+  if (!files.length) return;
+  if (!form.value.id) {
+    alert("請先儲存文章後再上傳圖片");
+    event.target.value = "";
+    return;
+  }
+
+  const issue = form.value.issue;
+  const idMatch = form.value.id.match(/^(\d+)-(\d+)/);
+  const seq = idMatch ? `${idMatch[1]}-${idMatch[2]}` : form.value.id;
+  const folder = `images/articles/issue-${issue}`;
+  const maxOrder = Math.max(
+    0,
+    ...(form.value.media_assets || []).map((a) => a.sort_order),
+  );
+
+  mediaAssetsLoading.value = true;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const nextOrder = maxOrder + i + 1;
+    const filename = `${seq}-${nextOrder}`;
+
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("path", folder);
+    fd.append("filename", filename);
+
+    const uploadRes = await fetch("/api/media", { method: "POST", body: fd });
+    const uploadData = await uploadRes.json();
+    if (!uploadData.success) {
+      alert(`圖片 ${file.name} 上傳失敗：${uploadData.error}`);
+      continue;
+    }
+
+    const assetRes = await fetch("/api/media-assets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        issue_id: issue,
+        article_id: form.value.id,
+        cloudinary_id: uploadData.data.public_id,
+        image_url: uploadData.data.secure_url,
+        sort_order: nextOrder,
+      }),
+    });
+    const assetData = await assetRes.json();
+    if (assetData.success) {
+      form.value.media_assets = [...(form.value.media_assets || []), assetData.data];
+    } else {
+      alert(`圖片上傳成功但記錄寫入失敗：${assetData.error}`);
+    }
+  }
+  mediaAssetsLoading.value = false;
+  event.target.value = "";
 };
 
 // ── 腳注引用插入 ──────────────────────────────────────────────────
@@ -865,6 +1116,38 @@ const removeFootnote = (index) => {
 // ── 校對標記審閱 ─────────────────────────────────────────────────
 const annReplaceTexts = ref({});
 const annEditorNotes = ref({});
+
+// ── 迷你富文本（備註 + 註釋）────────────────────────────────────
+const activeMiniField = ref(null);
+
+const onMiniBlur = (e) => {
+  if (!e.relatedTarget?.closest?.(".mini-format-bar")) {
+    activeMiniField.value = null;
+  }
+};
+
+const applyMiniFormat = (cmd) => {
+  if (!activeMiniField.value) return;
+  activeMiniField.value.focus();
+  document.execCommand(cmd, false, null);
+};
+
+const wrapMiniTag = (tag) => {
+  if (!activeMiniField.value) return;
+  activeMiniField.value.focus();
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+  const range = sel.getRangeAt(0);
+  try {
+    const el = document.createElement(tag);
+    range.surroundContents(el);
+  } catch {
+    // 選取跨越多個元素時降級為 execCommand
+    document.execCommand("italic", false, null);
+  }
+  // 同步 innerHTML 回 model
+  activeMiniField.value.dispatchEvent(new Event("input", { bubbles: true }));
+};
 
 const activeAnn = computed(() =>
   proofreadAnnotations.value.find((a) => a.id === activeAnnId.value) || null,
@@ -1079,8 +1362,15 @@ const colorLabel = (color) => {
               class="tool-btn kaiti-btn"
               :class="{ active: editor?.isActive('italic') }"
               @click="editor?.chain().focus().toggleItalic().run()"
-              title="楷書體"
+              title="楷書體 <em>"
             >楷</button>
+            <button
+              type="button"
+              class="tool-btn"
+              :class="{ active: editor?.isActive('italicI') }"
+              @click="editor?.chain().focus().toggleMark('italicI').run()"
+              title="斜體 <i>"
+            ><i>I</i></button>
             <button
               type="button"
               class="tool-btn"
@@ -1170,6 +1460,10 @@ const colorLabel = (color) => {
               🎨 主題圖片
             </button>
             <button type="button" class="tool-btn comp-btn"
+              @click="insertRaw(`<div class='info-card'><div class='info-card-inner'><img src='圖片網址' alt='名稱'><div><h3>名稱</h3><div class='info-card-links'><a href='連結網址' target='_blank'>臉書粉專</a><a href='連結網址' target='_blank'>官方網站</a></div></div></div></div>`)">
+              📋 粉專介紹
+            </button>
+            <button type="button" class="tool-btn comp-btn"
               @click="insertRaw(`<div class='custom-divider'></div>`)">
               ── 分隔
             </button>
@@ -1188,13 +1482,55 @@ const colorLabel = (color) => {
           </div>
 
           <!-- 文章圖片快速插入 -->
-          <template v-if="sortedMediaAssets.length > 0">
+          <template v-if="isEditMode">
             <div class="toolbar-sep"></div>
-            <div class="toolbar-section-label">圖片：</div>
+            <div class="toolbar-section-label media-label-row">
+              <span>圖片：</span>
+              <label class="media-add-btn" title="新增圖片（可多選）" :class="{ disabled: mediaAssetsLoading }">
+                ＋
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style="display:none"
+                  :disabled="mediaAssetsLoading"
+                  @change="handleMediaUpload"
+                />
+              </label>
+            </div>
             <div class="toolbar-media-col">
-              <div v-for="img in sortedMediaAssets" :key="img.sort_order" class="media-insert-item">
+              <div v-if="sortedMediaAssets.length === 0" class="media-empty">（尚無圖片）</div>
+              <div
+                v-for="(img, idx) in sortedMediaAssets"
+                :key="img.id ?? img.sort_order"
+                class="media-insert-item"
+              >
                 <img :src="img.image_url" class="media-thumb" :title="`圖片 ${img.sort_order}`" />
-                <span class="media-order">#{{ img.sort_order }}</span>
+                <input
+                  type="number"
+                  class="media-order-input"
+                  :value="img.sort_order"
+                  min="1"
+                  :max="sortedMediaAssets.length"
+                  :disabled="mediaAssetsLoading"
+                  @change="reorderMediaAsset(img, +$event.target.value)"
+                />
+                <div class="media-move-btns">
+                  <button
+                    type="button"
+                    class="tool-btn move-btn"
+                    :disabled="idx === 0 || mediaAssetsLoading"
+                    @click="moveMediaAsset(idx, -1)"
+                    title="上移"
+                  >▲</button>
+                  <button
+                    type="button"
+                    class="tool-btn move-btn"
+                    :disabled="idx === sortedMediaAssets.length - 1 || mediaAssetsLoading"
+                    @click="moveMediaAsset(idx, 1)"
+                    title="下移"
+                  >▼</button>
+                </div>
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'left')">左</button>
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'center')">中</button>
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'right')">右</button>
@@ -1261,7 +1597,14 @@ const colorLabel = (color) => {
             </div>
             <div class="form-group third">
               <label>備註 (Remark)</label>
-              <input v-model="form.remark" />
+              <div
+                contenteditable="true"
+                class="mini-editor-field"
+                @focus="activeMiniField = $event.target"
+                @blur="onMiniBlur"
+                @input="form.remark = $event.target.innerHTML"
+                v-html="form.remark"
+              ></div>
             </div>
           </div>
 
@@ -1279,6 +1622,13 @@ const colorLabel = (color) => {
           <div class="form-group">
             <div class="content-label-row">
               <label>內文</label>
+              <button
+                v-if="!showSource"
+                type="button"
+                class="btn-source btn-reparse"
+                @click="reprocessInlineTags"
+                title="將內文中以純文字打的 &lt;b&gt;、&lt;i&gt; 等轉為真正的格式"
+              >♻ 重解析標記</button>
               <button
                 type="button"
                 class="btn-source"
@@ -1313,9 +1663,25 @@ const colorLabel = (color) => {
               註腳 (Footnotes)
               <span class="footnote-hint">在內文中插入 [^N] 引用</span>
             </label>
-            <div v-for="(fn, index) in form.footnotes" :key="index" class="footnote-item">
+
+            <!-- 迷你格式工具列 -->
+            <div class="mini-format-bar" v-show="activeMiniField">
+              <button type="button" @mousedown.prevent="applyMiniFormat('bold')"><strong>B</strong></button>
+              <button type="button" @mousedown.prevent="wrapMiniTag('em')">楷</button>
+              <button type="button" @mousedown.prevent="applyMiniFormat('italic')"><i>I</i></button>
+              <button type="button" @mousedown.prevent="applyMiniFormat('underline')"><u>U</u></button>
+            </div>
+
+            <div v-for="(fn, index) in form.footnotes" :key="fn.id" class="footnote-item">
               <span class="fn-id">[{{ fn.id }}]</span>
-              <input v-model="fn.text" placeholder="輸入註腳內容" />
+              <div
+                contenteditable="true"
+                class="mini-editor-field"
+                @focus="activeMiniField = $event.target"
+                @blur="onMiniBlur"
+                @input="fn.text = $event.target.innerHTML"
+                v-html="fn.text"
+              ></div>
               <button class="btn btn-sm btn-danger" @click="removeFootnote(index)">X</button>
             </div>
             <button class="btn btn-sm" @click="addFootnote">+ 新增註腳</button>
@@ -1600,13 +1966,14 @@ const colorLabel = (color) => {
   gap: 3px;
   align-items: center;
   flex-wrap: wrap;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e2e4e7;
 }
 
 .toolbar-sep {
-  height: 1px;
+  height: 0;
   width: 100%;
-  background: #dee2e6;
-  margin: 3px 0;
+  margin: 2px 0;
 }
 
 .tool-btn {
@@ -1630,7 +1997,7 @@ const colorLabel = (color) => {
 .comp-btn { background: #f0f4ff; border-color: #c7d2fe; color: #4338ca; }
 .comp-btn:hover { background: #e0e7ff; }
 
-.img-btn { padding: 3px 7px; font-size: 0.78rem; }
+.img-btn { padding: 2px 5px !important; font-size: 0.72rem !important; }
 
 .toolbar-section-label {
   font-size: 0.75rem;
@@ -1664,8 +2031,7 @@ const colorLabel = (color) => {
   background: white;
   border: 1px solid #dee2e6;
   border-radius: 6px;
-  padding: 3px 6px;
-  flex-wrap: wrap;
+  padding: 3px 5px;
 }
 
 .media-thumb {
@@ -1675,7 +2041,59 @@ const colorLabel = (color) => {
   border-radius: 3px;
 }
 
-.media-order { font-size: 0.72rem; color: #888; }
+.media-order-input {
+  width: 32px;
+  font-size: 0.72rem;
+  text-align: center;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 1px 2px;
+  color: #555;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.media-order-input::-webkit-inner-spin-button,
+.media-order-input::-webkit-outer-spin-button { opacity: 1; }
+
+.media-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.media-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: #4caf50;
+  color: white;
+  border-radius: 4px;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.media-add-btn:hover { background: #388e3c; }
+.media-add-btn.disabled { background: #aaa; cursor: not-allowed; }
+
+.media-move-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.move-btn {
+  font-size: 0.6rem !important;
+  padding: 1px 4px !important;
+  line-height: 1.2;
+  min-width: 18px;
+}
+.move-btn:disabled { opacity: 0.3; cursor: default; }
+
+.media-empty { font-size: 0.72rem; color: #aaa; padding: 4px 2px; }
 
 /* ── 右側內容欄 ── */
 .editor-content-col {
@@ -1742,6 +2160,9 @@ const colorLabel = (color) => {
   color: white;
   border-color: #3b82f6;
 }
+
+.btn-reparse { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
+.btn-reparse:hover { background: #f59e0b; color: white; border-color: #f59e0b; }
 
 /* ── Tiptap 編輯器本體 ── */
 .tiptap-editor-container {
@@ -1820,28 +2241,23 @@ const colorLabel = (color) => {
 }
 
 /* ── 校對標記小點 ── */
-:deep(.ann-dots-widget) {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  vertical-align: middle;
-  margin-right: 3px;
-  line-height: 0;
-}
-
 :deep(.ann-dot-marker) {
   display: inline-block;
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   cursor: pointer;
-  border: 1px solid rgba(0,0,0,0.15);
-  flex-shrink: 0;
-  transition: transform 0.1s;
+  border: 1px solid rgba(0,0,0,0.2);
+  vertical-align: super;
+  font-size: 0;
+  margin-left: 1px;
+  transition: transform 0.15s;
+  position: relative;
+  top: 1px;
 }
 
 :deep(.ann-dot-marker:hover) {
-  transform: scale(1.4);
+  transform: scale(1.5);
 }
 
 /* ── RawBlock 外觀 ── */
@@ -1905,6 +2321,32 @@ const colorLabel = (color) => {
 
 :deep(.raw-block-copy-btn:hover) {
   background: #4f46e5;
+}
+
+:deep(.raw-block-drag-handle) {
+  padding: 3px 6px;
+  font-size: 14px;
+  color: #aaa;
+  cursor: grab;
+  user-select: none;
+  border-radius: 4px;
+}
+:deep(.raw-block-drag-handle:hover) { color: #555; background: #f0f0f0; }
+:deep(.raw-block-drag-handle:active) { cursor: grabbing; }
+
+:deep(.raw-block-delete-btn) {
+  padding: 3px 8px;
+  font-size: 12px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+:deep(.raw-block-delete-btn:hover) {
+  background: #dc2626;
+  color: white;
 }
 
 :deep(.raw-block-edit-area) {
@@ -1995,6 +2437,44 @@ const colorLabel = (color) => {
   padding: 6px 10px;
   border: 1px solid #ddd;
   border-radius: 4px;
+}
+
+.mini-editor-field {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  min-height: 32px;
+  line-height: 1.6;
+  outline: none;
+  background: #fff;
+  word-break: break-word;
+}
+
+.mini-editor-field:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
+}
+
+.mini-format-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.mini-format-bar button {
+  padding: 3px 9px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f8f9fa;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.mini-format-bar button:hover {
+  background: #e0e7ff;
+  border-color: #6366f1;
 }
 
 /* ── 校對標記審閱面板 ── */

@@ -112,6 +112,45 @@ const initData = async () => {
   }
 };
 
+// ── 自動填入 SEO 圖片 ──
+const autoFillSeoImages = async () => {
+  const issueArticles = editedArticles.value.filter(
+    (a) => a.issue === selectedIssueId.value && !a.seo_image,
+  );
+  if (!issueArticles.length) return;
+
+  // 一次抓本期所有 media_assets
+  const { data: allAssets } = await supabase
+    .from("media_assets")
+    .select("image_url, article_id, cloudinary_id, sort_order")
+    .eq("issue_id", selectedIssueId.value)
+    .order("sort_order", { ascending: true });
+
+  const assetsByArticle = {};
+  for (const a of allAssets || []) {
+    if (!assetsByArticle[a.article_id]) assetsByArticle[a.article_id] = [];
+    assetsByArticle[a.article_id].push(a);
+  }
+
+  // 作者簡介需要封面圖
+  const needsCover = issueArticles.some((a) => a.title?.includes("作者簡介"));
+  let coverImg = null;
+  if (needsCover) {
+    const { data: issueData } = await supabase
+      .from("issues").select("cover_img").eq("id", selectedIssueId.value).single();
+    coverImg = issueData?.cover_img || null;
+  }
+
+  for (const article of issueArticles) {
+    const assets = assetsByArticle[article.id];
+    if (assets?.length) {
+      article.seo_image = assets[0].image_url;
+    } else if (article.title?.includes("作者簡介") && coverImg) {
+      article.seo_image = coverImg;
+    }
+  }
+};
+
 const fetchArticles = async () => {
   const { data, error } = await supabase
     .from("articles")
@@ -134,6 +173,7 @@ const fetchArticles = async () => {
 
   allArticles.value = processed;
   editedArticles.value = JSON.parse(JSON.stringify(processed));
+  await autoFillSeoImages();
 };
 
 watch(selectedIssueId, (val) => {
@@ -182,10 +222,10 @@ const totalArticles = computed(() =>
 // ── 拖曳換區 ──
 const draggedId = ref(null);
 const dropSection = ref(null);
+const dragHandleActive = ref(false); // 是否從 ⠿ 把手按下
 
 const onDragStart = (e, article) => {
-  // 只允許從拖曳把手（.drag-handle）發起拖曳，否則取消（讓使用者可以反白文字）
-  if (!e.target.closest(".drag-handle")) {
+  if (!dragHandleActive.value) {
     e.preventDefault();
     return;
   }
@@ -211,6 +251,7 @@ const onDrop = (e, section) => {
 const onDragEnd = () => {
   draggedId.value = null;
   dropSection.value = null;
+  dragHandleActive.value = false;
 };
 
 // ── 頁數連動 ──
@@ -400,6 +441,77 @@ const deleteArticle = async (article) => {
   } catch (err) {
     alert("刪除失敗：" + (err.data?.message || err.message));
   }
+};
+
+// ── 圖片選擇器 ──
+const showImgPicker = ref(false);
+const imgPickerTarget = ref(null); // 正在編輯的 article
+const imgPickerList = ref([]);
+const imgPickerLoading = ref(false);
+
+const openImgPicker = async (article) => {
+  imgPickerTarget.value = article;
+  imgPickerList.value = [];
+  showImgPicker.value = true;
+  imgPickerLoading.value = true;
+  try {
+    // 1. 先查 media_assets DB
+    const { data: dbAssets } = await supabase
+      .from("media_assets")
+      .select("image_url, article_id, cloudinary_id")
+      .eq("article_id", article.id)
+      .order("sort_order", { ascending: true });
+
+    let images = (dbAssets || []).map((r) => ({ url: r.image_url, label: r.cloudinary_id || r.article_id }));
+
+    // 2. DB 沒有 → 去 Cloudinary 抓，篩出前綴符合的
+    if (images.length === 0) {
+      // article.id 格式: "{issue}-{seq}{title}"，例如 "7-5林家嫺"
+      const seqMatch = article.id.match(/^(\d+)-(\d+)/);
+      if (seqMatch) {
+        const issueNum = seqMatch[1];
+        const seqNum = seqMatch[2];
+        const prefix = `issue${issueNum}_${seqNum}-`; // e.g. "issue7_5-"
+        try {
+          const res = await $fetch("/api/media", {
+            method: "GET",
+            query: { path: `images/articles/issue-${issueNum}` },
+          });
+          if (res.success && res.data) {
+            images = res.data
+              .filter((f) => {
+                const name = f.public_id?.split("/").pop() || "";
+                return name.startsWith(prefix);
+              })
+              .map((f) => ({ url: f.secure_url, label: f.public_id?.split("/").pop() }));
+          }
+        } catch { /* Cloudinary 失敗就略過 */ }
+      }
+    }
+
+    imgPickerList.value = images;
+
+    // 3. 自動預選第一張
+    if (!article.seo_image && images.length > 0) {
+      article.seo_image = images[0].url;
+    }
+    // 4. 本期作者簡介：無圖時用封面圖
+    if (!article.seo_image && article.title?.includes("作者簡介")) {
+      const { data: issueData } = await supabase
+        .from("issues").select("cover_img").eq("id", article.issue).single();
+      if (issueData?.cover_img) article.seo_image = issueData.cover_img;
+    }
+  } catch (e) {
+    alert("載入圖片失敗：" + e.message);
+  } finally {
+    imgPickerLoading.value = false;
+  }
+};
+
+const pickImage = (img) => {
+  if (imgPickerTarget.value) imgPickerTarget.value.seo_image = img.url;
+  showImgPicker.value = false;
+  imgPickerTarget.value = null;
 };
 
 // ── 文章類型對照 ──
@@ -703,7 +815,12 @@ const convertToArticle = async (sub) => {
                 'meta-row': article.article_type === 'submission_info' || article.article_type === 'editorial_info',
               }"
             >
-              <td class="drag-handle" title="拖曳以更換分區">⠿</td>
+              <td
+                class="drag-handle"
+                title="拖曳以更換分區"
+                @mousedown="dragHandleActive = true"
+                @mouseup="dragHandleActive = false"
+              >⠿</td>
               <td class="id-cell">
                 <div class="id-cell-inner">
                   <span class="id-prefix">{{ article.issue }}-</span>
@@ -737,12 +854,22 @@ const convertToArticle = async (sub) => {
                 />
               </td>
               <td>
-                <input
-                  type="text"
-                  v-model="article.seo_image"
-                  class="table-input seo-input"
-                  placeholder="貼上網址..."
-                />
+                <div class="seo-image-cell">
+                  <img
+                    v-if="article.seo_image"
+                    :src="article.seo_image"
+                    class="seo-thumb"
+                    @click="openImgPicker(article)"
+                    title="點擊更換圖片"
+                  />
+                  <input
+                    type="text"
+                    v-model="article.seo_image"
+                    class="table-input seo-input"
+                    placeholder="貼上網址..."
+                  />
+                  <button class="btn-img-pick" @click="openImgPicker(article)" title="從媒體庫選圖">🖼</button>
+                </div>
               </td>
               <td class="pdf-cell">
                 <div class="pdf-actions">
@@ -964,6 +1091,32 @@ const convertToArticle = async (sub) => {
           <button class="btn-new" @click="performMerge" :disabled="merging">
             {{ merging ? "合併中，請稍候..." : "🔗 開始合併並上傳" }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 圖片選擇器 Modal ── -->
+    <div v-if="showImgPicker" class="modal-overlay" @click.self="showImgPicker = false">
+      <div class="modal img-picker-modal">
+        <div class="modal-header">
+          <h3>🖼 選擇圖片（Vol.{{ selectedIssueId }}）</h3>
+          <button class="modal-close" @click="showImgPicker = false">×</button>
+        </div>
+        <div class="modal-body img-picker-body">
+          <div v-if="imgPickerLoading" class="img-picker-loading">載入中...</div>
+          <div v-else-if="!imgPickerList.length" class="img-picker-empty">此期尚無媒體圖片</div>
+          <div v-else class="img-picker-grid">
+            <div
+              v-for="img in imgPickerList"
+              :key="img.url"
+              class="img-picker-item"
+              :class="{ selected: imgPickerTarget?.seo_image === img.url }"
+              @click="pickImage(img)"
+            >
+              <img :src="img.url" :alt="img.label || ''" loading="lazy" />
+              <div class="img-picker-label">{{ img.label }}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1385,6 +1538,84 @@ tr.dragging {
   border-color: #3498db;
   outline: none;
 }
+.seo-image-cell {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.seo-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.seo-thumb:hover { border-color: #3498db; }
+
+.btn-img-pick {
+  flex-shrink: 0;
+  padding: 4px 6px;
+  background: #e8f4fd;
+  border: 1px solid #b8d4ea;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.btn-img-pick:hover { background: #cce5f7; }
+
+/* 圖片選擇器 Modal */
+.img-picker-modal {
+  width: 820px !important;
+  max-width: 95vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+.img-picker-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 16px !important;
+}
+.img-picker-loading,
+.img-picker-empty {
+  text-align: center;
+  color: #999;
+  padding: 40px 0;
+}
+.img-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.img-picker-item {
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.img-picker-item:hover { border-color: #3498db; }
+.img-picker-item.selected { border-color: #27ae60; box-shadow: 0 0 0 2px #a9dfbf; }
+.img-picker-item img {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  display: block;
+}
+.img-picker-label {
+  font-size: 0.7rem;
+  color: #888;
+  padding: 3px 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: #f8f9fa;
+}
+
 /* SEO 網址欄：截斷顯示，不撐開版面 */
 .seo-input {
   text-overflow: ellipsis;
