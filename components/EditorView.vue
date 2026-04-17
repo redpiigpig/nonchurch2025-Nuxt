@@ -606,10 +606,34 @@ watch(
   { deep: true },
 );
 
+// ── 備註欄專用 TipTap（輕量，支援腳注引用）──────────────────────────
+const remarkEditor = useEditor({
+  extensions: [
+    StarterKit.configure({
+      heading: false, blockquote: false, horizontalRule: false,
+      codeBlock: false, code: false, bulletList: false, orderedList: false,
+      listItem: false,
+    }),
+  ],
+  content: "<p></p>",
+  onUpdate({ editor }) {
+    const html = editor.getHTML();
+    // 單段落時剝除 <p> 外殼，多段落保留完整 HTML
+    form.value.remark = html.replace(/^<p>([\s\S]*)<\/p>$/, "$1");
+  },
+});
+
+const insertRemarkFootnoteRef = () => {
+  const num = prompt("腳注編號：", String(form.value.footnotes.length + 1));
+  if (!num) return;
+  remarkEditor.value?.chain().focus().insertContent(`[^${num}]`).run();
+};
+
 let _annClickOutside = null;
 
 onBeforeUnmount(() => {
   editor.value?.destroy();
+  remarkEditor.value?.destroy();
   if (_scrollHandler) window.removeEventListener("scroll", _scrollHandler);
   if (_annClickOutside) document.removeEventListener("mousedown", _annClickOutside);
 });
@@ -675,6 +699,13 @@ const loadArticle = async (id) => {
     proofreadStatus.value = data.proofread_status || "pending";
 
     editor.value?.commands.setContent(normalizeInlineTags(data.content || ""));
+
+    await nextTick();
+    const rawRemark = form.value.remark;
+    const remarkContent = rawRemark.startsWith("<p")
+      ? rawRemark
+      : rawRemark ? `<p>${rawRemark}</p>` : "<p></p>";
+    remarkEditor.value?.commands.setContent(remarkContent, false);
 
     if (data.article_type === "toc") {
       await loadTocArticles(data.issue);
@@ -1155,40 +1186,8 @@ const removeFootnote = (index) => {
 const annReplaceTexts = ref({});
 const annEditorNotes = ref({});
 
-// ── 迷你富文本（備註 + 註釋）────────────────────────────────────
+// ── 迷你富文本（腳注欄用）────────────────────────────────────────
 const activeMiniField = ref(null);
-const activeMiniIsRemark = ref(false);
-
-const insertMiniFootnoteRef = () => {
-  // 備註欄的腳注引用只需存純文字 [^N]
-  // article view 的 formatTextWithFootnote 會自動把 [^N] 轉成 <sup>
-  // （資料庫現有的 8-5、9-4、5-3、6-13 等文章都是這樣存的）
-  const field = activeMiniField.value;
-  if (!field) return;
-
-  const num = prompt("腳注編號：", String(form.value.footnotes.length + 1));
-  if (!num) return;
-
-  // prompt 關閉後 onMiniBlur 可能已把 activeMiniField 清掉，補回來
-  activeMiniField.value = field;
-  field.focus();
-
-  // 在游標位置插入純文字 [^N]，失敗則 append 到末尾
-  const text = `[^${num}]`;
-  const sel = window.getSelection();
-  if (sel && sel.rangeCount > 0 &&
-      (field === sel.getRangeAt(0).commonAncestorContainer ||
-       field.contains(sel.getRangeAt(0).commonAncestorContainer))) {
-    const range = sel.getRangeAt(0);
-    range.deleteContents();
-    range.insertNode(document.createTextNode(text));
-    range.collapse(false);
-  } else {
-    field.appendChild(document.createTextNode(text));
-  }
-
-  field.dispatchEvent(new Event("input", { bubbles: true }));
-};
 
 const onMiniBlur = (e) => {
   if (!e.relatedTarget?.closest?.(".mini-format-bar")) {
@@ -1666,15 +1665,11 @@ const colorLabel = (color) => {
               <input v-model="form.author_title" />
             </div>
             <div class="form-group third">
-              <label>備註 (Remark)</label>
-              <div
-                contenteditable="true"
-                class="mini-editor-field"
-                @focus="activeMiniField = $event.target; activeMiniIsRemark = true"
-                @blur="onMiniBlur"
-                @input="form.remark = $event.target.innerHTML"
-                v-safe-html="form.remark"
-              ></div>
+              <label>
+                備註 (Remark)
+                <button type="button" class="btn-remark-fn" @mousedown.prevent="insertRemarkFootnoteRef" title="插入腳注引用">[^]</button>
+              </label>
+              <editor-content :editor="remarkEditor" class="remark-tiptap" />
             </div>
           </div>
 
@@ -1734,18 +1729,12 @@ const colorLabel = (color) => {
               <span class="footnote-hint">在內文中插入 [^N] 引用</span>
             </label>
 
-            <!-- 迷你格式工具列 -->
+            <!-- 迷你格式工具列（腳注欄用） -->
             <div class="mini-format-bar" v-show="activeMiniField">
               <button type="button" @mousedown.prevent="applyMiniFormat('bold')"><strong>B</strong></button>
               <button type="button" @mousedown.prevent="wrapMiniTag('span', 'kaiti')">楷</button>
               <button type="button" @mousedown.prevent="wrapMiniTag('i')"><i>I</i></button>
               <button type="button" @mousedown.prevent="applyMiniFormat('underline')"><u>U</u></button>
-              <button
-                v-if="activeMiniIsRemark"
-                type="button"
-                @mousedown.prevent="insertMiniFootnoteRef"
-                title="插入腳注引用"
-              >[^]</button>
             </div>
 
             <div v-for="(fn, index) in form.footnotes" :key="fn.id" class="footnote-item">
@@ -1753,7 +1742,7 @@ const colorLabel = (color) => {
               <div
                 contenteditable="true"
                 class="mini-editor-field"
-                @focus="activeMiniField = $event.target; activeMiniIsRemark = false"
+                @focus="activeMiniField = $event.target"
                 @blur="onMiniBlur"
                 @input="fn.text = $event.target.innerHTML"
                 v-safe-html="fn.text"
@@ -2554,6 +2543,71 @@ const colorLabel = (color) => {
 .mini-format-bar button:hover {
   background: #e0e7ff;
   border-color: #6366f1;
+}
+
+/* ── 備註 TipTap 編輯器 ── */
+.btn-remark-fn {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f8f9fa;
+  cursor: pointer;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+.btn-remark-fn:hover {
+  background: #e0e7ff;
+  border-color: #6366f1;
+}
+
+.remark-tiptap {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.remark-tiptap :deep(> div) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.remark-tiptap :deep(.ProseMirror) {
+  width: 100%;
+  height: 37px;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  line-height: normal;
+  color: inherit;
+  box-sizing: border-box;
+  background: #fff;
+  min-height: unset;
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  outline: none;
+}
+
+.remark-tiptap :deep(.ProseMirror):focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.remark-tiptap :deep(.ProseMirror)::-webkit-scrollbar {
+  display: none;
+}
+
+.remark-tiptap :deep(.ProseMirror p) {
+  margin: 0;
+  text-indent: 0;
+  white-space: nowrap;
 }
 
 /* ── 校對標記審閱面板 ── */

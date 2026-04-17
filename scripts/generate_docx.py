@@ -730,6 +730,14 @@ class ProfessionalDocxGenerator:
                 self._add_figure(seg_html)
             elif seg_type == 'blockquote':
                 inner = seg_html
+                # 先抓出 <div class="rel"> 作為來源行（置右）
+                rel_m = re.search(
+                    r'<div[^>]*class=["\'][^"\']*\brel\b[^"\']*["\'][^>]*>(.*?)</div>',
+                    inner, re.DOTALL | re.IGNORECASE)
+                rel_text = ''
+                if rel_m:
+                    rel_text = re.sub(r'<[^>]+>', '', rel_m.group(1)).strip()
+                    inner = inner[:rel_m.start()] + inner[rel_m.end():]
                 # 換行語義：<br> / </p> → \n
                 inner = re.sub(r'<br\s*/?>', '\n', inner, flags=re.IGNORECASE)
                 inner = re.sub(r'</p\s*>', '\n', inner, flags=re.IGNORECASE)
@@ -738,8 +746,8 @@ class ProfessionalDocxGenerator:
                     r'</?(?:blockquote|p|div|section|article|header|footer|ul|ol|li)\b[^>]*>',
                     '', inner, flags=re.IGNORECASE | re.DOTALL)
                 inner = inner.strip()
-                if inner:
-                    self._add_blockquote(inner)
+                if inner or rel_text:
+                    self._add_blockquote(inner, rel_text=rel_text)
             elif seg_type == 'div':
                 self._dispatch_div(seg_html)
             elif seg_type == 'table':
@@ -747,9 +755,10 @@ class ProfessionalDocxGenerator:
             elif seg_type == 'p':
                 self._add_paragraph_element(seg_html)
             elif seg_type in ('h1', 'h2', 'h3'):
-                title = re.sub(r'<[^>]+>', '', seg_html).strip()
-                if title:
-                    self._add_section_title(title)
+                inner = re.sub(r'^<h[1-3][^>]*>', '', seg_html, count=1, flags=re.IGNORECASE)
+                inner = re.sub(r'</h[1-3]>\s*$', '', inner, flags=re.IGNORECASE).strip()
+                if inner:
+                    self._add_section_title(inner)
             else:  # text
                 normalized = re.sub(r'<br\s*/?>', '\n', seg_html)
                 for line in normalized.split('\n'):
@@ -916,41 +925,112 @@ class ProfessionalDocxGenerator:
         self._add_blank_line()  # 後置空行
 
     def _add_book_box(self, html):
-        """書籍簡介框（.book-box）：綠色左豎線，書籍資訊文字。"""
+        """書籍簡介框（.book-box）：2 欄無框線表格，文字（2/3）+ 封面圖（1/3）。"""
         info_m = re.search(r'<div[^>]*book-info[^>]*>(.*?)</div>',
                            html, re.DOTALL | re.IGNORECASE)
+        img_m  = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', html, re.IGNORECASE)
         if not info_m:
             return
-        info_html = re.sub(r'<br\s*/?>', '\n', info_m.group(1))
-        info_text = re.sub(r'<[^>]+>', '', info_html).strip()
-        if not info_text:
-            return
+
+        info_html = info_m.group(1)
+        img_src   = img_m.group(1) if img_m else None
 
         self._add_blank_line()
 
-        def _bb_para():
-            p = self.doc.add_paragraph()
-            p.paragraph_format.left_indent       = Pt(24)
+        # ── 建立 2 欄無框線表格 ──────────────────────────────────────
+        PAGE_W = 8051           # 14.2cm（頁面可用寬度）in twips
+        TEXT_W = PAGE_W * 2 // 3
+        IMG_W  = PAGE_W - TEXT_W
+
+        tbl    = self.doc.add_table(rows=1, cols=2)
+        tbl_el = tbl._tbl
+        tblPr  = tbl_el.find(qn('w:tblPr'))
+        if tblPr is None:
+            tblPr = OxmlElement('w:tblPr')
+            tbl_el.insert(0, tblPr)
+
+        # 移除預設表格樣式
+        for old in tblPr.findall(qn('w:tblStyle')):
+            tblPr.remove(old)
+
+        tblW = OxmlElement('w:tblW')
+        tblW.set(qn('w:w'),    str(PAGE_W))
+        tblW.set(qn('w:type'), 'dxa')
+        tblPr.append(tblW)
+
+        tblLayout = OxmlElement('w:tblLayout')
+        tblLayout.set(qn('w:type'), 'fixed')
+        tblPr.append(tblLayout)
+
+        tblBorders = OxmlElement('w:tblBorders')
+        for side in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
+            b = OxmlElement(f'w:{side}')
+            b.set(qn('w:val'), 'none')
+            tblBorders.append(b)
+        tblPr.append(tblBorders)
+
+        row   = tbl.rows[0]
+        l_cel = row.cells[0]
+        r_cel = row.cells[1]
+
+        for cell, w in ((l_cel, TEXT_W), (r_cel, IMG_W)):
+            tc   = cell._tc
+            tcPr = tc.get_or_add_tcPr()
+            for old in tcPr.findall(qn('w:tcW')):
+                tcPr.remove(old)
+            tcW = OxmlElement('w:tcW')
+            tcW.set(qn('w:w'),    str(w))
+            tcW.set(qn('w:type'), 'dxa')
+            tcPr.append(tcW)
+            tcBdr = OxmlElement('w:tcBdr')
+            for side in ('top', 'left', 'bottom', 'right'):
+                b = OxmlElement(f'w:{side}')
+                b.set(qn('w:val'), 'none')
+                tcBdr.append(b)
+            tcPr.append(tcBdr)
+            vAlign = OxmlElement('w:vAlign')
+            vAlign.set(qn('w:val'), 'center')
+            tcPr.append(vAlign)
+
+        # ── 文字欄：綠色左豎線 + _add_inline（保留粗體/斜體） ────────
+        def _bb_para(cell, first=False):
+            p = cell.paragraphs[0] if first else cell.add_paragraph()
+            p.paragraph_format.left_indent       = Pt(12)
             p.paragraph_format.first_line_indent = Pt(0)
             p.paragraph_format.space_before = Pt(0)
-            p.paragraph_format.space_after  = Pt(0)
+            p.paragraph_format.space_after  = Pt(3)
             pPr = p._element.get_or_add_pPr()
             pBdr = OxmlElement('w:pBdr')
-            left = OxmlElement('w:left')
-            left.set(qn('w:val'),   'single')
-            left.set(qn('w:sz'),    '36')
-            left.set(qn('w:space'), '4')
-            left.set(qn('w:color'), '378B13')
-            pBdr.append(left)
+            lb = OxmlElement('w:left')
+            lb.set(qn('w:val'),   'single')
+            lb.set(qn('w:sz'),    '20')
+            lb.set(qn('w:space'), '4')
+            lb.set(qn('w:color'), '378B13')
+            pBdr.append(lb)
             pPr.append(pBdr)
             return p
 
-        for line in info_text.split('\n'):
-            line = line.strip()
-            if line:
-                p = _bb_para()
-                run = p.add_run(line)
-                self._apply_font(run, 'Times New Roman', 'NSimSun', size=12)
+        info_lines = re.sub(r'<br\s*/?>', '\n', info_html, flags=re.IGNORECASE).split('\n')
+        first = True
+        for raw in info_lines:
+            raw = raw.strip()
+            if not raw:
+                continue
+            p = _bb_para(l_cel, first=first)
+            first = False
+            self._add_inline(p, raw, east_font='標楷體')
+
+        # ── 圖片欄：置中，寬度填滿欄位 ──────────────────────────────
+        if img_src:
+            img_stream = self._download_image(img_src)
+            if img_stream:
+                img_cm = round(IMG_W / 567 - 0.4, 2)
+                img_p  = r_cel.paragraphs[0]
+                img_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                img_p.paragraph_format.space_before      = Pt(0)
+                img_p.paragraph_format.space_after       = Pt(0)
+                img_p.paragraph_format.first_line_indent = Pt(0)
+                img_p.add_run().add_picture(img_stream, width=Cm(img_cm))
 
         self._add_blank_line()
 
@@ -1302,15 +1382,26 @@ class ProfessionalDocxGenerator:
         p.paragraph_format.space_after  = Pt(0)
         self._add_inline(p, line)
 
-    def _add_section_title(self, title):
-        """段落小標題：14pt 粗體，前置空行，段後 9pt（0.5 行距），無首行縮排，無列表符號"""
+    def _add_section_title(self, inner_html):
+        """段落小標題：14pt 粗體，前置空行，段後 9pt（0.5 行距），無首行縮排，無列表符號
+        inner_html 可包含 inline 標記（如 <sup class="footnote-ref">）。
+        """
         import unicodedata
         # 去掉內容前置的符號/標點字元（■ ● ▪ 等），但保留裝飾性符號 ☆ ◇ ★ ◆
         KEEP_SYMBOLS = set('☆◇★◆')
-        while title and title[0] not in KEEP_SYMBOLS and unicodedata.category(title[0]) in (
-                'So','Sm','Sk','Sc','Po','Ps','Pe','Pi','Pf','Pd','Pc','Zs'):
-            title = title[1:]
-        title = title.strip()
+        # 只對開頭的純文字部分做符號剝除（標籤之前）
+        leading_text_m = re.match(r'^([^<]*)', inner_html)
+        leading_text = leading_text_m.group(1) if leading_text_m else ''
+        strip_count = 0
+        while strip_count < len(leading_text):
+            ch = leading_text[strip_count]
+            if ch in KEEP_SYMBOLS or unicodedata.category(ch) not in (
+                    'So', 'Sm', 'Sk', 'Sc', 'Po', 'Ps', 'Pe', 'Pi', 'Pf', 'Pd', 'Pc', 'Zs'):
+                break
+            strip_count += 1
+        inner_html = (leading_text[strip_count:] + inner_html[len(leading_text):]).strip()
+        if not inner_html:
+            return
 
         # 前置空行
         self._add_blank_line()
@@ -1327,19 +1418,52 @@ class ProfessionalDocxGenerator:
         sp.set(qn('w:lineRule'), 'auto')
         pPr.append(sp)
 
-        run = p.add_run(title)
-        self._apply_font(run, 'Times New Roman', 'NSimSun', size=14, bold=True)
+        # 逐 token 處理 inline 標記；一般文字 14pt 粗體，腳注引用則插入 Word footnote
+        H3_TOKEN = re.compile(
+            r'(<sup\b[^>]*class="footnote-ref"[^>]*><a\b[^>]*>[^<]*</a></sup>'
+            r'|\[\^\d+\]'
+            r'|<[^>]+>)',
+            re.IGNORECASE | re.DOTALL)
+        for seg in H3_TOKEN.split(inner_html):
+            if not seg:
+                continue
+            fn_sup_m = re.search(r'<a\b[^>]*>([^<]*)</a>', seg) if seg.startswith('<sup') else None
+            fn_sup   = fn_sup_m if (fn_sup_m and fn_sup_m.group(1).strip().isdigit()) else None
+            fn_m     = re.fullmatch(r'\[\^(\d+)\]', seg)
+            html_tag = re.fullmatch(r'<[^>]+>', seg)
 
-    def _add_blockquote(self, text):
-        """獨立引用：標楷體，左縮排 24pt，首行與末行各空一行，中間行無間距"""
+            if fn_sup:
+                self._add_footnote_ref(p, fn_sup.group(1))
+            elif fn_m:
+                self._add_footnote_ref(p, fn_m.group(1))
+            elif html_tag:
+                pass  # 略過其他 HTML 標籤
+            else:
+                text = _html_mod.unescape(seg)
+                if text:
+                    run = p.add_run(text)
+                    self._apply_font(run, 'Times New Roman', 'NSimSun', size=14, bold=True)
+
+    def _add_blockquote(self, text, rel_text=''):
+        """獨立引用：標楷體，左縮排 24pt，首行與末行各空一行，中間行無間距。
+        rel_text 為來源行（如 ──但丁），置右輸出。"""
         lines = [l.strip() for l in text.split('\n') if l.strip()]
+        last_is_rel = bool(rel_text)
         for i, line in enumerate(lines):
             p = self.doc.add_paragraph()
             p.paragraph_format.left_indent       = Pt(24)
             p.paragraph_format.first_line_indent = Pt(0)
-            p.paragraph_format.space_before = Pt(12) if i == 0               else Pt(0)
-            p.paragraph_format.space_after  = Pt(12) if i == len(lines) - 1  else Pt(0)
+            p.paragraph_format.space_before = Pt(12) if i == 0 else Pt(0)
+            p.paragraph_format.space_after  = Pt(12) if (i == len(lines) - 1 and not last_is_rel) else Pt(0)
             self._add_inline(p, line, east_font='標楷體')
+        if rel_text:
+            p = self.doc.add_paragraph()
+            p.paragraph_format.left_indent       = Pt(24)
+            p.paragraph_format.first_line_indent = Pt(0)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after  = Pt(12)
+            p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            self._add_inline(p, rel_text, east_font='標楷體')
 
     def _split_special_chars(self, text):
         """拆分含 ‧／∕ 的文字為 [(chunk, is_special), ...]，特殊字元用新細明體"""
