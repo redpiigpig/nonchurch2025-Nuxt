@@ -623,12 +623,12 @@ class ProfessionalDocxGenerator:
         pPr.append(pBdr)
 
     def add_author(self, author, author_title=None, remark=None):
-        def _add_field(text, ascii_font, east_font, size):
+        def _add_field(text, ascii_font, east_font, size, allow_footnote=False):
             if not text:
                 return
             parts = re.split(r'<br\s*/?>', text, flags=re.IGNORECASE)
             for part in parts:
-                part = re.sub(r'<[^>]+>', '', part).strip()
+                part = part.strip()
                 if not part:
                     continue
                 p = self.doc.add_paragraph()
@@ -637,12 +637,28 @@ class ProfessionalDocxGenerator:
                 p.paragraph_format.space_after     = Pt(0)
                 p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
                 p.paragraph_format.line_spacing      = 1.5
-                run = p.add_run(part)
-                self._apply_font(run, ascii_font, east_font, size=size)
+                if allow_footnote:
+                    # 支援 [^N] → Word 腳注引用；其餘 HTML 剝除後以備註字體輸出
+                    fn_pat = re.compile(r'\[\^(\d+)\]')
+                    segs = fn_pat.split(part)
+                    for i, chunk in enumerate(segs):
+                        if i % 2 == 1:
+                            # 奇數位是腳注編號
+                            self._add_footnote_ref(p, chunk)
+                        else:
+                            plain = re.sub(r'<[^>]+>', '', chunk).strip()
+                            if plain:
+                                run = p.add_run(plain)
+                                self._apply_font(run, ascii_font, east_font, size=size)
+                else:
+                    plain = re.sub(r'<[^>]+>', '', part).strip()
+                    if plain:
+                        run = p.add_run(plain)
+                        self._apply_font(run, ascii_font, east_font, size=size)
 
         _add_field(author,       'Brush Script MT', '文鼎中行書', 12)
         _add_field(author_title, 'Brush Script MT', '文鼎中行書', 12)
-        _add_field(remark,       'Brush Script MT', '文鼎中行書', 12)
+        _add_field(remark,       'Brush Script MT', '文鼎中行書', 12, allow_footnote=True)
 
     def add_keywords(self, keywords):
         if not keywords:
@@ -1377,7 +1393,7 @@ class ProfessionalDocxGenerator:
             r'|<i>[^<]*</i>'
             r'|<br\s*/?>'
             r'|<span\b[^>]*>.*?</span>'
-            r'|<sup\b[^>]*class="footnote-ref"[^>]*><a\b[^>]*>\d+</a></sup>'
+            r'|<sup\b[^>]*class="footnote-ref"[^>]*><a\b[^>]*>[^<]*</a></sup>'
             r'|<[^>]+>'
             r'|\[\^\d+\])',
             re.IGNORECASE | re.DOTALL)
@@ -1391,7 +1407,8 @@ class ProfessionalDocxGenerator:
             italic_html = re.fullmatch(r'<i>([^<]*)</i>', seg, re.IGNORECASE)
             br_tag      = re.fullmatch(r'<br\s*/?>', seg, re.IGNORECASE)
             span_m      = re.fullmatch(r'<span\b([^>]*)>(.*?)</span>', seg, re.IGNORECASE | re.DOTALL)
-            fn_sup      = re.search(r'<a\b[^>]*>(\d+)</a>', seg) if seg.startswith('<sup') else None
+            fn_sup_m    = re.search(r'<a\b[^>]*>([^<]*)</a>', seg) if seg.startswith('<sup') else None
+            fn_sup      = fn_sup_m if (fn_sup_m and fn_sup_m.group(1).strip().isdigit()) else None
             fn_m        = re.fullmatch(r'\[\^(\d+)\]', seg)
             html_tag    = re.fullmatch(r'<[^>]+>', seg)
 
@@ -1418,11 +1435,19 @@ class ProfessionalDocxGenerator:
                 attrs   = span_m.group(1)
                 inner   = re.sub(r'<[^>]+>', '', span_m.group(2)).strip()
                 style_v = ''
+                class_v = ''
                 sm = re.search(r'style=["\']([^"\']*)["\']', attrs, re.IGNORECASE)
+                cm = re.search(r'class=["\']([^"\']*)["\']', attrs, re.IGNORECASE)
                 if sm:
                     style_v = sm.group(1).lower().replace(' ', '')
+                if cm:
+                    class_v = cm.group(1).lower()
                 if not inner:
                     pass
+                elif 'kaiti' in class_v:
+                    # <span class="kaiti"> → 標楷體
+                    run = paragraph.add_run(inner)
+                    self._apply_font(run, ascii_font, '標楷體', size=12)
                 elif 'font-size:1rem' in style_v or 'font-size:0.' in style_v:
                     # 小字體 span
                     run = paragraph.add_run(inner)
