@@ -128,7 +128,8 @@
 /* --------------------------------------------------------------------------
    2. Quote Styles (Inline, Book, Special)
    -------------------------------------------------------------------------- */
-/* Style 1: Inline Quote (em) */
+/* Style 1: 標楷體（新版 .kaiti，向下相容舊版 em） */
+.markdown-body .kaiti,
 .markdown-body em {
   font-style: normal;
   /* 加入 Mac 的 BiauKai 以及 iOS 專用的 Songti TC */
@@ -287,6 +288,7 @@
 .footnotes li {
   display: flex;
   align-items: flex-start;
+  gap: 0.4em;
   line-height: 1;
   counter-increment: footnote-counter;
   position: relative;
@@ -294,21 +296,26 @@
 
 .footnotes li::before {
   content: counter(footnote-counter);
-  display: inline-block;
-  width: 2em;
+  display: block;
+  min-width: 1.2em;
   flex-shrink: 0;
   color: #007bff;
   /* font-family 已繼承 */
   font-weight: normal;
-  text-align: left;
+  text-align: right;
 }
 
+.footnotes li .fn-body,
 .footnotes li p {
   margin: 0;
   text-indent: 0 !important;
-  /* font-family 已繼承 */
   color: #444;
   text-align: justify;
+}
+/* fn-body 裡的 <p>（如 Word 貼入的段落）不再另加 margin */
+.footnotes li .fn-body > p {
+  margin: 0 0 0.6em 0;
+  text-indent: 0 !important;
 }
 
 .footnotes li .footnote-backref {
@@ -316,7 +323,7 @@
   position: absolute;
   left: 0;
   top: 0;
-  width: 2em;
+  width: 1.8em;
   height: 1em;
   cursor: pointer;
 }

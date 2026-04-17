@@ -402,7 +402,7 @@ const footnotesHtml = computed(() => {
   const listItems = article.value.footnotes
     .map(
       (note) =>
-        `<li id="footnote-${note.id}"><p>${note.text}<a href="#footnote-ref-${note.id}" class="footnote-backref">↩</a></p></li>`,
+        `<li id="footnote-${note.id}"><div class="fn-body">${note.text}<a href="#footnote-ref-${note.id}" class="footnote-backref">↩</a></div></li>`,
     )
     .join("");
   return `<div class="footnotes"><hr /><ol>${listItems}</ol></div>`;

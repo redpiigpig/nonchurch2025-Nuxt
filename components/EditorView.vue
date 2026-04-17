@@ -6,11 +6,23 @@ import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Link from "@tiptap/extension-link";
-import { Node, Extension, mergeAttributes } from "@tiptap/core";
+import { Node, Extension, Mark, mergeAttributes } from "@tiptap/core";
 import Italic from "@tiptap/extension-italic";
 import { Plugin } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { supabase } from "~/supabase";
+
+// ── 自訂 directive：像 v-html 但 focus 時不重繪（防止 contenteditable 游標跳位）
+const vSafeHtml = {
+  mounted(el, { value }) {
+    el.innerHTML = value || "";
+  },
+  updated(el, { value }) {
+    if (document.activeElement === el) return; // 使用者正在打字，跳過更新
+    const v = value || "";
+    if (el.innerHTML !== v) el.innerHTML = v;
+  },
+};
 
 // ── 目錄模式 ─────────────────────────────────────────────────────
 const isTocMode = computed(() => form.value.article_type === "toc");
@@ -53,7 +65,7 @@ const proofreadStatus = ref("pending");
 
 // ── 自訂 Tiptap Extension ─────────────────────────────────────────
 
-// 0. ItalicI：獨立 <i> 斜體 mark（與 <em> 楷書體分開）
+// 0a. ItalicI：獨立 <i> 斜體 mark（外文書名/專有詞彙）
 const ItalicI = Italic.extend({
   name: "italicI",
   parseHTML() {
@@ -61,6 +73,21 @@ const ItalicI = Italic.extend({
   },
   renderHTML({ HTMLAttributes }) {
     return ["i", mergeAttributes(HTMLAttributes)];
+  },
+});
+
+// 0b. KaiTi：標楷體 mark，渲染為 <span class="kaiti">
+//     向下相容：解析 <em>（舊版文章）和 <span class="kaiti">
+const KaiTi = Mark.create({
+  name: "kaiTi",
+  parseHTML() {
+    return [
+      { tag: 'span.kaiti' },
+      { tag: 'em' },  // 向下相容，舊版文章使用 <em>
+    ];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["span", mergeAttributes(HTMLAttributes, { class: "kaiti" }), 0];
   },
 });
 
@@ -420,6 +447,16 @@ function cleanHTML(raw) {
 }
 
 // ── 將純文字形式的 HTML 標記還原成真正的格式 ────────────────────
+// 備註欄（remark）清理：把意外存成 HTML 的 <sup class="footnote-ref"> 轉回純文字 [^N]
+function cleanRemarkHtml(html) {
+  if (!html) return html;
+  // 把 <sup class="footnote-ref"><a ...>N</a></sup> 轉回 [^N]
+  return html.replace(
+    /<sup\s+class="footnote-ref"[^>]*><a[^>]*>(\d+)<\/a><\/sup>/gi,
+    (_, n) => `[^${n}]`,
+  );
+}
+
 // Phase 1：inline marks（使用者在 WYSIWYG 直接打 <b> 等）
 // Phase 2：block HTML（貼上的 <figure>/<table>/<div> 整段被存成文字）
 function normalizeInlineTags(html) {
@@ -433,8 +470,8 @@ function normalizeInlineTags(html) {
     .replace(/&lt;\/strong&gt;/g, "</strong>")
     .replace(/&lt;i&gt;/g, "<i>")
     .replace(/&lt;\/i&gt;/g, "</i>")
-    .replace(/&lt;em&gt;/g, "<em>")
-    .replace(/&lt;\/em&gt;/g, "</em>")
+    .replace(/&lt;em&gt;/g, '<span class="kaiti">')
+    .replace(/&lt;\/em&gt;/g, "</span>")
     .replace(/&lt;u&gt;/g, "<u>")
     .replace(/&lt;\/u&gt;/g, "</u>");
 
@@ -540,8 +577,9 @@ watch(
 // ── Tiptap 編輯器 ──────────────────────────────────────────────────
 const editor = useEditor({
   extensions: [
-    StarterKit.configure({ heading: { levels: [2, 3] } }),
+    StarterKit.configure({ heading: { levels: [2, 3] }, italic: false }),
     ItalicI,
+    KaiTi,
     ClassPreserver,
     Underline,
     TextAlign.configure({ types: ["heading", "paragraph"] }),
@@ -619,7 +657,7 @@ const loadArticle = async (id) => {
       section: data.section || "",
       author: data.author || "",
       author_title: data.author_title || "",
-      remark: data.remark || "",
+      remark: cleanRemarkHtml(data.remark || ""),
       summary: data.summary || "",
       content: data.content || "",
       keyword: data.keyword || "",
@@ -1119,6 +1157,38 @@ const annEditorNotes = ref({});
 
 // ── 迷你富文本（備註 + 註釋）────────────────────────────────────
 const activeMiniField = ref(null);
+const activeMiniIsRemark = ref(false);
+
+const insertMiniFootnoteRef = () => {
+  // 備註欄的腳注引用只需存純文字 [^N]
+  // article view 的 formatTextWithFootnote 會自動把 [^N] 轉成 <sup>
+  // （資料庫現有的 8-5、9-4、5-3、6-13 等文章都是這樣存的）
+  const field = activeMiniField.value;
+  if (!field) return;
+
+  const num = prompt("腳注編號：", String(form.value.footnotes.length + 1));
+  if (!num) return;
+
+  // prompt 關閉後 onMiniBlur 可能已把 activeMiniField 清掉，補回來
+  activeMiniField.value = field;
+  field.focus();
+
+  // 在游標位置插入純文字 [^N]，失敗則 append 到末尾
+  const text = `[^${num}]`;
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0 &&
+      (field === sel.getRangeAt(0).commonAncestorContainer ||
+       field.contains(sel.getRangeAt(0).commonAncestorContainer))) {
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(document.createTextNode(text));
+    range.collapse(false);
+  } else {
+    field.appendChild(document.createTextNode(text));
+  }
+
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+};
 
 const onMiniBlur = (e) => {
   if (!e.relatedTarget?.closest?.(".mini-format-bar")) {
@@ -1132,7 +1202,7 @@ const applyMiniFormat = (cmd) => {
   document.execCommand(cmd, false, null);
 };
 
-const wrapMiniTag = (tag) => {
+const wrapMiniTag = (tag, className = null) => {
   if (!activeMiniField.value) return;
   activeMiniField.value.focus();
   const sel = window.getSelection();
@@ -1140,10 +1210,10 @@ const wrapMiniTag = (tag) => {
   const range = sel.getRangeAt(0);
   try {
     const el = document.createElement(tag);
+    if (className) el.className = className;
     range.surroundContents(el);
   } catch {
-    // 選取跨越多個元素時降級為 execCommand
-    document.execCommand("italic", false, null);
+    // 選取跨越多個元素時無法用 surroundContents，靜默失敗
   }
   // 同步 innerHTML 回 model
   activeMiniField.value.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1360,9 +1430,9 @@ const colorLabel = (color) => {
             <button
               type="button"
               class="tool-btn kaiti-btn"
-              :class="{ active: editor?.isActive('italic') }"
-              @click="editor?.chain().focus().toggleItalic().run()"
-              title="楷書體 <em>"
+              :class="{ active: editor?.isActive('kaiTi') }"
+              @click="editor?.chain().focus().toggleMark('kaiTi').run()"
+              title="標楷體 <span class=&quot;kaiti&quot;>"
             >楷</button>
             <button
               type="button"
@@ -1600,10 +1670,10 @@ const colorLabel = (color) => {
               <div
                 contenteditable="true"
                 class="mini-editor-field"
-                @focus="activeMiniField = $event.target"
+                @focus="activeMiniField = $event.target; activeMiniIsRemark = true"
                 @blur="onMiniBlur"
                 @input="form.remark = $event.target.innerHTML"
-                v-html="form.remark"
+                v-safe-html="form.remark"
               ></div>
             </div>
           </div>
@@ -1667,9 +1737,15 @@ const colorLabel = (color) => {
             <!-- 迷你格式工具列 -->
             <div class="mini-format-bar" v-show="activeMiniField">
               <button type="button" @mousedown.prevent="applyMiniFormat('bold')"><strong>B</strong></button>
-              <button type="button" @mousedown.prevent="wrapMiniTag('em')">楷</button>
-              <button type="button" @mousedown.prevent="applyMiniFormat('italic')"><i>I</i></button>
+              <button type="button" @mousedown.prevent="wrapMiniTag('span', 'kaiti')">楷</button>
+              <button type="button" @mousedown.prevent="wrapMiniTag('i')"><i>I</i></button>
               <button type="button" @mousedown.prevent="applyMiniFormat('underline')"><u>U</u></button>
+              <button
+                v-if="activeMiniIsRemark"
+                type="button"
+                @mousedown.prevent="insertMiniFootnoteRef"
+                title="插入腳注引用"
+              >[^]</button>
             </div>
 
             <div v-for="(fn, index) in form.footnotes" :key="fn.id" class="footnote-item">
@@ -1677,10 +1753,10 @@ const colorLabel = (color) => {
               <div
                 contenteditable="true"
                 class="mini-editor-field"
-                @focus="activeMiniField = $event.target"
+                @focus="activeMiniField = $event.target; activeMiniIsRemark = false"
                 @blur="onMiniBlur"
                 @input="fn.text = $event.target.innerHTML"
-                v-html="fn.text"
+                v-safe-html="fn.text"
               ></div>
               <button class="btn btn-sm btn-danger" @click="removeFootnote(index)">X</button>
             </div>
@@ -2449,6 +2525,9 @@ const colorLabel = (color) => {
   outline: none;
   background: #fff;
   word-break: break-word;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
 }
 
 .mini-editor-field:focus {
