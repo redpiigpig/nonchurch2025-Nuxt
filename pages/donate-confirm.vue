@@ -30,7 +30,7 @@ onMounted(() => {
 
 const validate = () => {
   const e = {};
-  if (!form.value.name.trim()) e.name = "請填寫您的稱呼";
+  if (!form.value.name.trim()) e.name = "請填寫您的姓名或機構名稱";
   if (!form.value.email.trim()) e.email = "請填寫電子郵件";
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email.trim())) e.email = "電子郵件格式不正確";
   if (!form.value.date.trim()) e.date = "請填寫匯款時間";
@@ -98,8 +98,8 @@ const handleSubmit = async () => {
     <form v-else class="confirm-form" @submit.prevent="handleSubmit" novalidate>
 
       <div class="field" :class="{ 'has-error': errors.name }">
-        <label>1. 稱呼 <span class="required">*</span></label>
-        <input type="text" v-model="form.name" placeholder="請輸入您的稱呼" maxlength="50" />
+        <label>1. 姓名或機構名稱 <span class="required">*</span></label>
+        <input type="text" v-model="form.name" placeholder="請輸入您的姓名或機構名稱" maxlength="50" />
         <span v-if="errors.name" class="field-error">{{ errors.name }}</span>
       </div>
 
@@ -128,7 +128,7 @@ const handleSubmit = async () => {
       </div>
 
       <div class="field" :class="{ 'has-error': errors.is_public }">
-        <label>6. 是否願意公開姓名於財務明細 <span class="required">*</span></label>
+        <label>6. 是否願意公開姓名／機構名稱於財務明細 <span class="required">*</span></label>
         <div class="radio-group">
           <label class="radio-label">
             <input type="radio" value="願意公開" v-model="form.is_public" />

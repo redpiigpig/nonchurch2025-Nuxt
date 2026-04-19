@@ -1,8 +1,14 @@
 <script setup>
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { supabase } from "~/supabase";
 import { useLanguage } from "~/composables/useLanguage";
+
+const props = defineProps({
+  showAll: { type: Boolean, default: false },
+});
+
+const PAGE_SIZE = 20;
 
 const { currentLang } = useLanguage();
 const route = useRoute();
@@ -72,7 +78,7 @@ const { data: asyncData, pending: loading } = await useAsyncData(
       const { data: articlesData, error: articlesError } = await supabase
         .from("articles")
         .select(
-          `id, title, subtitle, summary, author, category, issue, translations, issues (id, title, date, translations)`,
+          `id, title, subtitle, summary, author, category, issue, translations, issues (id, title, date, translations, is_published)`,
         )
         .or(
           `author.ilike.%${authorData.name}%,author_display.ilike.%${authorData.name}%`,
@@ -98,6 +104,10 @@ const { data: asyncData, pending: loading } = await useAsyncData(
 const author = computed(() => asyncData.value?.author || null);
 const rawAuthorArticles = computed(() => asyncData.value?.articles || []);
 
+// ─── 分頁 ──────────────────────────────────────────────────────────────────
+const currentPage = ref(1);
+watch(() => route.params.name, () => { currentPage.value = 1; });
+
 // displayAuthor：套用 Supabase translations
 const displayAuthor = computed(() => {
   if (!author.value) return null;
@@ -113,13 +123,16 @@ const displayAuthor = computed(() => {
   };
 });
 
-// displayArticles：套用文章與期數翻譯
+// displayArticles：套用文章與期數翻譯（前台過濾未出刊）
 const displayArticles = computed(() => {
   const langKey =
     currentLang.value === "default"
       ? "zh_TW"
       : currentLang.value.replace("-", "_");
-  return rawAuthorArticles.value.map((a) => {
+  const source = props.showAll
+    ? rawAuthorArticles.value
+    : rawAuthorArticles.value.filter((a) => a.issues?.is_published === true);
+  return source.map((a) => {
     const tArt = a.translations?.[langKey] || {};
     const tIss = a.issues?.translations?.[langKey] || {};
     return {
@@ -132,6 +145,19 @@ const displayArticles = computed(() => {
       issueDate: tIss.date || a.issues?.date,
     };
   });
+});
+
+const totalPages = computed(() =>
+  Math.ceil(displayArticles.value.length / PAGE_SIZE),
+);
+
+function goToPage(p) {
+  currentPage.value = p;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+const paginatedArticles = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE;
+  return displayArticles.value.slice(start, start + PAGE_SIZE);
 });
 
 // ─── SEO (page 層) ─────────────────────────────────────────────────────────
@@ -181,7 +207,7 @@ useSeoMeta({
 
     <div class="article-list-section">
       <ul class="article-list" v-if="displayArticles.length > 0">
-        <li v-for="(article, index) in displayArticles" :key="article.id">
+        <li v-for="(article, index) in paginatedArticles" :key="article.id">
           <div class="article-meta">
             <span class="issue"
               >Vol. {{ article.issueId }} {{ article.issueTitle }}</span
@@ -203,11 +229,31 @@ useSeoMeta({
             </NuxtLink>
           </h4>
           <p class="article-summary">{{ article.summary }}</p>
-          <hr class="divider" v-if="index < displayArticles.length - 1" />
+          <hr class="divider" v-if="index < paginatedArticles.length - 1" />
         </li>
       </ul>
       <div v-else class="no-articles">
         <p>{{ t.noArt }}</p>
+      </div>
+
+      <div v-if="totalPages > 1" class="pagination">
+        <button
+          class="page-btn"
+          :disabled="currentPage === 1"
+          @click="goToPage(currentPage - 1)"
+        >‹</button>
+        <button
+          v-for="p in totalPages"
+          :key="p"
+          class="page-btn"
+          :class="{ active: p === currentPage }"
+          @click="goToPage(p)"
+        >{{ p }}</button>
+        <button
+          class="page-btn"
+          :disabled="currentPage === totalPages"
+          @click="goToPage(currentPage + 1)"
+        >›</button>
       </div>
     </div>
   </div>
@@ -336,6 +382,41 @@ useSeoMeta({
   border: 0;
   border-top: 1px dashed #ccc;
   margin: 30px 0;
+}
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 40px;
+  padding-bottom: 20px;
+}
+.page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #333;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
+}
+.page-btn:hover:not(:disabled) {
+  background: #333;
+  color: #fff;
+  border-color: #333;
+}
+.page-btn.active {
+  background: #333;
+  color: #fff;
+  border-color: #333;
+  font-weight: bold;
+}
+.page-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 @media (max-width: 768px) {
   .author-container {

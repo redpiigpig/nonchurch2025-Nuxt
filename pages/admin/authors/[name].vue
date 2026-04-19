@@ -7,5 +7,5 @@ definePageMeta({
 </script>
 
 <template>
-  <AuthorDetailPage />
+  <AuthorDetailPage :show-all="true" />
 </template>

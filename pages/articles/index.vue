@@ -265,7 +265,8 @@ const fetchAndGroupArticles = async () => {
 
   groupedIssues.value = issuesData.map((issue) => {
     const CDN = "https://res.cloudinary.com/nonchurch2025/image/upload";
-    issue.cover_img = issue.cover_img?.startsWith("http")
+    issue.hasCoverImg = !!issue.cover_img?.startsWith("http");
+    issue.cover_img = issue.hasCoverImg
       ? issue.cover_img
       : `${CDN}/cover-${issue.id}.png`;
     issue.pdf_link = issue.pdf_link?.startsWith("http")
@@ -276,6 +277,10 @@ const fetchAndGroupArticles = async () => {
     if (issue.content?.length > 0) {
       if (!isEditor.value)
         issue.content = issue.content.filter((a) => a.is_published);
+      // 永遠濾掉「編輯資訊」section 及「目錄」文章（footer 由 text-only 代替）
+      issue.content = issue.content.filter(
+        (a) => a.section?.trim() !== "編輯資訊" && a.title?.trim() !== "目錄",
+      );
       issue.content.forEach((art) => {
         art.routeId = art.id;
         art._sortOrder = extractOrderFromId(art.id);
@@ -285,10 +290,13 @@ const fetchAndGroupArticles = async () => {
         if (art.author_display) art.author = art.author_display;
       });
       issue.content.sort((a, b) => a._sortOrder - b._sortOrder);
+      // 「主題介紹」不顯示 section header（文章仍保留在最前方）
+      const HIDDEN_HEADERS = new Set(["主題介紹", "編輯資訊"]);
       let lastSection = null;
       issue.content.forEach((art) => {
         const s = art.section?.trim();
-        art.showSectionHeader = s ? s !== lastSection : false;
+        art.showSectionHeader =
+          s && !HIDDEN_HEADERS.has(s) ? s !== lastSection : false;
         if (s) lastSection = s;
       });
       const maxId = issue.content.at(-1)?._sortOrder || 0;
@@ -366,7 +374,7 @@ watch(selectedYear, (v) =>
 );
 watch(isEditor, fetchAndGroupArticles);
 
-await useAsyncData("articles-list", fetchAndGroupArticles);
+await useAsyncData(`articles-list-${isEditor.value}`, fetchAndGroupArticles);
 </script>
 
 <template>
@@ -475,14 +483,22 @@ await useAsyncData("articles-list", fetchAndGroupArticles);
         </div>
 
         <div class="right-section">
-          <a :href="issue.pdf_link" target="_blank" :title="t.download">
-            <img
-              :src="issue.cover_img"
-              :alt="`Vol.${issue.id} Cover`"
-              class="magazine-cover"
-            />
-          </a>
-          <p class="cover-description">{{ t.download }}</p>
+          <template v-if="isEditor && issue.isDraft && !issue.hasCoverImg">
+            <div class="cover-unreleased">
+              <span class="cover-unreleased-label">待出版</span>
+            </div>
+            <p class="cover-description">{{ t.download }}</p>
+          </template>
+          <template v-else>
+            <a :href="issue.pdf_link" target="_blank" :title="t.download">
+              <img
+                :src="issue.cover_img"
+                :alt="`Vol.${issue.id} Cover`"
+                class="magazine-cover"
+              />
+            </a>
+            <p class="cover-description">{{ t.download }}</p>
+          </template>
         </div>
       </div>
 
@@ -578,6 +594,22 @@ li {
   transition: transform 0.3s ease;
   margin-top: -2em;
 }
+.cover-unreleased {
+  width: 350px;
+  aspect-ratio: 176 / 250;
+  border-radius: 10px;
+  background: #d8d8c8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: -2em;
+}
+.cover-unreleased-label {
+  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
+  font-size: 1.1rem;
+  color: #666;
+  letter-spacing: 0.1em;
+}
 .magazine-cover:hover {
   transform: scale(1.05);
 }
@@ -666,6 +698,11 @@ li {
     width: 220px;
     margin-top: 0;
   }
+  .cover-unreleased {
+    width: 220px;
+    margin-top: 0;
+    border-radius: 6px;
+  }
   li {
     font-size: 1.1rem;
   }
@@ -683,6 +720,12 @@ li {
     width: 80%;
     max-width: 300px;
     margin-top: 0;
+  }
+  .cover-unreleased {
+    width: 80%;
+    max-width: 300px;
+    margin-top: 0;
+    border-radius: 6px;
   }
   .left-section {
     order: 2;

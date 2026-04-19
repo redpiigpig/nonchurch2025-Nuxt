@@ -138,20 +138,29 @@ const editLink = computed(() => {
 
   // C. 一般頁面切換
   if (isEditMode.value) {
-    // 後台 -> 前台 (移除 /admin)
+    // 後台 -> 前台：_manager 等純後台頁面無前台對應，需要特別對應
+    const adminToFrontMap = {
+      "/admin/subscribers_manager": "/subscribe",
+      "/admin/articles_manager": "/articles",
+      "/admin/authors_manager": "/authors",
+      "/admin/issues_manager": "/",
+      "/admin/media_manager": "/",
+      "/admin/submissions_manager": "/submit",
+    };
+    if (adminToFrontMap[currentPath]) return adminToFrontMap[currentPath];
     return (
       currentPath.replace(/^\/admin\/home/, "/").replace(/^\/admin/, "") || "/"
     );
   } else {
-    // 前台 -> 後台 (首頁去 /admin/home，其他加 /admin)
+    // 前台 -> 後台
     if (currentPath === "/") return "/admin/home";
-    // 沒有對應後台頁面的前台路徑 → 導向後台首頁
-    // 前台路徑 → 對應後台路徑（不是直接加 /admin 的特殊情況）
     const specialMap = {
       "/subscribe": "/admin/subscribers_manager",
+      "/subscribe-print": "/admin/subscribers_manager",
+      "/unsubscribe": "/admin/subscribers_manager",
+      "/donate-confirm": "/admin",
     };
     if (specialMap[currentPath]) return specialMap[currentPath];
-
     const noAdminCounterpart = ["/submission", "/login", "/preview"];
     if (noAdminCounterpart.some((p) => currentPath.startsWith(p))) return "/admin";
     return `/admin${currentPath}`;

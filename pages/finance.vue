@@ -127,7 +127,7 @@ const donateErrors = ref({ name: "", email: "" });
 async function submitDonate() {
   donateErrors.value = { name: "", email: "" };
   let valid = true;
-  if (!donateName.value.trim()) { donateErrors.value.name = "請填寫您的稱呼"; valid = false; }
+  if (!donateName.value.trim()) { donateErrors.value.name = "請填寫您的姓名或機構名稱"; valid = false; }
   if (!donateEmail.value.trim()) {
     donateErrors.value.email = "請填寫電子信箱"; valid = false;
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donateEmail.value.trim())) {
@@ -243,18 +243,17 @@ async function submitDonate() {
 
       <div class="donate-notice">
         <p>《無境界者》目前尚未法人化，因此您的資金支持性質屬於「個人贊助」，我們暫時無法開具附有統一編號且可供抵稅的正式收據，敬請見諒。</p>
-        <p>若您願意支持本刊營運，請填寫您的稱呼（姓名或暱稱均可）與電子信箱，點擊「我要贊助」後，系統將自動寄送匯款帳號至您的信箱，贊助金額由您自行決定。完成匯款後，請回信至本刊信箱告知匯款金額與帳號末五碼，我們將依您的意願（是否公開姓名），在每期財務明細中登錄您的贊助紀錄。</p>
+        <p>若您願意支持本刊營運，請填寫您的姓名或機構名稱與電子信箱，點擊「我要贊助」後，系統將自動寄送匯款帳號至您的信箱，贊助金額由您自行決定。完成匯款後，請依信中連結回填匯款資訊，我們將依您的意願（是否公開姓名／機構名稱），在每期財務明細中登錄您的贊助紀錄。</p>
       </div>
 
       <div v-if="donateState !== 'success'" class="donate-form">
         <div class="field" :class="{ 'has-error': donateErrors.name }">
-          <label for="donate-name">您的稱呼 <span class="required">*</span></label>
-          <p class="field-hint">姓名或暱稱均可，將依您意願決定是否公開於財務明細</p>
+          <label for="donate-name">姓名或機構名稱 <span class="required">*</span></label>
           <input
             id="donate-name"
             v-model="donateName"
             type="text"
-            placeholder="請輸入您的稱呼"
+            placeholder="請輸入您的姓名或機構名稱"
             :disabled="donateState === 'loading'"
           />
           <span v-if="donateErrors.name" class="field-error">{{ donateErrors.name }}</span>
