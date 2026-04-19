@@ -281,21 +281,22 @@ p {
   margin: 0.5rem;
   text-align: justify;
   font-family: serif;
-  color: #444;
+  color: #555;
   font-size: 1.2rem;
 }
 
 h3 {
-  margin: 2em 0 1em;
+  margin: 2.5rem 0 1rem;
   text-indent: 1em;
   font-family: "Times New Roman", serif;
   font-weight: bold;
-  color: #333;
-  font-size: 1.5rem;
+  color: #444;
+  font-size: 1.4rem;
+  line-height: 1.4;
 }
 
 .special-text {
-  font-family: "DFKai-SB", "標楷體", serif;
+  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
 }
 
 .signature {

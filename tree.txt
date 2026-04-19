@@ -47,23 +47,31 @@ Directory structure:
     ├── middleware/
     │   └── auth.js
     ├── pages/
+    │   ├── about.vue
+    │   ├── finance.vue
     │   ├── index.vue
     │   ├── login.vue
     │   ├── mission.vue
+    │   ├── publication.vue
     │   ├── preview.vue
     │   ├── search.vue
     │   ├── submit.vue
     │   ├── submission.vue
+    │   ├── donate-confirm.vue
     │   ├── subscribe.vue
+    │   ├── subscribe-print.vue
     │   ├── unsubscribe.vue
     │   ├── admin/
+    │   │   ├── about.vue
     │   │   ├── articles_manager.vue
     │   │   ├── authors_manager.vue
+    │   │   ├── finance.vue
     │   │   ├── home.vue
     │   │   ├── index.vue
     │   │   ├── issues_manager.vue
     │   │   ├── media_manager.vue
     │   │   ├── mission.vue
+    │   │   ├── publication.vue
     │   │   ├── search.vue
     │   │   ├── submit.vue
     │   │   ├── submissions_manager.vue
@@ -131,7 +139,10 @@ Directory structure:
     │       ├── merge-pdfs.post.js
     │       ├── submission-lookup.post.js
     │       ├── submit.post.js
+    │       ├── donate-inquiry.post.js
+    │       ├── donate-confirm.post.js
     │       ├── subscribe.post.js
+    │       ├── subscribe-print.post.js
     │       ├── send-newsletter.post.js
     │       └── unsubscribe.post.js
     ├── stores/

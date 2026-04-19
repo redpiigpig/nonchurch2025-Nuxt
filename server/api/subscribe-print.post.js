@@ -1,21 +1,21 @@
-// server/api/subscribe.post.js
 import { createClient } from "@supabase/supabase-js";
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   const body = await readBody(event);
 
-  const { name, gender, age_group, region, faith_background, email, how_found, message } = body;
+  const {
+    email, sub_type, issues, recipient_name, address, phone, note,
+    reader_name, gender, age_group, faith_background, how_found, message,
+  } = body;
 
-  // 必填欄位驗證
-  if (!name || !gender || !age_group || !region || !faith_background || !email) {
+  if (!email || !sub_type || !recipient_name || !address || !phone || !reader_name || !gender || !age_group || !faith_background) {
     throw createError({ statusCode: 400, message: "缺少必填欄位" });
   }
 
-  // Email 格式驗證
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email.trim())) {
-    throw createError({ statusCode: 400, message: "電子郵件格式不正確" });
+    throw createError({ statusCode: 400, message: "Email 格式不正確" });
   }
 
   const supabase = createClient(
@@ -23,26 +23,20 @@ export default defineEventHandler(async (event) => {
     config.supabaseServiceKey
   );
 
-  // 檢查是否重複訂閱
-  const { data: existing } = await supabase
-    .from("subscribers")
-    .select("id")
-    .eq("email", email.trim().toLowerCase())
-    .single();
-
-  if (existing) {
-    throw createError({ statusCode: 409, message: "此電子郵件已訂閱，感謝您的支持！" });
-  }
-
   const { data, error } = await supabase
-    .from("subscribers")
+    .from("print_subscribers")
     .insert([{
-      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      sub_type,
+      issues: issues || [],
+      recipient_name: recipient_name.trim(),
+      address: address.trim(),
+      phone: phone.trim(),
+      note: note?.trim() || null,
+      reader_name: reader_name.trim(),
       gender,
       age_group,
-      region: region.trim(),
       faith_background: faith_background.trim(),
-      email: email.trim().toLowerCase(),
       how_found: how_found?.trim() || null,
       message: message?.trim() || null,
     }])

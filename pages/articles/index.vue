@@ -230,6 +230,7 @@ const getCategoryColor = (cat) =>
     文藝創作: "#27408b",
     公告與剪影: "#6a5acd",
     封面故事: "#7d6c29",
+    文獻與翻譯: "#008080",
   })[cat] || "#999";
 
 const scrollToAnchor = async () => {
@@ -269,7 +270,7 @@ const fetchAndGroupArticles = async () => {
       : `${CDN}/cover-${issue.id}.png`;
     issue.pdf_link = issue.pdf_link?.startsWith("http")
       ? issue.pdf_link
-      : `https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/magazines/Vol.${issue.id}.pdf`;
+      : `https://res.cloudinary.com/nonchurch2025/image/upload/Vol.${issue.id}.pdf`;
     issue.isDraft = !issue.is_published;
 
     if (issue.content?.length > 0) {

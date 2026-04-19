@@ -13,50 +13,86 @@ const isEditMode = computed(() => isEditor.value);
 const navTranslations = {
   "zh-TW": {
     home: "首頁",
-    mission: "使命宣言",
+    magazine: "雜誌資訊",
+    magazineAbout: "認識無境界者",
+    magazineMission: "使命宣言",
+    magazinePublication: "刊物資訊",
+    magazineFinance: "財務資訊",
     articles: "文章列表",
     authors: "專欄作者",
-    subscribe: "線上訂閱",
+    subscribe: "雜誌訂閱",
+    subscribeOnline: "線上訂閱",
+    subscribePrint: "紙本訂閱",
     submit: "投稿資訊",
   },
   "zh-HK": {
     home: "首頁",
-    mission: "使命宣言",
+    magazine: "雜誌資訊",
+    magazineAbout: "認識無境界者",
+    magazineMission: "使命宣言",
+    magazinePublication: "刊物資訊",
+    magazineFinance: "財務資訊",
     articles: "文章列表",
     authors: "專欄作者",
-    subscribe: "線上訂閱",
+    subscribe: "雜誌訂閱",
+    subscribeOnline: "網上訂閱",
+    subscribePrint: "紙本訂閱",
     submit: "投稿資訊",
   },
   "zh-CN": {
     home: "首页",
-    mission: "使命宣言",
+    magazine: "杂志资讯",
+    magazineAbout: "认识无境界者",
+    magazineMission: "使命宣言",
+    magazinePublication: "刊物资讯",
+    magazineFinance: "财务资讯",
     articles: "文章列表",
     authors: "专栏作者",
-    subscribe: "线上订阅",
+    subscribe: "杂志订阅",
+    subscribeOnline: "在线订阅",
+    subscribePrint: "纸本订阅",
     submit: "投稿资讯",
   },
   en: {
     home: "Home",
-    mission: "Mission",
+    magazine: "About",
+    magazineAbout: "About Us",
+    magazineMission: "Mission",
+    magazinePublication: "Publication",
+    magazineFinance: "Finance",
     articles: "Articles",
     authors: "Authors",
     subscribe: "Subscribe",
+    subscribeOnline: "Online",
+    subscribePrint: "Print",
     submit: "Submission",
   },
   ja: {
     home: "ホーム",
-    mission: "ミッション",
+    magazine: "雑誌情報",
+    magazineAbout: "無境界者について",
+    magazineMission: "ミッション",
+    magazinePublication: "刊行情報",
+    magazineFinance: "財務情報",
     articles: "記事一覧",
     authors: "執筆者",
-    subscribe: "オンライン購読",
+    subscribe: "購読",
+    subscribeOnline: "オンライン購読",
+    subscribePrint: "紙面購読",
     submit: "投稿情報",
   },
   ko: {
     home: "홈",
-    mission: "미션",
+    magazine: "잡지 정보",
+    magazineAbout: "무경계자 소개",
+    magazineMission: "미션",
+    magazinePublication: "간행물 정보",
+    magazineFinance: "재무 정보",
     articles: "기사 목록",
     authors: "필진",
-    subscribe: "온라인 구독",
+    subscribe: "구독",
+    subscribeOnline: "온라인 구독",
+    subscribePrint: "인쇄본 구독",
     submit: "투고 안내",
   },
 };
@@ -69,6 +105,7 @@ const t = computed(
 // 前台路徑 → 後台對應路徑（非直接加 /admin 的特殊情況）
 const adminPathMap = {
   "/subscribe": "/admin/subscribers_manager",
+  "/subscribe-print": "/admin/subscribers_manager",
 };
 
 const getLink = (path) => {
@@ -153,10 +190,24 @@ const editLink = computed(() => {
 
       <div class="menu">
         <NuxtLink :to="getLink('/home')">{{ t.home }}</NuxtLink>
-        <NuxtLink :to="getLink('/mission')">{{ t.mission }}</NuxtLink>
+        <div class="nav-dropdown">
+          <span class="nav-dropdown-label">{{ t.magazine }}</span>
+          <div class="nav-dropdown-menu">
+            <NuxtLink :to="getLink('/about')">{{ t.magazineAbout }}</NuxtLink>
+            <NuxtLink :to="getLink('/mission')">{{ t.magazineMission }}</NuxtLink>
+            <NuxtLink :to="getLink('/publication')">{{ t.magazinePublication }}</NuxtLink>
+            <NuxtLink :to="getLink('/finance')">{{ t.magazineFinance }}</NuxtLink>
+          </div>
+        </div>
         <NuxtLink :to="getLink('/articles')">{{ t.articles }}</NuxtLink>
         <NuxtLink :to="getLink('/authors')">{{ t.authors }}</NuxtLink>
-        <NuxtLink :to="getLink('/subscribe')">{{ t.subscribe }}</NuxtLink>
+        <div class="nav-dropdown">
+          <span class="nav-dropdown-label">{{ t.subscribe }}</span>
+          <div class="nav-dropdown-menu">
+            <NuxtLink :to="getLink('/subscribe')">{{ t.subscribeOnline }}</NuxtLink>
+            <NuxtLink :to="getLink('/subscribe-print')">{{ t.subscribePrint }}</NuxtLink>
+          </div>
+        </div>
         <NuxtLink :to="getLink('/submit')">{{ t.submit }}</NuxtLink>
 
         <div class="lang-switcher">
@@ -334,6 +385,87 @@ const editLink = computed(() => {
 }
 .admin-link:hover {
   color: #1b5e20;
+}
+
+/* ── 雜誌訂閱下拉選單 ── */
+.nav-dropdown {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.nav-dropdown-label {
+  color: white;
+  padding: 5px 10px;
+  border-radius: 5px;
+  white-space: nowrap;
+  letter-spacing: 0.08em;
+  cursor: default;
+  transition: color 0.3s ease;
+  user-select: none;
+}
+.nav-dropdown:hover .nav-dropdown-label {
+  color: #1b5e20;
+}
+.nav-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  min-width: 120px;
+  padding: 6px 0;
+  z-index: 200;
+  flex-direction: column;
+}
+.nav-dropdown:hover .nav-dropdown-menu {
+  display: flex;
+}
+.nav-dropdown-menu a {
+  color: #2c3e50 !important;
+  padding: 9px 18px !important;
+  border-radius: 0 !important;
+  white-space: nowrap;
+  font-size: 0.95rem;
+  background: transparent !important;
+  text-align: center;
+}
+.nav-dropdown-menu a:hover {
+  color: #4caf50 !important;
+  background: #f5faf5 !important;
+}
+
+@media (max-width: 768px) {
+  .nav-dropdown {
+    gap: 4px;
+  }
+  .nav-dropdown-label {
+    display: none;
+  }
+  .nav-dropdown-menu {
+    display: flex !important;
+    position: static;
+    transform: none;
+    background: transparent;
+    box-shadow: none;
+    min-width: unset;
+    padding: 0;
+    flex-direction: row;
+    gap: 6px;
+  }
+  .nav-dropdown-menu a {
+    color: white !important;
+    padding: 6px 10px !important;
+    background: rgba(255,255,255,0.15) !important;
+    border-radius: 15px !important;
+    font-size: 0.95rem;
+  }
+  .nav-dropdown-menu a:hover {
+    color: #1b5e20 !important;
+    background: rgba(255,255,255,0.25) !important;
+  }
 }
 
 .search-icon-btn {

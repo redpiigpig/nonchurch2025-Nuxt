@@ -63,6 +63,74 @@ const generateTocContent = () => {
 const proofreadAnnotations = ref([]);
 const proofreadStatus = ref("pending");
 
+// ══════════════════════════════════════════════════════════════════
+// EditorView.vue 區塊索引（中文對照）
+//
+// 【TipTap 自訂 Extension】              ~L.66
+//   ItalicI     斜體（外文書名）<i>
+//   KaiTi       標楷體 <span class="kaiti">（相容舊版 <em>）
+//   FootnoteRef 腳注引用節點 <sup class="footnote-ref">
+//   RawBlock    自訂 div/figure/table 不可分割區塊
+//   ClassPreserver 保留 heading 的 class 屬性
+//   AnnotationMarkers 校對標記小點裝飾
+//
+// 【HTML 工具函數】                       ~L.435
+//   cleanHTML          還原 raw-block 佔位符為原始 HTML
+//   cleanRemarkHtml    把意外存成 <sup> 的備註腳注轉回 [^N]
+//   normalizeInlineTags 將純文字 <b> <i> <em> 等轉為真正格式
+//
+// 【Form 狀態 / 全域 ref】               ~L.498
+//   form               文章所有欄位（id/title/remark/footnotes/content…）
+//   isEditMode / loading / showSource
+//
+// 【主內文編輯器 editor】                ~L.578
+//   useEditor() 完整 TipTap，含 FootnoteRef/RawBlock/校對標記
+//   toggleSource       切換原始碼模式
+//   reprocessInlineTags 重解析 <b><i> 等純文字標記
+//
+// 【備註欄 remarkEditor】                ~L.609
+//   輕量 TipTap，僅支援 [^N] 腳注引用
+//   insertRemarkFootnoteRef  [^] 按鈕 → 在游標處插入 [^N]
+//
+// 【文章載入 / 儲存】                    ~L.659
+//   loadArticle(id)    從 Supabase 讀取並填入 form + editor
+//   saveArticle()      存回 Supabase
+//
+// 【Word 下載 / 重上傳】                 ~L.800
+//   exportToWord()     呼叫 /api/generate-docx 下載 Word
+//   handleReupload()   重新上傳 Word 解析
+//
+// 【圖片管理】                           ~L.967
+//   sortedMediaAssets  排序後的圖片列表
+//   insertImageBlock   插入圖片區塊到 TipTap
+//   moveMediaAsset     圖片上移/下移
+//   handleMediaUpload  上傳新圖片到 Cloudinary
+//
+// 【腳注 / 連結】                        ~L.1143
+//   insertFootnoteRef  主內文插入腳注引用（TipTap command）
+//   insertLink / removeLink
+//   insertRaw          插入自訂 HTML 區塊（RawBlock）
+//
+// 【迷你富文本（腳注欄 contenteditable）】~L.1189
+//   activeMiniField    當前聚焦的腳注欄 div
+//   onMiniBlur         失焦時清除 activeMiniField
+//   applyMiniFormat    腳注欄 B/U 格式
+//   wrapMiniTag        腳注欄 楷/I 包裹標籤
+//
+// 【校對標記審閱】                       ~L.1185
+//   applyReplacement / resolveAnnotation / unresolveAnnotation
+//
+// 【ProseMirror 樣式覆蓋（:deep）】      ~L.2313
+//   .ProseMirror       主編輯器字型、行距（text-indent: 2em）
+//   .ProseMirror p     首行縮排 2em、段落間距
+//   .ProseMirror h2/h3 小標題樣式
+//
+// 【備註欄 TipTap 樣式】                 ~L.2390
+//   .remark-tiptap     對齊 input 的單行輸入框外觀
+//   .remark-tiptap :deep(.ProseMirror)  text-indent:0、white-space:nowrap
+//
+// ══════════════════════════════════════════════════════════════════
+
 // ── 自訂 Tiptap Extension ─────────────────────────────────────────
 
 // 0a. ItalicI：獨立 <i> 斜體 mark（外文書名/專有詞彙）
@@ -1462,16 +1530,15 @@ const colorLabel = (color) => {
             <button
               type="button"
               class="tool-btn"
-              :class="{ active: editor?.isActive('blockquote') }"
-              @click="editor?.chain().focus().toggleBlockquote().run()"
-              title="引言"
-            >❝</button>
-            <button
-              type="button"
-              class="tool-btn"
               @click="editor?.chain().focus().setHorizontalRule().run()"
               title="分隔線"
             >—</button>
+            <button
+              type="button"
+              class="tool-btn"
+              @click="insertRaw(`<p class='no-indent'>無縮排文字</p>`)"
+              title="去縮排"
+            >¶</button>
             <button
               type="button"
               class="tool-btn"
@@ -1509,16 +1576,16 @@ const colorLabel = (color) => {
           <div class="toolbar-section-label">插入：</div>
           <div class="toolbar-insert-col">
             <button type="button" class="tool-btn comp-btn"
+              @click="insertRaw(`<blockquote><p>引用的內容...</p><div class='rel'>── 出處</div></blockquote>`)">
+              💬 一般引言
+            </button>
+            <button type="button" class="tool-btn comp-btn"
               @click="insertRaw(`<div class='book-quote'>引用的內容...<div class='book-quote-rel'> ──《書名》，頁數 </div></div>`)">
               ✍ 書本引言
             </button>
             <button type="button" class="tool-btn comp-btn"
               @click="insertRaw(`<div class='book-box'><div class='book-info'><strong>書籍資訊</strong><br />《書名》...<br />《作者》...<br />《出版》...</div><div class='book-image'><img src='圖片網址' alt='封面' /></div></div>`)">
               📚 書籍簡介
-            </button>
-            <button type="button" class="tool-btn comp-btn"
-              @click="insertRaw(`<blockquote><p>引用的內容...</p><div class='rel'>── 出處</div></blockquote>`)">
-              💬 一般引言
             </button>
             <button type="button" class="tool-btn comp-btn"
               @click="insertRaw(`<figure class='img-right px-300'><img src='圖片網址' alt='受訪者姓名' style='border: 1px solid #000; outline: 4.5px solid #000; outline-offset: 1px;'></figure>`)">
@@ -1531,18 +1598,6 @@ const colorLabel = (color) => {
             <button type="button" class="tool-btn comp-btn"
               @click="insertRaw(`<div class='info-card'><div class='info-card-inner'><img src='圖片網址' alt='名稱'><div><h3>名稱</h3><div class='info-card-links'><a href='連結網址' target='_blank'>臉書粉專</a><a href='連結網址' target='_blank'>官方網站</a></div></div></div></div>`)">
               📋 粉專介紹
-            </button>
-            <button type="button" class="tool-btn comp-btn"
-              @click="insertRaw(`<div class='custom-divider'></div>`)">
-              ── 分隔
-            </button>
-            <button type="button" class="tool-btn comp-btn"
-              @click="insertRaw(`<p class='no-indent'>無縮排文字</p>`)">
-              ¶ 去縮排
-            </button>
-            <button type="button" class="tool-btn comp-btn"
-              @click="insertRaw(`<span style='display:block;text-align:right;'>置右文字</span>`)">
-              → 置右
             </button>
             <button type="button" class="tool-btn comp-btn"
               @click="insertRaw('🌏\uFE0E')">
@@ -2239,6 +2294,7 @@ const colorLabel = (color) => {
 
 .tiptap-editor {
   padding: 20px 24px;
+  max-width: 1080px;
   min-height: 500px;
   outline: none;
 }
@@ -2246,28 +2302,32 @@ const colorLabel = (color) => {
 :deep(.ProseMirror) {
   outline: none;
   min-height: 460px;
-  font-family: "Times New Roman", "NSimSun", serif;
-  font-size: 1rem;
+  font-family: "Times New Roman", serif;
+  font-size: 1.2rem;
   line-height: 1.8;
-  color: #333;
+  color: #444;
 }
 
 :deep(.ProseMirror p) {
   text-indent: 2em;
-  margin-bottom: 0.8rem;
+  margin-bottom: 1rem;
 }
 
 :deep(.ProseMirror h2) {
-  font-size: 1.2rem;
+  font-size: 1.8rem;
   font-weight: bold;
-  margin: 1.5rem 0 0.8rem;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  line-height: 1.4;
   text-indent: 0;
 }
 
 :deep(.ProseMirror h3) {
-  font-size: 1rem;
+  font-size: 1.4rem;
   font-weight: bold;
-  margin: 1.2rem 0 0.6rem;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  line-height: 1.4;
   text-indent: 0;
 }
 

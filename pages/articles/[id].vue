@@ -336,6 +336,7 @@ const categoryColor = computed(() => {
     封面故事: "#7d6c29",
     光影時刻: "#7d6c29",
     實驗園地: "#db7093",
+    文獻與翻譯: "#008080",
   };
   return map[displayArticle.value?.category] || "#ff8000";
 });

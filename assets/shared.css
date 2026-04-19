@@ -29,6 +29,9 @@
   vertical-align: middle;
   letter-spacing: 0;
 }
+.page-main-title .emoji:last-child {
+  margin-left: -1rem;
+}
 
 @media (max-width: 768px) {
   .page-main-title {

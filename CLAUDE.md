@@ -3,6 +3,26 @@
 ## 必讀參考檔案
 - `project_info.txt` — Supabase 資料表結構 + Cloudinary 資料夾結構，每次需要了解 schema 時先讀此檔
 
+## 大檔案索引（修改前必看）
+
+### `scripts/generate_docx.py`（Word 匯出腳本，~1800 行）
+**修改前先看檔案頂部 docstring**，裡面有完整中文函數索引：
+- 每個函數名、行號、中文功能說明一覽
+- 常見需求對照：書籍簡介框→`_add_book_box`、引言→`_add_blockquote`、inline 格式→`_add_inline`、h3 小標題→`_add_section_title`
+
+### `components/EditorView.vue`（文章編輯器，~2500 行）
+**修改前先看 ~L.66 的大型區塊注釋**，裡面有：
+- 所有 TipTap Extension 說明（KaiTi / FootnoteRef / RawBlock 等）
+- 所有主要函數區塊與行號（loadArticle / saveArticle / remarkEditor / ProseMirror 樣式等）
+
+## 格式規範（HTML 優先）
+- 所有文章內文格式**全面使用 HTML 標籤**，不用 Markdown
+- 標楷體：`<span class="kaiti">` ← 不用 `<em>` 或 `**`
+- 斜體（外文書名）：`<i>` ← 不用 `*斜體*`
+- 粗體：`<strong>` ← 不用 `**粗體**`
+- 腳注引用正文用 `[^N]`，文末 JSONB 陣列格式
+- 詳細規範見 `stores/word_to_sql.md`
+
 ## 強制工作流程
 
 ### 新增或刪除任何檔案後，必須更新 tree.txt

@@ -1,6 +1,78 @@
 """
 無境界者雜誌 - 專業 Word 排版生成器
 完全符合 form.md 格式規範
+
+━━ 函數索引（中文對照）━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【頁面初始化】
+  __init__ / _setup_page / _setup_styles      L.28   初始化、頁面設定、樣式
+  _inject_footnote_ref_style                  L.66   腳注引用上標樣式
+  _clear_numbering                            L.88   清除列表自動編號
+
+【基礎工具】
+  _add_blank_line                             L.102  插入空白行
+  _apply_font(run, ascii, east, size, bold)   L.116  套用字型（英文/中文/大小/粗體）
+  _hex_rgb                                    L.140  十六進位色碼轉 RGBColor
+  _download_image(src)                        L.347  下載 Cloudinary 圖片 → BytesIO
+  _download_and_crop_square(src)              L.362  下載並裁切正方形圖片
+  _split_special_chars(text)                  L.1468 拆分含 ‧／∕ 的文字（新細明體）
+  _split_emoji(text)                          L.1478 拆分 emoji（Segoe UI Symbol）
+  _should_skip_blank_before                   L.1320 判斷是否略過前置空行
+
+【腳注系統】
+  set_footnotes(footnotes)                    L.146  傳入腳注 JSONB 陣列
+  _add_footnote_ref(paragraph, fn_num_str)    L.149  在段落插入 Word 腳注引用編號
+  _fn_runs_xml(text)                          L.166  腳注內文 inline XML 生成
+  _finalize_footnotes                         L.236  完成所有腳注寫入
+
+【文章結構（依輸出順序）】
+  add_category_tag(category, color_hex)       L.575  文章分類標籤（彩色色塊）
+  add_title(title)                            L.585  主標題
+  add_subtitle(subtitle)                      L.593  副標題
+  add_decoration_line                         L.606  裝飾橫線
+  add_author(author, author_title, remark)    L.625  作者、頭銜、備註（備註支援腳注）
+  add_keywords(keywords)                      L.663  關鍵字行
+  add_content(content)                        L.724  主要內文（呼叫下方各處理器）
+  add_header_footer(...)                      L.1608 頁首頁尾（期數、標題、頁碼）
+
+【內文解析器】
+  _split_into_segments(content)               L.679  將 HTML 切分為段落類型清單
+  _find_close_tag(content, from_pos, tag)     L.704  找配對的閉合標籤
+  _dispatch_div(html)                         L.767  依 class 派發 <div> 到對應處理器
+  _add_paragraph_element(html)                L.808  處理 <p> 段落（含首行縮排邏輯）
+  _process_line(line)                         L.1347 處理純文字行（含縮排判斷）
+  _add_inline(p, text, east, ascii)           L.1498 解析 inline 標記（粗體/楷體/斜體/腳注）
+
+【自訂區塊】
+  _add_custom_divider                         L.847  自訂分隔線（── ）
+  _add_book_quote(html)                       L.869  書本引言（藍色左線、楷書體）
+  _add_book_box(html)                         L.927  書籍簡介框（2欄：文字2/3 + 封面圖1/3）
+  _add_reference_box(html)                    L.1037 參考資料框（綠色左線）
+  _add_theme_image(html)                      L.1082 主題圖片（置中大圖）
+  _add_author_profile(html)                   L.1097 作者簡介（頭像 + 文字）
+  _add_right_aligned(text)                    L.1210 置右文字段落
+  _add_blockquote(text, rel_text)             L.1447 一般引言（標楷體，rel 置右）
+
+【圖片系統】
+  _add_figure(html)                           L.384  圖片區塊（含圖說）
+  _add_figure_textbox(...)                    L.450  圖片文字框（浮動排版）
+  _add_caption_runs(paragraph, lines)         L.563  圖說文字渲染
+  _insert_float_image(p, stream, width, dir)  L.295  插入浮動圖片（繞排）
+
+【表格】
+  _add_table(html)                            L.1230 HTML <table> → Word 表格
+  _add_section_title(inner_html)              L.1385 <h3> 小標題（14pt 粗體，支援腳注）
+  _add_bullet_line(text)                      L.1335 項目清單行
+
+【頁面輔助】
+  _add_portrait_double_border(run)            L.1256 雙框線效果
+  _add_picture_border(run, border_pt, color)  L.1292 圖片框線
+  _insert_page_number(paragraph, size)        L.1700 插入頁碼欄位
+
+【進入點】
+  generate_article_docx(article_data, path)   L.1725 主函數（組合所有步驟）
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
 from docx import Document
@@ -1412,10 +1484,10 @@ class ProfessionalDocxGenerator:
         # 明確覆蓋 Normal style 的 1.5× 行距，改為單行；前後各 0.5 行距（≈9pt）
         pPr = p._element.get_or_add_pPr()
         sp = OxmlElement('w:spacing')
-        sp.set(qn('w:before'),   '180')   # 9pt × 20 = 180 twips
-        sp.set(qn('w:after'),    '180')   # 9pt × 20 = 180 twips
-        sp.set(qn('w:line'),     '240')   # 單行行距（240 = 1×）
-        sp.set(qn('w:lineRule'), 'auto')
+        sp.set(qn('w:beforeLines'), '75')    # 0.75 行距
+        sp.set(qn('w:afterLines'),  '75')    # 0.75 行距
+        sp.set(qn('w:line'),        '240')   # 單行行距（240 = 1×）
+        sp.set(qn('w:lineRule'),    'auto')
         pPr.append(sp)
 
         # 逐 token 處理 inline 標記；一般文字 14pt 粗體，腳注引用則插入 Word footnote
@@ -1757,6 +1829,7 @@ def generate_article_docx(article_data, output_path):
         article_data.get('remark'),
     )
     generator._add_blank_line()   # 空行（作者與關鍵字之間）
+    generator._add_blank_line()
 
     if article_data.get('keyword'):
         generator.add_keywords(article_data['keyword'])
