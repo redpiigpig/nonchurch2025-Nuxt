@@ -1396,11 +1396,26 @@ const wrapMiniTag = (tag, className = null) => {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
   const range = sel.getRangeAt(0);
-  try {
-    const el = document.createElement(tag);
-    if (className) el.className = className;
-    range.surroundContents(el);
-  } catch { /* 跨元素選取，靜默失敗 */ }
+
+  // Toggle：若選取內容已在同一標籤內，則取消（unwrap）
+  let ancestor = range.commonAncestorContainer;
+  if (ancestor.nodeType === Node.TEXT_NODE) ancestor = ancestor.parentElement;
+  const selector = className ? `${tag}.${className}` : tag;
+  const existing = ancestor.closest(selector);
+
+  if (existing && activeMiniField.value?.contains(existing)) {
+    const parent = existing.parentNode;
+    while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+    parent.removeChild(existing);
+  } else {
+    // 用 insertHTML 包裹（比 surroundContents 穩健，可跨節點邊界）
+    const frag = range.cloneContents();
+    const tmp = document.createElement("div");
+    tmp.appendChild(frag);
+    const tagOpen = className ? `<${tag} class="${className}">` : `<${tag}>`;
+    document.execCommand("insertHTML", false, `${tagOpen}${tmp.innerHTML}</${tag}>`);
+  }
+
   activeMiniField.value?.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
@@ -1959,7 +1974,7 @@ const colorLabel = (color) => {
                 >✏️▾</button>
                 <div v-show="fnFormatOpen === index" class="fn-format-popup">
                   <button type="button" @mousedown.prevent="applyMiniFormat('bold')" title="粗體"><strong>B</strong></button>
-                  <button type="button" @mousedown.prevent="wrapMiniTag('i')" title="斜體"><i>I</i></button>
+                  <button type="button" @mousedown.prevent="applyMiniFormat('italic')" title="斜體"><i>I</i></button>
                   <button type="button" @mousedown.prevent="wrapMiniTag('span', 'kaiti')" title="標楷體">楷</button>
                   <button type="button" @mousedown.prevent="wrapMiniLink" title="超連結">🔗</button>
                   <button type="button" @mousedown.prevent="reparseFnHtml(fn)" title="解析已輸入的 HTML 標籤">♻</button>
@@ -2812,6 +2827,7 @@ const colorLabel = (color) => {
   font-size: inherit;
   color: inherit;
 }
+.mini-editor-field .kaiti { font-family: "DFKai-SB", "標楷體", serif; font-style: normal; }
 
 .mini-editor-field:focus {
   border-color: #6366f1;
