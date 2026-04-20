@@ -173,7 +173,7 @@ const fetchArticles = async () => {
     seo_pdf: a.seo?.pdf || "",
     section: SECTION_ORDER.includes(a.section) ? a.section : "主題介紹",
     page_start: a.page_start ?? null,
-    proofread_status: a.proofread_status || "pending",
+    proofread_status: a.proofread_status || "incomplete",
     article_type: a.article_type || "regular",
     isSaving: false,
   }));
@@ -458,6 +458,52 @@ const goToEditor = (article) => {
     router.push(`/admin/meta-article/${article.id}`);
   } else {
     router.push(`/admin/editor/${article.id}`);
+  }
+};
+
+// ── 下載 Word ──
+const downloadingWord = ref(null);
+const downloadWord = async (article) => {
+  downloadingWord.value = article.id;
+  try {
+    const { data, error } = await supabase
+      .from("articles")
+      .select("id, title, subtitle, category, author, author_title, remark, keyword, content, footnotes, issue, issue_title, page_start, media_assets(image_url, sort_order)")
+      .eq("id", article.id)
+      .single();
+    if (error) throw error;
+
+    const assets = data.media_assets || [];
+    const resolvedContent = (data.content || "").replace(
+      /\[\[圖片(\d+)\]\]/g,
+      (match, orderStr) => {
+        const found = assets.find((m) => m.sort_order === parseInt(orderStr));
+        return found ? found.image_url : match;
+      },
+    );
+
+    const response = await fetch("/api/export-word", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...data, content: resolvedContent }),
+    });
+    const result = await response.json();
+    if (result.success) {
+      const bytes = new Uint8Array(atob(result.file).split("").map((c) => c.charCodeAt(0)));
+      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      throw new Error(result.error || "生成失敗");
+    }
+  } catch (err) {
+    alert("下載 Word 失敗：" + err.message);
+  } finally {
+    downloadingWord.value = null;
   }
 };
 
@@ -935,7 +981,9 @@ const convertToArticle = async (sub) => {
                       ? "✅ 完成"
                       : article.proofread_status === "in_progress"
                         ? "🔄 進行中"
-                        : "⬜ 待校對"
+                        : article.proofread_status === "pending"
+                          ? "⬜ 待校對"
+                          : "🔴 未完成"
                   }}
                 </span>
               </td>
@@ -954,6 +1002,13 @@ const convertToArticle = async (sub) => {
                     title="進入校對畫面"
                     >🔍</NuxtLink
                   >
+                  <button
+                    v-if="article.article_type !== 'toc' && article.article_type !== 'submission_info' && article.article_type !== 'editorial_info'"
+                    class="btn-word"
+                    :disabled="downloadingWord === article.id"
+                    @click="downloadWord(article)"
+                    title="下載 Word"
+                  >{{ downloadingWord === article.id ? '⏳' : '📥' }}</button>
                   <button
                     class="btn-delete"
                     @click="deleteArticle(article)"
@@ -1699,15 +1754,19 @@ tr.dragging {
   border-radius: 10px;
   white-space: nowrap;
 }
+.badge-incomplete {
+  background: #f8d7da;
+  color: #721c24;
+}
 .badge-pending {
   background: #e9ecef;
   color: #666;
 }
-.badge-progress {
+.badge-in_progress {
   background: #fff3cd;
   color: #856404;
 }
-.badge-done {
+.badge-completed {
   background: #d4edda;
   color: #155724;
 }
@@ -1722,7 +1781,8 @@ tr.dragging {
   justify-content: center;
 }
 .btn-edit,
-.btn-proofread {
+.btn-proofread,
+.btn-word {
   border: none;
   border-radius: 4px;
   width: 32px;
@@ -1755,6 +1815,17 @@ tr.dragging {
 .btn-proofread:hover {
   background: #0d7a70;
 }
+.btn-word {
+  background: #6c757d;
+  color: white;
+}
+.btn-word:hover {
+  background: #545b62;
+}
+.btn-word:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .btn-delete {
   background: #e74c3c;
   color: white;
@@ -1769,6 +1840,7 @@ tr.dragging {
 .btn-delete:hover { background: #c0392b; }
 .btn-edit:active,
 .btn-proofread:active,
+.btn-word:active,
 .btn-delete:active {
   transform: scale(0.95);
 }

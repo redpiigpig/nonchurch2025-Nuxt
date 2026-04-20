@@ -61,7 +61,7 @@ const generateTocContent = () => {
 
 // ── 校對標記（早期宣告，供 AnnotationMarkers 閉包使用）────────────
 const proofreadAnnotations = ref([]);
-const proofreadStatus = ref("pending");
+const proofreadStatus = ref("incomplete");
 
 // ══════════════════════════════════════════════════════════════════
 // EditorView.vue 區塊索引（中文對照）
@@ -766,7 +766,7 @@ const loadArticle = async (id) => {
     seoJson.value = data.seo ? JSON.stringify(data.seo, null, 2) : "{\n}";
     isPublished.value = data.is_published || false;
     proofreadAnnotations.value = data.proofread_annotations || [];
-    proofreadStatus.value = data.proofread_status || "pending";
+    proofreadStatus.value = data.proofread_status || "incomplete";
 
     editor.value?.commands.setContent(normalizeInlineTags(data.content || ""));
 
@@ -851,6 +851,7 @@ const saveArticle = async (silent = false) => {
     seo: seoParsed,
     is_published: isPublished.value,
     proofread_annotations: proofreadAnnotations.value,
+    proofread_status: proofreadStatus.value,
     updated_at: new Date().toISOString(),
   };
   delete payload.media_assets;
@@ -870,6 +871,11 @@ const saveArticle = async (silent = false) => {
     }
   }
   loading.value = false;
+};
+
+const markDraftDone = async () => {
+  proofreadStatus.value = "pending";
+  await saveArticle(false);
 };
 
 // ── 自動儲存（debounce 2s）────────────────────────────────────────
@@ -1423,6 +1429,14 @@ const colorLabel = (color) => {
         </template>
         <button v-if="isEditMode" class="btn btn-download" @click="exportToWord" :disabled="loading">
           📥 下載 Word
+        </button>
+        <button
+          v-if="isEditMode && proofreadStatus === 'incomplete'"
+          class="btn btn-draft-done"
+          :disabled="loading"
+          @click="markDraftDone"
+        >
+          ✏️ 初稿完成
         </button>
         <NuxtLink
           v-if="isEditMode"
@@ -1997,6 +2011,23 @@ const colorLabel = (color) => {
   transition: all 0.3s;
 }
 
+.btn-draft-done {
+  background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
+  color: #333;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+.btn-draft-done:hover:not(:disabled) {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+.btn-draft-done:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 .btn-proofread {
   position: relative;
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
