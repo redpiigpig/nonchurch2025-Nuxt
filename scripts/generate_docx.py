@@ -878,9 +878,12 @@ class ProfessionalDocxGenerator:
                     self._add_inline(p, line)
 
     def _add_paragraph_element(self, html):
-        """處理 <p> 元素，支援 no-indent、text-align:right 與內部 <br>。
-        <p class="no-indent"> 前自動插入一空行。"""
+        """處理 <p> 元素，支援 no-indent、toc-line、text-align:right 與內部 <br>。
+        <p class="no-indent"> 前自動插入一空行。
+        <p class="toc-line"> 凸排：左縮排 24pt，首行 -24pt。"""
         no_indent = bool(re.search(r'class=["\'][^"\']*no-indent[^"\']*["\']',
+                                   html, re.IGNORECASE))
+        toc_line  = bool(re.search(r'class=["\'][^"\']*toc-line[^"\']*["\']',
                                    html, re.IGNORECASE))
         # 偵測 text-align: right → 交由 _add_right_aligned 統一處理
         tag_m = re.match(r'<p\b([^>]*)>', html, re.IGNORECASE)
@@ -902,6 +905,7 @@ class ProfessionalDocxGenerator:
         if no_indent and not self._should_skip_blank_before():
             self._add_blank_line()
         parts = re.split(r'<br\s*/?>', inner, flags=re.IGNORECASE)
+        toc_first = True  # 第一個 part 才凸排，後續 parts 只左縮排
         for part in parts:
             part = part.strip()
             if not part:
@@ -911,7 +915,20 @@ class ProfessionalDocxGenerator:
                 self._add_bullet_line(part[bullet_m.end():])
                 continue
             p = self.doc.add_paragraph()
-            p.paragraph_format.first_line_indent = Pt(0) if no_indent else Pt(24)
+            if toc_line:
+                if toc_first:
+                    # 第一行凸排：左縮排 18pt，首行 -18pt（從 0 開始）
+                    p.paragraph_format.left_indent       = Pt(18)
+                    p.paragraph_format.first_line_indent = Pt(-18)
+                    toc_first = False
+                else:
+                    # 後續行（<br> 分段）從 18pt 對齊
+                    p.paragraph_format.left_indent       = Pt(18)
+                    p.paragraph_format.first_line_indent = Pt(0)
+            elif no_indent:
+                p.paragraph_format.first_line_indent = Pt(0)
+            else:
+                p.paragraph_format.first_line_indent = Pt(24)
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after  = Pt(0)
             self._add_inline(p, part)
@@ -937,6 +954,7 @@ class ProfessionalDocxGenerator:
         bot.set(qn('w:color'), 'AAAAAA')  # 灰色
         pBdr.append(bot)
         pPr.append(pBdr)
+        self._add_blank_line()
 
     def _add_book_quote(self, html):
         """書本引言（.book-quote）：咖啡色左豎線，楷書體，右對齊出處行。"""
@@ -1475,13 +1493,15 @@ class ProfessionalDocxGenerator:
         if not inner_html:
             return
 
-        # 前置空行
-        self._add_blank_line()
+        # 前置空行（前面已是空行或小標題時略過，避免重複）
+        if not self._should_skip_blank_before():
+            self._add_blank_line()
 
         p = self.doc.add_paragraph()
         p.paragraph_format.first_line_indent = Pt(0)
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-        # 明確覆蓋 Normal style 的 1.5× 行距，改為單行；前後各 0.5 行距（≈9pt）
+        # 明確覆蓋 Normal style 的 1.5× 行距，改為單行；前後各 0.75 行距
         pPr = p._element.get_or_add_pPr()
         sp = OxmlElement('w:spacing')
         sp.set(qn('w:beforeLines'), '75')    # 0.75 行距
@@ -1644,14 +1664,23 @@ class ProfessionalDocxGenerator:
                     # <span class="kaiti"> → 標楷體
                     run = paragraph.add_run(inner)
                     self._apply_font(run, ascii_font, '標楷體', size=12)
-                elif 'font-size:1rem' in style_v or 'font-size:0.' in style_v:
-                    # 小字體 span
-                    run = paragraph.add_run(inner)
-                    self._apply_font(run, ascii_font, east_font, size=10)
                 else:
-                    # 其他 span → 以正常字型輸出
-                    run = paragraph.add_run(inner)
-                    self._apply_font(run, ascii_font, east_font, size=12)
+                    # 解析 style 屬性中的 color 與 font-size
+                    color_m = re.search(r'color:\s*(#[0-9a-fA-F]{3,6}|\w+)', style_v)
+                    size_m  = re.search(r'font-size:\s*(\d+(?:\.\d+)?)pt', style_v)
+                    if color_m or size_m or 'font-size:1rem' in style_v or 'font-size:0.' in style_v:
+                        sz = int(size_m.group(1)) if size_m else (10 if ('font-size:1rem' in style_v or 'font-size:0.' in style_v) else 12)
+                        run = paragraph.add_run(inner)
+                        self._apply_font(run, ascii_font, east_font, size=sz)
+                        if color_m:
+                            try:
+                                run.font.color.rgb = RGBColor(*self._hex_rgb(color_m.group(1)))
+                            except Exception:
+                                pass
+                    else:
+                        # 其他 span → 以正常字型輸出
+                        run = paragraph.add_run(inner)
+                        self._apply_font(run, ascii_font, east_font, size=12)
             elif fn_sup:
                 self._add_footnote_ref(paragraph, fn_sup.group(1))
             elif fn_m:
@@ -1798,6 +1827,9 @@ def generate_article_docx(article_data, output_path):
     generator = ProfessionalDocxGenerator()
     generator.set_footnotes(article_data.get('footnotes', []))
 
+    is_toc = (article_data.get('article_type') == 'toc' or
+              article_data.get('title') in ('目次', '目錄'))
+
     category_colors = {
         '封面故事': '#833C0B', '專題文章': '#C00000',
         '人物專訪': '#FFC000', '評論與回應': '#ED7D31',
@@ -1821,15 +1853,18 @@ def generate_article_docx(article_data, output_path):
         generator.add_subtitle(article_data['subtitle'])
 
     generator.add_decoration_line()
-    generator._add_blank_line()   # 空行（裝飾線與作者之間）
+    blank = generator._add_blank_line()   # 空行（裝飾線與作者之間）
+    run = blank.add_run('\u00a0')
+    run.font.size = Pt(14)
 
     generator.add_author(
         article_data.get('author'),
         article_data.get('author_title'),
         article_data.get('remark'),
     )
-    generator._add_blank_line()   # 空行（作者與關鍵字之間）
-    generator._add_blank_line()
+    if not is_toc:
+        generator._add_blank_line()   # 空行（作者與關鍵字之間）
+        generator._add_blank_line()
 
     if article_data.get('keyword'):
         generator.add_keywords(article_data['keyword'])
@@ -1838,6 +1873,10 @@ def generate_article_docx(article_data, output_path):
 
     if article_data.get('content'):
         generator.add_content(article_data['content'])
+
+    if is_toc:
+        generator.save(output_path)
+        return
 
     generator.add_header_footer(
         article_data.get('issue', 7),

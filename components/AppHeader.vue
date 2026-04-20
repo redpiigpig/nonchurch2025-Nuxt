@@ -127,8 +127,8 @@ const editLink = computed(() => {
   if (!isEditMode.value && route.name === "articles-id" && route.params.id) {
     return `/admin/editor/${route.params.id}`;
   }
-  // B. 編輯器 -> 文章詳情
-  if (isEditMode.value && route.path.includes("admin/editor")) {
+  // B. 編輯器 / 目次編輯器 / 校對頁 -> 文章詳情
+  if (isEditMode.value && (route.path.includes("admin/editor") || route.path.includes("admin/toc-editor") || route.path.includes("admin/meta-article"))) {
     return route.params.id ? `/articles/${route.params.id}` : "/articles";
   }
   // B2. 校對頁 -> 文章詳情

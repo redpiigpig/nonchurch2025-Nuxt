@@ -9,7 +9,8 @@ useHead({ title: "文章管理 - 無境界者後台" });
 const router = useRouter();
 const route = useRoute();
 const loading = ref(false);
-const savingAll = ref(false);
+const saveTimers = {}; // article.id → timer
+const rowSaveStatus = ref({}); // article.id → 'saving' | 'saved' | 'error' | ''
 
 const issuesOptions = ref([]);
 const allArticles = ref([]);
@@ -311,7 +312,7 @@ const handlePdfUpload = async (event) => {
 
     targetArticle.seo_pdf = response.data.secure_url;
     alert(
-      `✅ PDF 上傳成功！已自動命名為：\n${newFileName}\n\n(請記得按「💾」儲存進資料庫)`,
+      `✅ PDF 上傳成功！已自動命名為：\n${newFileName}`,
     );
   } catch (err) {
     alert("❌ PDF 上傳失敗：" + err.message);
@@ -333,12 +334,6 @@ const isChanged = (item, orig) =>
     (SECTION_ORDER.includes(orig.section) ? orig.section : "主題介紹") ||
   item.page_start !== (orig.page_start ?? null);
 
-const hasUnsavedChanges = computed(() =>
-  editedArticles.value.some((item) => {
-    const orig = allArticles.value.find((o) => o.id === item.id);
-    return orig && isChanged(item, orig);
-  }),
-);
 
 const performUpdate = async (article) => {
   const newId = `${article.issue}-${article.idSuffix}`;
@@ -374,53 +369,43 @@ const syncOriginal = (article) => {
   if (i !== -1) allArticles.value[i] = JSON.parse(JSON.stringify(article));
 };
 
-const saveRow = async (article) => {
+const autoSaveRow = async (article) => {
+  delete saveTimers[article.id];
   article.isSaving = true;
+  rowSaveStatus.value[article.id] = "saving";
   try {
     await performUpdate(article);
     syncOriginal(article);
-  } catch (err) {
-    alert("儲存失敗：" + err.message);
+    rowSaveStatus.value[article.id] = "saved";
+    setTimeout(() => {
+      if (rowSaveStatus.value[article.id] === "saved")
+        rowSaveStatus.value[article.id] = "";
+    }, 2000);
+  } catch {
+    rowSaveStatus.value[article.id] = "error";
   } finally {
     article.isSaving = false;
   }
 };
 
-const saveAll = async () => {
-  if (!hasUnsavedChanges.value) return alert("目前沒有任何變更需要儲存。");
-  savingAll.value = true;
-  let ok = 0,
-    fail = 0;
-  const changed = editedArticles.value.filter((item) => {
-    const orig = allArticles.value.find((o) => o.id === item.id);
-    return orig && isChanged(item, orig);
-  });
-  await Promise.all(
-    changed.map(async (a) => {
-      try {
-        a.isSaving = true;
-        await performUpdate(a);
-        syncOriginal(a);
-        ok++;
-      } catch {
-        fail++;
-      } finally {
-        a.isSaving = false;
-      }
-    }),
-  );
-  savingAll.value = false;
-  alert(
-    fail === 0
-      ? `🎉 全部儲存成功！(共 ${ok} 筆)`
-      : `⚠️ 成功 ${ok} 筆，失敗 ${fail} 筆`,
-  );
-};
+watch(
+  editedArticles,
+  (newVal) => {
+    newVal.forEach((article) => {
+      const orig = allArticles.value.find((o) => o.id === article.id);
+      if (!orig || !isChanged(article, orig)) return;
+      if (saveTimers[article.id]) clearTimeout(saveTimers[article.id]);
+      saveTimers[article.id] = setTimeout(() => autoSaveRow(article), 1500);
+    });
+  },
+  { deep: true },
+);
 
 const goToEditor = (article) => {
-  if (hasUnsavedChanges.value && !confirm("有未儲存的變更，確定離開？")) return;
   const type = article.article_type || "regular";
-  if (type === "submission_info" || type === "editorial_info") {
+  if (type === "toc") {
+    router.push(`/admin/toc-editor/${article.id}`);
+  } else if (type === "submission_info" || type === "editorial_info") {
     router.push(`/admin/meta-article/${article.id}`);
   } else {
     router.push(`/admin/editor/${article.id}`);
@@ -517,7 +502,7 @@ const pickImage = (img) => {
 // ── 文章類型對照 ──
 const ARTICLE_TYPES = [
   { value: "regular",         label: "一般文章" },
-  { value: "toc",             label: "📋 目錄" },
+  { value: "toc",             label: "📋 目次" },
   { value: "submission_info", label: "📮 投稿資訊" },
   { value: "editorial_info",  label: "📋 編輯資訊" },
 ];
@@ -580,13 +565,19 @@ const submitAddArticle = async () => {
   }
 };
 
-onBeforeRouteLeave((_to, _from, next) => {
-  hasUnsavedChanges.value
-    ? next(window.confirm("⚠️ 有未儲存的變更！確定要離開？"))
-    : next();
+onBeforeRouteLeave(async (_to, _from, next) => {
+  const pendingIds = Object.keys(saveTimers);
+  if (pendingIds.length > 0) {
+    pendingIds.forEach((id) => clearTimeout(saveTimers[id]));
+    const pending = editedArticles.value.filter((a) =>
+      pendingIds.includes(String(a.id)),
+    );
+    await Promise.all(pending.map((a) => autoSaveRow(a)));
+  }
+  next();
 });
 const handleBeforeUnload = (e) => {
-  if (hasUnsavedChanges.value) {
+  if (Object.keys(saveTimers).length > 0) {
     e.preventDefault();
     e.returnValue = "";
   }
@@ -743,19 +734,8 @@ const convertToArticle = async (sub) => {
         </button>
       </div>
       <div class="toolbar-right">
-        <span v-if="hasUnsavedChanges" class="unsaved-warning"
-          >⚠️ 有未儲存的變更</span
-        >
         <button class="btn-merge-pdf" @click="openMergeModal" title="將此期所有文章 PDF 合併成完整期刊">
           🔗 合併成期刊 PDF
-        </button>
-        <button
-          class="btn-save-all"
-          @click="saveAll"
-          :disabled="!hasUnsavedChanges || savingAll"
-          :class="{ 'btn-disabled': !hasUnsavedChanges }"
-        >
-          {{ savingAll ? "儲存中..." : "💾 一鍵儲存所有變更" }}
         </button>
       </div>
     </div>
@@ -774,13 +754,13 @@ const convertToArticle = async (sub) => {
         <thead>
           <tr>
             <th width="30"></th>
-            <th width="180">ID(自動排序)</th>
+            <th width="220">ID(自動排序)</th>
             <th width="60">頁數</th>
             <th width="260">主標題</th>
             <th width="130">圖片 SEO</th>
             <th width="100">上傳 PDF</th>
             <th width="90">校對狀態</th>
-            <th width="160">操作</th>
+            <th width="110">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -909,17 +889,9 @@ const convertToArticle = async (sub) => {
               <td class="actions-cell">
                 <div class="action-buttons">
                   <button
-                    class="btn-save"
-                    @click="saveRow(article)"
-                    :disabled="article.isSaving"
-                    title="儲存此列"
-                  >
-                    {{ article.isSaving ? "…" : "💾" }}
-                  </button>
-                  <button
                     class="btn-edit"
                     @click="goToEditor(article)"
-                    :title="article.article_type === 'toc' ? '進入目錄編輯器' : (article.article_type === 'submission_info' || article.article_type === 'editorial_info') ? '進入專用編輯介面' : '進入內文編輯器'"
+                    :title="article.article_type === 'toc' ? '進入目次編輯器' : (article.article_type === 'submission_info' || article.article_type === 'editorial_info') ? '進入專用編輯介面' : '進入內文編輯器'"
                   >
                     {{ article.article_type === 'toc' ? '📋' : (article.article_type === 'submission_info' || article.article_type === 'editorial_info') ? '📝' : '✏️' }}
                   </button>
@@ -934,6 +906,11 @@ const convertToArticle = async (sub) => {
                     @click="deleteArticle(article)"
                     title="刪除此文章"
                   >🗑️</button>
+                </div>
+                <div v-if="rowSaveStatus[article.id]" class="row-save-status">
+                  <template v-if="rowSaveStatus[article.id] === 'saving'">⏳</template>
+                  <template v-else-if="rowSaveStatus[article.id] === 'saved'">✅</template>
+                  <template v-else-if="rowSaveStatus[article.id] === 'error'">❌</template>
                 </div>
               </td>
             </tr>
@@ -1164,7 +1141,7 @@ const convertToArticle = async (sub) => {
               </option>
             </select>
             <small class="modal-type-hint">
-              <template v-if="addForm.article_type === 'toc'">目錄模式：編輯器會顯示文章列表面板，可直接修改各篇頁數並生成目錄內文。</template>
+              <template v-if="addForm.article_type === 'toc'">目次模式：專用目次編輯器，可直接修改各篇頁數並自動生成目次內文。</template>
               <template v-else-if="addForm.article_type === 'submission_info'">投稿資訊模式：使用簡化編輯器，並可從期刊主題管理的 CFP 資料一鍵同步內文。</template>
               <template v-else-if="addForm.article_type === 'editorial_info'">編輯資訊模式：使用簡化編輯器，獨立管理。</template>
               <template v-else>一般文章，使用完整文章編輯器。</template>
@@ -1275,40 +1252,6 @@ const convertToArticle = async (sub) => {
   background: #219150;
 }
 
-.btn-save-all {
-  background: #2c3e50;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  font-size: 1rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-.btn-save-all:hover:not(:disabled) {
-  background: #34495e;
-}
-.btn-disabled {
-  background: #bdc3c7 !important;
-  cursor: not-allowed;
-}
-
-.unsaved-warning {
-  color: #e74c3c;
-  font-weight: bold;
-  font-size: 0.9rem;
-  animation: pulse 2s infinite;
-}
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
 
 .loading {
   text-align: center;
@@ -1701,7 +1644,6 @@ tr.dragging {
   gap: 6px;
   justify-content: center;
 }
-.btn-save,
 .btn-edit,
 .btn-proofread {
   border: none;
@@ -1716,16 +1658,11 @@ tr.dragging {
   transition: transform 0.1s;
   text-decoration: none;
 }
-.btn-save {
-  background: #28a745;
-  color: white;
-}
-.btn-save:hover:not(:disabled) {
-  background: #218838;
-}
-.btn-save:disabled {
-  background: #ccc;
-  cursor: not-allowed;
+.row-save-status {
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  margin-top: 2px;
 }
 .btn-edit {
   background: #17a2b8;
@@ -1753,7 +1690,6 @@ tr.dragging {
   text-decoration: none;
 }
 .btn-delete:hover { background: #c0392b; }
-.btn-save:active,
 .btn-edit:active,
 .btn-proofread:active,
 .btn-delete:active {
@@ -1907,9 +1843,6 @@ tr.meta-row td {
   .toolbar-left,
   .toolbar-right {
     flex-direction: column;
-    width: 100%;
-  }
-  .btn-save-all {
     width: 100%;
   }
 }

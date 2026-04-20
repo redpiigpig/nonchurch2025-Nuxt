@@ -89,6 +89,10 @@ Directory structure:
     │   │   │   ├── index.vue
     │   │   │   └── issue/
     │   │   │       └── [issueNumber].vue
+    │   │   ├── meta-article/
+    │   │   │   └── [id].vue
+    │   │   ├── toc-editor/
+    │   │   │   └── [id].vue
     │   │   └── proofread/
     │   │       └── [id].vue
     │   ├── articles/

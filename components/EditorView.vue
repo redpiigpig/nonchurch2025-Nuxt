@@ -570,6 +570,8 @@ const loading = ref(false);
 const isEditMode = ref(false);
 const showSource = ref(false);
 const sourceHtml = ref("");
+const autoSaveStatus = ref("idle"); // 'idle' | 'saving' | 'saved' | 'error'
+let autoSaveTimer = null;
 
 const form = ref({
   id: "",
@@ -815,19 +817,20 @@ onMounted(async () => {
 });
 
 // ── 儲存 ─────────────────────────────────────────────────────────
-const saveArticle = async () => {
+const saveArticle = async (silent = false) => {
   if (!form.value.id) {
-    alert("文章 ID 是必填項目！");
+    if (!silent) alert("文章 ID 是必填項目！");
     return;
   }
   let seoParsed = {};
   try {
     seoParsed = JSON.parse(seoJson.value);
   } catch {
-    alert("SEO JSON 格式錯誤，請檢查");
+    if (!silent) alert("SEO JSON 格式錯誤，請檢查");
     return;
   }
   loading.value = true;
+  autoSaveStatus.value = "saving";
   const payload = {
     id: form.value.id,
     title: form.value.title,
@@ -857,13 +860,31 @@ const saveArticle = async () => {
     .upsert(payload, { onConflict: "id" });
 
   if (error) {
-    alert("儲存失敗！\n" + error.message);
+    autoSaveStatus.value = "error";
+    if (!silent) alert("儲存失敗！\n" + error.message);
   } else {
-    alert("✅ 儲存成功！");
+    autoSaveStatus.value = "saved";
     isEditMode.value = true;
+    if (!silent) {
+      setTimeout(() => { autoSaveStatus.value = "idle"; }, 3000);
+    }
   }
   loading.value = false;
 };
+
+// ── 自動儲存（debounce 2s）────────────────────────────────────────
+watch(
+  [form, seoJson],
+  () => {
+    if (!isEditMode.value || !form.value.id) return;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(async () => {
+      await saveArticle(true);
+      setTimeout(() => { autoSaveStatus.value = "idle"; }, 3000);
+    }, 2000);
+  },
+  { deep: true },
+);
 
 // ── Word 重新上傳（直接存 HTML，不轉 markdown）────────────────────
 const reuploadInput = ref(null);
@@ -1417,8 +1438,13 @@ const colorLabel = (color) => {
           <input type="checkbox" v-model="isPublished" />
           公開發布
         </label>
-        <button class="btn btn-save" @click="saveArticle" :disabled="loading">
-          {{ loading ? "儲存中..." : "💾 儲存至資料庫" }}
+        <span class="autosave-status" :class="autoSaveStatus">
+          <template v-if="autoSaveStatus === 'saving'">⏳ 儲存中…</template>
+          <template v-else-if="autoSaveStatus === 'saved'">✅ 已儲存</template>
+          <template v-else-if="autoSaveStatus === 'error'">❌ 儲存失敗</template>
+        </span>
+        <button class="btn btn-save" @click="saveArticle(false)" :disabled="loading">
+          💾 手動儲存
         </button>
         <NuxtLink to="/admin/articles_manager" class="btn btn-cancel">回列表</NuxtLink>
       </div>
@@ -1937,6 +1963,17 @@ const colorLabel = (color) => {
 
 .btn-save { background: #28a745; color: white; }
 .btn-cancel { background: #95a5a6; color: white; }
+.autosave-status {
+  font-size: 0.85rem;
+  min-width: 80px;
+  text-align: right;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.autosave-status.saving,
+.autosave-status.saved,
+.autosave-status.error { opacity: 1; }
+.autosave-status.error { color: #e74c3c; }
 .btn-sm { padding: 4px 8px; font-size: 0.8rem; }
 .btn-danger { background: #e74c3c; color: white; margin-left: 10px; }
 

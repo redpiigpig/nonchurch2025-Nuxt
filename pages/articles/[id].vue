@@ -33,11 +33,26 @@ const { data: asyncData, pending: loading } = await useAsyncData(
         .single();
       if (error) throw error;
 
-      // 2. 抓取同期文章以計算 上一篇 / 下一篇
+      // 2. 抓取同期文章以計算 上一篇 / 下一篇 （目次頁另外取完整資料）
       const { data: issueArticles } = await supabase
         .from("articles")
         .select("id, title, translations")
         .eq("issue", currentArt.issue);
+
+      // 2b. 目次文章：抓本期所有文章供前台渲染（判斷依 article_type 或標題）
+      const isTocArticle =
+        currentArt.article_type === "toc" ||
+        currentArt.title === "目次" ||
+        currentArt.title === "目錄";
+      let tocIssueArticles = null;
+      if (isTocArticle) {
+        const { data: allForIssue } = await supabase
+          .from("articles")
+          .select("id, title, subtitle, author, author_display, category, section, sort_order, page_start, article_type, is_published, translations")
+          .eq("issue", currentArt.issue)
+          .neq("article_type", "toc");
+        tocIssueArticles = allForIssue || [];
+      }
 
       let prev = null,
         next = null;
@@ -64,6 +79,7 @@ const { data: asyncData, pending: loading } = await useAsyncData(
           media_data: currentArt.media_data || {},
           media_assets: currentArt.media_assets || [],
         },
+        tocIssueArticles,
       };
     } catch (err) {
       console.error(`載入文章 ${articleId} 失敗:`, err.message);
@@ -83,6 +99,77 @@ const article = computed(() => {
       : null;
   }
   return null;
+});
+
+// ─── 目次頁專用 ──────────────────────────────────────────────────
+const isToc = computed(() =>
+  article.value?.article_type === "toc" ||
+  article.value?.title === "目次" ||
+  article.value?.title === "目錄"
+);
+
+const TOC_SECTION_ORDER = ["主題介紹", "特稿專區", "主題廣場", "多元講堂", "編輯資訊"];
+const TOC_SECTIONS_WITH_LABEL = new Set(["特稿專區", "主題廣場", "多元講堂"]);
+const TOC_SECTIONS_WITH_SEPARATOR = new Set(["特稿專區", "主題廣場", "多元講堂", "編輯資訊"]);
+const TOC_HIDDEN_SECTION_HEADERS = new Set(["主題介紹", "編輯資訊"]);
+
+const getCategoryColorToc = (cat) =>
+  ({
+    專題文章: "#8b0000",
+    評論與回應: "#ff8000",
+    人物專訪: "#f0e137",
+    生命故事: "#46b175",
+    時事感想: "#4682b4",
+    文藝創作: "#27408b",
+    公告與剪影: "#6a5acd",
+    封面故事: "#7d6c29",
+    文獻與翻譯: "#008080",
+  })[cat] || "#999";
+
+const tocDisplayRows = computed(() => {
+  if (!isToc.value) return [];
+  const raw = asyncData.value?.tocIssueArticles || [];
+  const langKey = currentLang.value === "default" ? "zh_TW" : currentLang.value.replace("-", "_");
+
+  // 目次頁顯示所有文章（含未公開），未公開僅以純文字呈現無連結
+  const filtered = raw;
+
+  // Sort by section order then by id sequence
+  const sorted = [...filtered].sort((a, b) => {
+    const si = TOC_SECTION_ORDER.indexOf(TOC_SECTION_ORDER.includes(a.section) ? a.section : "主題介紹");
+    const sj = TOC_SECTION_ORDER.indexOf(TOC_SECTION_ORDER.includes(b.section) ? b.section : "主題介紹");
+    if (si !== sj) return si - sj;
+    const ni = parseInt(a.id.match(/-(\d+)/)?.[1] || a.sort_order || 999);
+    const nj = parseInt(b.id.match(/-(\d+)/)?.[1] || b.sort_order || 999);
+    return ni - nj;
+  });
+
+  const rows = [];
+  let lastSection = null;
+  sorted.forEach((a, idx) => {
+    const section = TOC_SECTION_ORDER.includes(a.section) ? a.section : "主題介紹";
+    if (section !== lastSection) {
+      if (TOC_SECTIONS_WITH_SEPARATOR.has(section)) {
+        rows.push({ type: "separator", section, showLabel: TOC_SECTIONS_WITH_LABEL.has(section) });
+      }
+      lastSection = section;
+    }
+    const tArt = a.translations?.[langKey] || {};
+    rows.push({
+      type: "article",
+      id: a.id,
+      title: tArt.title || a.title || "",
+      subtitle: tArt.subtitle || a.subtitle || "",
+      author: tArt.author_display || tArt.author || a.author_display || a.author || "",
+      category: a.category || "",
+      color: getCategoryColorToc(a.category),
+      seq: idx + 1,
+      page_start: a.page_start ?? null,
+      isPublished: a.is_published,
+      article_type: a.article_type,
+    });
+  });
+  return rows;
 });
 
 // ─── UI 多語字典 ──────────────────────────────────────────────────
@@ -455,7 +542,7 @@ const keywordContent = computed(() => {
     <div class="divider-gap"></div>
     <div class="divider-thin"></div>
 
-    <div class="author-info">
+    <div v-if="!isToc" class="author-info">
       <p class="author-name">
         <span v-html="formatTextWithFootnote(displayArticle.author)"></span>
         <span
@@ -471,12 +558,37 @@ const keywordContent = computed(() => {
     </div>
 
     <div
-      v-if="displayArticle.keyword"
+      v-if="!isToc && displayArticle.keyword"
       class="keyword-section"
       v-html="keywordContent"
     ></div>
 
-    <div v-if="displayArticle.type === 'special' && currentSpecialComponent">
+    <!-- ── 目次專用渲染 ── -->
+    <div v-if="isToc" class="toc-page">
+      <ul class="toc-article-list">
+        <template v-for="(row, i) in tocDisplayRows" :key="i">
+          <li v-if="row.type === 'separator'" class="toc-sep-row">
+            <div class="toc-sep-line"></div>
+            <span v-if="row.showLabel" class="toc-sep-label">{{ row.section }}</span>
+          </li>
+          <li v-else class="toc-art-row">
+            <p>
+              <span class="toc-art-seq">{{ String(row.seq).padStart(2, "0") }}</span>
+              <span v-if="row.category" class="toc-art-cat" :style="{ color: row.color }">【{{ row.category }}】</span>
+              <NuxtLink v-if="row.article_type !== 'submission_info' && row.article_type !== 'editorial_info'" :to="`/articles/${row.id}`">
+                {{ row.title }}<span v-if="row.subtitle">──{{ row.subtitle }}</span>
+              </NuxtLink>
+              <span v-else>{{ row.title }}</span>
+              <span v-if="row.author" class="toc-art-author">｜{{ row.author }}</span>
+              <span v-if="row.page_start" class="toc-art-pp">｜pp. {{ row.page_start }}</span>
+              <span v-if="isEditor && !row.isPublished" class="toc-draft">（草稿）</span>
+            </p>
+          </li>
+        </template>
+      </ul>
+    </div>
+
+    <div v-else-if="displayArticle.type === 'special' && currentSpecialComponent">
       <br />
       <div v-if="htmlContent" class="audiobook-intro">
         <div class="markdown-body" v-html="htmlContent"></div>
@@ -757,7 +869,6 @@ const keywordContent = computed(() => {
 @media (max-width: 768px) {
   .featured-box {
     position: relative;
-    display: inline-block;
     float: right;
     margin: 0 0 20px auto;
     font-size: 1.2rem;
@@ -783,5 +894,78 @@ const keywordContent = computed(() => {
   .nav-item:last-child {
     border-bottom: none;
   }
+}
+
+/* ── 目次頁 ─────────────────────────────────────────── */
+.toc-page {
+  margin-top: 1.5rem;
+}
+.toc-article-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
+  font-size: 1.2rem;
+  line-height: 1.9;
+}
+.toc-sep-row {
+  list-style: none;
+  margin: 1.4rem 0 0.4rem;
+}
+.toc-sep-line {
+  border-top: 2px solid #AAAAAA;
+  margin-bottom: 0.3rem;
+}
+.toc-sep-label {
+  display: block;
+  text-align: center;
+  font-weight: bold;
+  color: #333;
+  font-size: 1.1rem;
+  margin-bottom: 0.2rem;
+}
+.toc-art-row {
+  list-style: none;
+  margin-left: 2rem;
+  margin-bottom: 0.2rem;
+}
+.toc-art-row p {
+  margin: 0;
+  padding-left: 2rem;
+  text-indent: -2rem;
+}
+.toc-art-seq {
+  font-weight: bold;
+  font-family: monospace;
+  font-size: 1rem;
+  color: #333;
+  margin-right: 0.4em;
+}
+.toc-art-cat {
+  font-size: 0.88em;
+  font-weight: bold;
+  margin-right: 0.1em;
+}
+.toc-art-row a {
+  color: #007bff;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.toc-art-row a:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+.toc-art-author {
+  color: #444;
+  font-size: 1rem;
+}
+.toc-art-pp {
+  color: #888;
+  font-size: 0.9rem;
+}
+.toc-draft {
+  color: red;
+  font-size: 0.8em;
+  margin-left: 0.4em;
 }
 </style>

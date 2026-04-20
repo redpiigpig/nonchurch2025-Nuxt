@@ -1,5 +1,6 @@
 <script setup>
 import EditorView from "~/components/EditorView.vue";
+import { supabase } from "~/supabase";
 
 definePageMeta({
   layout: "admin",
@@ -7,10 +8,27 @@ definePageMeta({
 });
 
 const route = useRoute();
+const router = useRouter();
 const articleId = computed(() => route.params.id);
 
 useHead({
   title: computed(() => `編輯文章 ${articleId.value} - 無境界者雜誌`),
+});
+
+// toc 文章不走 EditorView，直接導到專用頁面
+onMounted(async () => {
+  const { data } = await supabase
+    .from("articles")
+    .select("article_type, title")
+    .eq("id", articleId.value)
+    .single();
+  if (
+    data?.article_type === "toc" ||
+    data?.title === "目次" ||
+    data?.title === "目錄"
+  ) {
+    router.replace(`/admin/toc-editor/${articleId.value}`);
+  }
 });
 </script>
 
