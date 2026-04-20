@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { supabase } from "~/supabase";
@@ -112,7 +112,7 @@ const categoryTranslations = {
     評論與回應: "評論與回應",
     人物專訪: "人物專訪",
     生命故事: "生命故事",
-    時事感想: "時事感想",
+    時事評論: "時事評論",
     文藝創作: "文藝創作",
     公告與剪影: "公告與剪影",
     封面故事: "封面故事",
@@ -125,7 +125,7 @@ const categoryTranslations = {
     評論與回應: "評論與回應",
     人物專訪: "人物專訪",
     生命故事: "生命故事",
-    時事感想: "時事感想",
+    時事評論: "時事評論",
     文藝創作: "文藝創作",
     公告與剪影: "公告與剪影",
     封面故事: "封面故事",
@@ -138,7 +138,7 @@ const categoryTranslations = {
     評論與回應: "评论与回应",
     人物專訪: "人物专访",
     生命故事: "生命故事",
-    時事感想: "时事感想",
+    時事評論: "时事评论",
     文藝創作: "文艺创作",
     公告與剪影: "公告与剪影",
     封面故事: "封面故事",
@@ -151,7 +151,7 @@ const categoryTranslations = {
     評論與回應: "Review",
     人物專訪: "Interview",
     生命故事: "Life Story",
-    時事感想: "Current Affairs",
+    時事評論: "Current Affairs",
     文藝創作: "Literature",
     公告與剪影: "Notice",
     封面故事: "Cover Story",
@@ -164,7 +164,7 @@ const categoryTranslations = {
     評論與回應: "評論と応答",
     人物專訪: "インタビュー",
     生命故事: "ライフストーリー",
-    時事感想: "時事コラム",
+    時事評論: "時事コラム",
     文藝創作: "文芸創作",
     公告與剪影: "お知らせ",
     封面故事: "カバーストーリー",
@@ -177,7 +177,7 @@ const categoryTranslations = {
     評論與回應: "평론 및 응답",
     人物專訪: "인터뷰",
     生命故事: "삶의 이야기",
-    時事感想: "시사 칼럼",
+    時事評論: "시사 칼럼",
     文藝創作: "문예 창작",
     公告與剪影: "공지사항",
     封面故事: "커버 스토리",
@@ -219,14 +219,14 @@ const extractOrderFromId = (idStr) => {
   const match = idStr.match(/-(\d+)/);
   return match ? parseInt(match[1]) : parseInt(idStr) || 0;
 };
-const formatDisplayId = (num) => (num ? num.toString().padStart(2, "0") : "");
+const formatDisplayId = (num) => (num != null ? num.toString().padStart(2, "0") : "");
 const getCategoryColor = (cat) =>
   ({
     專題文章: "#8b0000",
     評論與回應: "#ff8000",
     人物專訪: "#f0e137",
     生命故事: "#46b175",
-    時事感想: "#4682b4",
+    時事評論: "#4682b4",
     文藝創作: "#27408b",
     公告與剪影: "#6a5acd",
     封面故事: "#7d6c29",
@@ -252,7 +252,7 @@ const fetchAndGroupArticles = async () => {
   let query = supabase
     .from("issues")
     .select(
-      `*, content:articles (id, category, title, subtitle, author, author_display, section, is_published, translations)`,
+      `*, content:articles (id, category, title, subtitle, author, author_display, section, is_published, article_type, translations)`,
     )
     .order("id", { ascending: false });
   if (!isEditor.value) query = query.eq("is_published", true);
@@ -277,7 +277,14 @@ const fetchAndGroupArticles = async () => {
     if (issue.content?.length > 0) {
       if (!isEditor.value)
         issue.content = issue.content.filter((a) => a.is_published);
-      // 永遠濾掉「編輯資訊」section 及「目錄」文章（footer 由 text-only 代替）
+
+      // 先提取特殊文章 IDs（投稿資訊、編輯資訊），供 footer 連結用
+      const submissionInfo = issue.content.find((a) => a.article_type === "submission_info");
+      const editorialInfo = issue.content.find((a) => a.article_type === "editorial_info");
+      issue.submissionInfoId = submissionInfo?.id || null;
+      issue.editorialInfoId = editorialInfo?.id || null;
+
+      // 過濾掉「編輯資訊」section 及「目錄」文章（目次在「主題介紹」section，不受影響）
       issue.content = issue.content.filter(
         (a) => a.section?.trim() !== "編輯資訊" && a.title?.trim() !== "目錄",
       );
@@ -305,8 +312,13 @@ const fetchAndGroupArticles = async () => {
           display_id: formatDisplayId(maxId + 1),
           type: "text-only",
           is_footer_start: true,
+          routeId: issue.submissionInfoId || null,
         },
-        { display_id: formatDisplayId(maxId + 2), type: "text-only" },
+        {
+          display_id: formatDisplayId(maxId + 2),
+          type: "text-only",
+          routeId: issue.editorialInfoId || null,
+        },
       );
     } else {
       issue.content = [];
@@ -455,14 +467,14 @@ await useAsyncData(`articles-list-${isEditor.value}`, fetchAndGroupArticles);
                   {{ translateCategory(item.category) }}
                 </span>
                 <NuxtLink
-                  v-if="item.type !== 'text-only'"
+                  v-if="item.type !== 'text-only' || item.routeId"
                   :to="`/articles/${item.routeId}`"
                   @click="saveScrollPosition(`#issue-${issue.id}`)"
                 >
                   {{ item.title
                   }}<span v-if="item.subtitle">──{{ item.subtitle }}</span>
                   <span
-                    v-if="isEditor && !item.is_published"
+                    v-if="isEditor && item.type !== 'text-only' && !item.is_published"
                     style="
                       color: red;
                       font-size: 0.8em;

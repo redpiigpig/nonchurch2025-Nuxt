@@ -1,4 +1,4 @@
-"""
+﻿"""
 無境界者雜誌 - 專業 Word 排版生成器
 完全符合 form.md 格式規範
 
@@ -1834,7 +1834,7 @@ def generate_article_docx(article_data, output_path):
         '封面故事': '#833C0B', '專題文章': '#C00000',
         '人物專訪': '#FFC000', '評論與回應': '#ED7D31',
         '生命故事': '#00B050', '公告與剪影': '#7030A0',
-        '時事感想': '#0070C0',
+        '時事評論': '#0070C0',
     }
     category = article_data.get('category', '')
     if category:

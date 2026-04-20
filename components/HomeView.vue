@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { supabase } from "../supabase";
@@ -236,7 +236,7 @@ const categoryTranslations = {
     評論與回應: "評論與回應",
     人物專訪: "人物專訪",
     生命故事: "生命故事",
-    時事感想: "時事感想",
+    時事評論: "時事評論",
     文藝創作: "文藝創作",
     公告與剪影: "公告與剪影",
     封面故事: "封面故事",
@@ -246,7 +246,7 @@ const categoryTranslations = {
     評論與回應: "評論與回應",
     人物專訪: "人物專訪",
     生命故事: "生命故事",
-    時事感想: "時事感想",
+    時事評論: "時事評論",
     文藝創作: "文藝創作",
     公告與剪影: "公告與剪影",
     封面故事: "封面故事",
@@ -256,7 +256,7 @@ const categoryTranslations = {
     評論與回應: "评论与回应",
     人物專訪: "人物专访",
     生命故事: "生命故事",
-    時事感想: "时事感想",
+    時事評論: "时事评论",
     文藝創作: "文艺创作",
     公告与剪影: "公告与剪影",
     封面故事: "封面故事",
@@ -266,7 +266,7 @@ const categoryTranslations = {
     評論與回應: "Review",
     人物專訪: "Interview",
     生命故事: "Life Story",
-    時事感想: "Current Affairs",
+    時事評論: "Current Affairs",
     文藝創作: "Literature",
     公告與剪影: "Notice",
     封面故事: "Cover Story",
@@ -276,7 +276,7 @@ const categoryTranslations = {
     評論與回應: "評論と応答",
     人物專訪: "インタビュー",
     生命故事: "ライフストーリー",
-    時事感想: "時事コラム",
+    時事評論: "時事コラム",
     文藝創作: "文芸創作",
     公告與剪影: "お知らせ",
     封面故事: "カバーストーリー",
@@ -286,7 +286,7 @@ const categoryTranslations = {
     評論與回應: "평론 및 응답",
     人物專訪: "인터뷰",
     生命故事: "삶의 이야기",
-    時事感想: "시사 칼럼",
+    時事評論: "시사 칼럼",
     文藝創作: "문예 창작",
     公告與剪影: "공지사항",
     封面故事: "커버 스토리",
@@ -424,7 +424,7 @@ const getCategoryColor = (category) => {
     評論與回應: "#ff8000",
     人物專訪: "#f0e137",
     生命故事: "#46b175",
-    時事感想: "#4682b4",
+    時事評論: "#4682b4",
     文藝創作: "#27408b",
     公告與剪影: "#6a5acd",
     封面故事: "#7d6c29",

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 格式規範解析器（純前端版）
  * 規範資料已硬編碼，不依賴 fs/path（避免瀏覽器不相容）
  * fullSpec 文字由 classify-article API 在伺服器端讀取
@@ -44,7 +44,7 @@ export function parseFormatSpec() {
         評論與回應: "#ED7D31",
         生命故事: "#00B050",
         公告與剪影: "#7030A0",
-        時事感想: "#0070C0",
+        時事評論: "#0070C0",
       },
       sections: {
         // 區塊分類

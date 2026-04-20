@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useEditor, EditorContent } from "@tiptap/vue-3";
@@ -602,7 +602,7 @@ const categories = [
   { name: "評論與回應", color: "#ff8000" },
   { name: "人物專訪", color: "#f0e137" },
   { name: "生命故事", color: "#46b175" },
-  { name: "時事感想", color: "#4682b4" },
+  { name: "時事評論", color: "#4682b4" },
   { name: "文藝創作", color: "#27408b" },
   { name: "公告與剪影", color: "#6a5acd" },
   { name: "封面故事", color: "#7d6c29" },

@@ -95,15 +95,21 @@ const initData = async () => {
   try {
     const { data: issuesData, error: ie } = await supabase
       .from("issues")
-      .select("id, title")
+      .select("id, title, is_published")
       .order("id", { ascending: false });
     if (ie) throw ie;
     issuesOptions.value = issuesData;
 
     const qid = parseInt(route.query.issue);
-    selectedIssueId.value = issuesOptions.value.some((i) => i.id === qid)
-      ? qid
-      : issuesOptions.value[0]?.id;
+    if (issuesOptions.value.some((i) => i.id === qid)) {
+      selectedIssueId.value = qid;
+    } else {
+      // 預設：最近一期尚未發布（id 最小的未發布）；全部已發布則取最新一期
+      const firstUnpublished = [...issuesOptions.value]
+        .reverse()
+        .find((i) => !i.is_published);
+      selectedIssueId.value = firstUnpublished?.id ?? issuesOptions.value[0]?.id;
+    }
 
     await fetchArticles();
   } catch (err) {
@@ -334,6 +340,16 @@ const isChanged = (item, orig) =>
     (SECTION_ORDER.includes(orig.section) ? orig.section : "主題介紹") ||
   item.page_start !== (orig.page_start ?? null);
 
+// auto-save watch 排除 idSuffix：id 變更會導致 :key 改變 → DOM 重建 → 輸入框失焦
+const isChangedExcludingId = (item, orig) =>
+  item.title !== orig.title ||
+  item.author !== orig.author ||
+  item.seo_image !== (orig.seo?.image || "") ||
+  item.seo_pdf !== (orig.seo?.pdf || "") ||
+  item.section !==
+    (SECTION_ORDER.includes(orig.section) ? orig.section : "主題介紹") ||
+  item.page_start !== (orig.page_start ?? null);
+
 
 const performUpdate = async (article) => {
   const newId = `${article.issue}-${article.idSuffix}`;
@@ -369,6 +385,27 @@ const syncOriginal = (article) => {
   if (i !== -1) allArticles.value[i] = JSON.parse(JSON.stringify(article));
 };
 
+const savingAll = ref(false);
+
+const saveAll = async () => {
+  const changed = editedArticles.value.filter((a) => {
+    const orig = allArticles.value.find((o) => o.id === a.id);
+    return orig && isChanged(a, orig);
+  });
+  // 清掉所有 pending timers
+  Object.keys(saveTimers).forEach((id) => {
+    clearTimeout(saveTimers[id]);
+    delete saveTimers[id];
+  });
+  if (!changed.length) return;
+  savingAll.value = true;
+  try {
+    await Promise.all(changed.map((a) => autoSaveRow(a)));
+  } finally {
+    savingAll.value = false;
+  }
+};
+
 const autoSaveRow = async (article) => {
   delete saveTimers[article.id];
   article.isSaving = true;
@@ -393,13 +430,25 @@ watch(
   (newVal) => {
     newVal.forEach((article) => {
       const orig = allArticles.value.find((o) => o.id === article.id);
-      if (!orig || !isChanged(article, orig)) return;
+      if (!orig || !isChangedExcludingId(article, orig)) return;
       if (saveTimers[article.id]) clearTimeout(saveTimers[article.id]);
       saveTimers[article.id] = setTimeout(() => autoSaveRow(article), 1500);
     });
   },
   { deep: true },
 );
+
+// idSuffix 離開欄位才存，避免打到一半被 id 變更觸發 DOM 重建
+const saveIdOnBlur = async (article) => {
+  const orig = allArticles.value.find((o) => o.id === article.id);
+  if (!orig) return;
+  if (article.idSuffix === orig.id.replace(/^\d+-/, "")) return;
+  if (saveTimers[article.id]) {
+    clearTimeout(saveTimers[article.id]);
+    delete saveTimers[article.id];
+  }
+  await autoSaveRow(article);
+};
 
 const goToEditor = (article) => {
   const type = article.article_type || "regular";
@@ -732,6 +781,9 @@ const convertToArticle = async (sub) => {
         <button class="btn-new" @click="showAddModal = true">
           ＋ 新增文章
         </button>
+        <button class="btn-save-all" @click="saveAll" :disabled="savingAll">
+          {{ savingAll ? "儲存中..." : "💾 全部儲存" }}
+        </button>
       </div>
       <div class="toolbar-right">
         <button class="btn-merge-pdf" @click="openMergeModal" title="將此期所有文章 PDF 合併成完整期刊">
@@ -813,6 +865,7 @@ const convertToArticle = async (sub) => {
                       'id-changed':
                         article.issue + '-' + article.idSuffix !== article.id,
                     }"
+                    @blur="saveIdOnBlur(article)"
                   />
                 </div>
               </td>
@@ -1201,23 +1254,29 @@ const convertToArticle = async (sub) => {
 /* ── 工具列 ── */
 .toolbar-container {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 15px;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-bottom: 24px;
   background: #f8f9fa;
-  padding: 15px 20px;
+  padding: 12px 16px;
   border-radius: 8px;
   border: 1px solid #eee;
   position: sticky;
   top: 0;
   z-index: 10;
 }
-.toolbar-left,
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 1;
+}
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .select-wrapper select {
@@ -1250,6 +1309,24 @@ const convertToArticle = async (sub) => {
 }
 .btn-new:hover {
   background: #219150;
+}
+.btn-save-all {
+  padding: 8px 16px;
+  background: #2980b9;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-save-all:hover:not(:disabled) {
+  background: #1f6391;
+}
+.btn-save-all:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 

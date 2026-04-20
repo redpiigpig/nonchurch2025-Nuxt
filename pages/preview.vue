@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, onMounted } from "vue";
 
 const article = ref(null);
@@ -89,7 +89,7 @@ const categoryColor = computed(() => {
     評論與回應: "#ff8000",
     人物專訪: "#f0e137",
     生命故事: "#46b175",
-    時事感想: "#4682b4",
+    時事評論: "#4682b4",
     文藝創作: "#27408b",
     公告與剪影: "#6a5acd",
     封面故事: "#7d6c29",

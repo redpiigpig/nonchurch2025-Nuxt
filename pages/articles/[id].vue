@@ -1,236 +1,110 @@
-<script setup>
-import { computed, defineAsyncComponent } from "vue";
-import { useRoute } from "vue-router";
+﻿<script setup>
+import { ref, computed, watch, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { supabase } from "~/supabase";
-import { useTempArticlesStore } from "~/stores/tempArticles";
-import { useLanguage } from "~/composables/useLanguage";
 import { useEditorMode } from "~/composables/useEditorMode";
+import { useLanguage } from "~/composables/useLanguage";
 
-const route = useRoute();
-const { currentLang } = useLanguage();
 const { isEditor } = useEditorMode();
-const tempArticlesStore = useTempArticlesStore();
+const { currentLang } = useLanguage();
+const route = useRoute();
+const router = useRouter();
 
-// ─── 資料抓取 (使用 useAsyncData 支援 SSR SEO) ────────────────────────
-const getArticleOrder = (idStr) => {
-  if (!idStr) return 0;
-  const match = idStr.match(/-(\d+)/);
-  return match ? parseInt(match[1]) : parseInt(idStr) || 0;
-};
-
-const { data: asyncData, pending: loading } = await useAsyncData(
-  `article-${route.params.id}`,
-  async () => {
-    const articleId = route.params.id;
-    try {
-      // 1. 抓取當前文章
-      const { data: currentArt, error } = await supabase
-        .from("articles")
-        .select(
-          "*, issues(id, title, translations), media_assets(image_url, sort_order)",
-        )
-        .eq("id", articleId)
-        .single();
-      if (error) throw error;
-
-      // 2. 抓取同期文章以計算 上一篇 / 下一篇 （目次頁另外取完整資料）
-      const { data: issueArticles } = await supabase
-        .from("articles")
-        .select("id, title, translations")
-        .eq("issue", currentArt.issue);
-
-      // 2b. 目次文章：抓本期所有文章供前台渲染（判斷依 article_type 或標題）
-      const isTocArticle =
-        currentArt.article_type === "toc" ||
-        currentArt.title === "目次" ||
-        currentArt.title === "目錄";
-      let tocIssueArticles = null;
-      if (isTocArticle) {
-        const { data: allForIssue } = await supabase
-          .from("articles")
-          .select("id, title, subtitle, author, author_display, category, section, sort_order, page_start, article_type, is_published, translations")
-          .eq("issue", currentArt.issue)
-          .neq("article_type", "toc");
-        tocIssueArticles = allForIssue || [];
-      }
-
-      let prev = null,
-        next = null;
-      if (issueArticles) {
-        issueArticles.sort(
-          (a, b) => getArticleOrder(a.id) - getArticleOrder(b.id),
-        );
-        const idx = issueArticles.findIndex((a) => a.id === articleId);
-        if (idx > 0) prev = issueArticles[idx - 1];
-        if (idx !== -1 && idx < issueArticles.length - 1)
-          next = issueArticles[idx + 1];
-      }
-
-      // 🚨 已經徹底移除 Supabase Storage 抓圖片的程式碼 🚨
-
-      return {
-        article: {
-          ...currentArt,
-          authorTitle: currentArt.author_title,
-          issueTitle: currentArt.issue_title,
-          dynamicPrev: prev,
-          dynamicNext: next,
-          footnotes: currentArt.footnotes || [],
-          media_data: currentArt.media_data || {},
-          media_assets: currentArt.media_assets || [],
-        },
-        tocIssueArticles,
-      };
-    } catch (err) {
-      console.error(`載入文章 ${articleId} 失敗:`, err.message);
-      return null;
-    }
-  },
-  { watch: [() => route.params.id] }, // 當路由改變時重新觸發
-);
-
-// 提取資料並設置預覽模式 fallback
-const article = computed(() => {
-  if (asyncData.value?.article) return asyncData.value.article;
-  if (import.meta.client) {
-    const fallback = tempArticlesStore.getById(route.params.id);
-    return fallback
-      ? { ...fallback, footnotes: fallback.footnotes || [] }
-      : null;
-  }
-  return null;
-});
-
-// ─── 目次頁專用 ──────────────────────────────────────────────────
-const isToc = computed(() =>
-  article.value?.article_type === "toc" ||
-  article.value?.title === "目次" ||
-  article.value?.title === "目錄"
-);
-
-const TOC_SECTION_ORDER = ["主題介紹", "特稿專區", "主題廣場", "多元講堂", "編輯資訊"];
-const TOC_SECTIONS_WITH_LABEL = new Set(["特稿專區", "主題廣場", "多元講堂"]);
-const TOC_SECTIONS_WITH_SEPARATOR = new Set(["特稿專區", "主題廣場", "多元講堂", "編輯資訊"]);
-const TOC_HIDDEN_SECTION_HEADERS = new Set(["主題介紹", "編輯資訊"]);
-
-const getCategoryColorToc = (cat) =>
-  ({
-    專題文章: "#8b0000",
-    評論與回應: "#ff8000",
-    人物專訪: "#f0e137",
-    生命故事: "#46b175",
-    時事感想: "#4682b4",
-    文藝創作: "#27408b",
-    公告與剪影: "#6a5acd",
-    封面故事: "#7d6c29",
-    文獻與翻譯: "#008080",
-  })[cat] || "#999";
-
-const tocDisplayRows = computed(() => {
-  if (!isToc.value) return [];
-  const raw = asyncData.value?.tocIssueArticles || [];
-  const langKey = currentLang.value === "default" ? "zh_TW" : currentLang.value.replace("-", "_");
-
-  // 目次頁顯示所有文章（含未公開），未公開僅以純文字呈現無連結
-  const filtered = raw;
-
-  // Sort by section order then by id sequence
-  const sorted = [...filtered].sort((a, b) => {
-    const si = TOC_SECTION_ORDER.indexOf(TOC_SECTION_ORDER.includes(a.section) ? a.section : "主題介紹");
-    const sj = TOC_SECTION_ORDER.indexOf(TOC_SECTION_ORDER.includes(b.section) ? b.section : "主題介紹");
-    if (si !== sj) return si - sj;
-    const ni = parseInt(a.id.match(/-(\d+)/)?.[1] || a.sort_order || 999);
-    const nj = parseInt(b.id.match(/-(\d+)/)?.[1] || b.sort_order || 999);
-    return ni - nj;
-  });
-
-  const rows = [];
-  let lastSection = null;
-  sorted.forEach((a, idx) => {
-    const section = TOC_SECTION_ORDER.includes(a.section) ? a.section : "主題介紹";
-    if (section !== lastSection) {
-      if (TOC_SECTIONS_WITH_SEPARATOR.has(section)) {
-        rows.push({ type: "separator", section, showLabel: TOC_SECTIONS_WITH_LABEL.has(section) });
-      }
-      lastSection = section;
-    }
-    const tArt = a.translations?.[langKey] || {};
-    rows.push({
-      type: "article",
-      id: a.id,
-      title: tArt.title || a.title || "",
-      subtitle: tArt.subtitle || a.subtitle || "",
-      author: tArt.author_display || tArt.author || a.author_display || a.author || "",
-      category: a.category || "",
-      color: getCategoryColorToc(a.category),
-      seq: idx + 1,
-      page_start: a.page_start ?? null,
-      isPublished: a.is_published,
-      article_type: a.article_type,
-    });
-  });
-  return rows;
-});
-
-// ─── UI 多語字典 ──────────────────────────────────────────────────
-const contentTrans = {
+// ─── 多語字典 ─────────────────────────────────────────────────────
+const listTranslations = {
   "zh-TW": {
-    prev: "閱讀上一篇文章",
-    next: "閱讀下一篇文章",
-    backToToc: "回到本期雜誌目錄",
-    issuePrefix: "第",
-    issueSuffix: "期：",
-    browserTrans: "",
+    title: "文章列表",
+    selectYear: "選擇年份：",
+    opt2026: "2026 年 (第 7-12 期)",
+    opt2025: "2025 年 (第 1-6 期)",
+    loading: "正在載入文章列表 🕊️",
+    noData: (y) => `尚無 ${y} 年的雜誌資料，敬請期待。🥺`,
+    issueTitle: (id, t) => `第 ${id} 期《${t}》`,
+    draft: "(期數草稿)",
+    download: "點擊封面下載PDF檔",
+    artDraft: "(草稿)",
+    footer1: "投稿資訊／下期主題",
+    footer2: "編輯資訊／線上資訊",
   },
   "zh-HK": {
-    prev: "閱讀上一篇文章",
-    next: "閱讀下一篇文章",
-    backToToc: "返去今期雜誌目錄",
-    issuePrefix: "第",
-    issueSuffix: "期：",
-    browserTrans:
-      "本文內容係用台灣繁體寫嘅，如果你偏好用粵語閱讀，可以使用瀏覽器翻譯功能。",
+    title: "文章列表",
+    selectYear: "揀選年份：",
+    opt2026: "2026 年 (第 7-12 期)",
+    opt2025: "2025 年 (第 1-6 期)",
+    loading: "載入緊文章列表 🕊️",
+    noData: (y) => `仲未有 ${y} 年嘅雜誌資料，敬請期待。🥺`,
+    issueTitle: (id, t) => `第 ${id} 期《${t}》`,
+    draft: "(期數草稿)",
+    download: "撳封面下載PDF檔",
+    artDraft: "(草稿)",
+    footer1: "投稿資訊／下期主題",
+    footer2: "編輯資訊／網上資訊",
   },
   "zh-CN": {
-    prev: "阅读上一篇文章",
-    next: "阅读下一篇文章",
-    backToToc: "回到本期杂志目录",
-    issuePrefix: "第",
-    issueSuffix: "期：",
-    browserTrans:
-      "原文为繁体中文，建议使用浏览器的翻译功能以获得最佳阅读体验。",
+    title: "文章列表",
+    selectYear: "选择年份：",
+    opt2026: "2026 年 (第 7-12 期)",
+    opt2025: "2025 年 (第 1-6 期)",
+    loading: "正在载入文章列表 🕊️",
+    noData: (y) => `尚无 ${y} 年的杂志数据，敬请期待。🥺`,
+    issueTitle: (id, t) => `第 ${id} 期《${t}》`,
+    draft: "(期数草稿)",
+    download: "点击封面下载PDF档",
+    artDraft: "(草稿)",
+    footer1: "投稿资讯／下期主题",
+    footer2: "编辑资讯／在线资讯",
   },
   en: {
-    prev: "Previous Article",
-    next: "Next Article",
-    backToToc: "Back to Table of Contents",
-    issuePrefix: "Vol.",
-    issueSuffix: ": ",
-    browserTrans:
-      "The original text is in Traditional Chinese. Please use your browser's translation feature to read.",
+    title: "Articles",
+    selectYear: "Select Year:",
+    opt2026: "2026 (Vol. 7–12)",
+    opt2025: "2025 (Vol. 1–6)",
+    loading: "Loading Articles 🕊️",
+    noData: (y) => `No issues for ${y} yet. Stay tuned. 🥺`,
+    issueTitle: (id, t) => `Vol.${id} 《${t}》`,
+    draft: "(Draft)",
+    download: "Click cover to download PDF",
+    artDraft: "(Draft)",
+    footer1: "Submission / Next Issue",
+    footer2: "Editorial / Online Info",
   },
   ja: {
-    prev: "前の記事を読む",
-    next: "次の記事を読む",
-    backToToc: "目次に戻る",
-    issuePrefix: "第",
-    issueSuffix: "号：",
-    browserTrans:
-      "原文は繁体字中国語です。ブラウザの翻訳機能を利用してご覧ください。",
+    title: "記事一覧",
+    selectYear: "年を選択：",
+    opt2026: "2026年 (第7-12号)",
+    opt2025: "2025年 (第1-6号)",
+    loading: "読み込み中 🕊️",
+    noData: (y) => `${y}年のデータはまだありません。🥺`,
+    issueTitle: (id, t) => `第 ${id} 号《${t}》`,
+    draft: "(下書き)",
+    download: "表紙クリックでPDFダウンロード",
+    artDraft: "(下書き)",
+    footer1: "投稿案内／次号テーマ",
+    footer2: "編集情報／オンライン情報",
   },
   ko: {
-    prev: "이전 기사 읽기",
-    next: "다음 기사 읽기",
-    backToToc: "목차로 돌아가기",
-    issuePrefix: "제",
-    issueSuffix: "호: ",
-    browserTrans:
-      "원문은 번체 중국어입니다. 브라우저의 번역 기능을 사용하여 읽어주시기 바랍니다.",
+    title: "기사 목록",
+    selectYear: "연도 선택:",
+    opt2026: "2026년 (제7-12호)",
+    opt2025: "2025년 (제1-6호)",
+    loading: "불러오는 중 🕊️",
+    noData: (y) => `${y}년 데이터가 아직 없습니다. 🥺`,
+    issueTitle: (id, t) => `제 ${id} 호《${t}》`,
+    draft: "(초안)",
+    download: "표지 클릭 시 PDF 다운로드",
+    artDraft: "(초안)",
+    footer1: "투고 안내 / 다음 호 주제",
+    footer2: "편집 정보 / 온라인 정보",
   },
 };
 const t = computed(
-  () => contentTrans[currentLang.value] || contentTrans["zh-TW"],
+  () => listTranslations[currentLang.value] || listTranslations["zh-TW"],
 );
+
+const yearOptions = computed(() => [
+  { value: 2026, label: t.value.opt2026 },
+  { value: 2025, label: t.value.opt2025 },
+]);
 
 const categoryTranslations = {
   "zh-TW": {
@@ -238,7 +112,7 @@ const categoryTranslations = {
     評論與回應: "評論與回應",
     人物專訪: "人物專訪",
     生命故事: "生命故事",
-    時事感想: "時事感想",
+    時事評論: "時事評論",
     文藝創作: "文藝創作",
     公告與剪影: "公告與剪影",
     封面故事: "封面故事",
@@ -251,7 +125,7 @@ const categoryTranslations = {
     評論與回應: "評論與回應",
     人物專訪: "人物專訪",
     生命故事: "生命故事",
-    時事感想: "時事感想",
+    時事評論: "時事評論",
     文藝創作: "文藝創作",
     公告與剪影: "公告與剪影",
     封面故事: "封面故事",
@@ -264,7 +138,7 @@ const categoryTranslations = {
     評論與回應: "评论与回应",
     人物專訪: "人物专访",
     生命故事: "生命故事",
-    時事感想: "时事感想",
+    時事評論: "时事评论",
     文藝創作: "文艺创作",
     公告與剪影: "公告与剪影",
     封面故事: "封面故事",
@@ -277,7 +151,7 @@ const categoryTranslations = {
     評論與回應: "Review",
     人物專訪: "Interview",
     生命故事: "Life Story",
-    時事感想: "Current Affairs",
+    時事評論: "Current Affairs",
     文藝創作: "Literature",
     公告與剪影: "Notice",
     封面故事: "Cover Story",
@@ -290,7 +164,7 @@ const categoryTranslations = {
     評論與回應: "評論と応答",
     人物專訪: "インタビュー",
     生命故事: "ライフストーリー",
-    時事感想: "時事コラム",
+    時事評論: "時事コラム",
     文藝創作: "文芸創作",
     公告與剪影: "お知らせ",
     封面故事: "カバーストーリー",
@@ -303,7 +177,7 @@ const categoryTranslations = {
     評論與回應: "평론 및 응답",
     人物專訪: "인터뷰",
     生命故事: "삶의 이야기",
-    時事感想: "시사 칼럼",
+    時事評論: "시사 칼럼",
     文藝創作: "문예 창작",
     公告與剪影: "공지사항",
     封面故事: "커버 스토리",
@@ -312,486 +186,490 @@ const categoryTranslations = {
     文獻與翻譯: "문헌 및 번역",
   },
 };
+const translateCategory = (cat) =>
+  categoryTranslations[currentLang.value]?.[cat] ||
+  categoryTranslations["zh-TW"]?.[cat] ||
+  cat;
 
-// ─── displayArticle：套用 Supabase translations 翻譯 ───────────────
-const displayArticle = computed(() => {
-  if (!article.value) return null;
-  const langKey =
-    currentLang.value === "default"
-      ? "zh_TW"
-      : currentLang.value.replace("-", "_");
-  const tArt = article.value.translations?.[langKey] || {};
-  const tIss = article.value.issues?.translations?.[langKey] || {};
-
-  let displayPrev = null;
-  if (article.value.dynamicPrev) {
-    const pTrans = article.value.dynamicPrev.translations?.[langKey] || {};
-    displayPrev = {
-      id: article.value.dynamicPrev.id,
-      title: pTrans.title || article.value.dynamicPrev.title,
-    };
-  }
-  let displayNext = null;
-  if (article.value.dynamicNext) {
-    const nTrans = article.value.dynamicNext.translations?.[langKey] || {};
-    displayNext = {
-      id: article.value.dynamicNext.id,
-      title: nTrans.title || article.value.dynamicNext.title,
-    };
-  }
-
-  return {
-    ...article.value,
-    title: tArt.title || article.value.title,
-    subtitle: tArt.subtitle || article.value.subtitle,
-    author: tArt.author_display || tArt.author || article.value.author,
-    authorTitle: tArt.author_title || article.value.authorTitle,
-    keyword: tArt.keyword || article.value.keyword,
-    remark: tArt.remark || article.value.remark,
-    issueTitle: tIss.title || article.value.issueTitle,
-    displayPrev,
-    displayNext,
-  };
-});
-
-const specialComponentsMap = {
-  "7-6 In 是 Siáng？（他們是誰？）": defineAsyncComponent(
-    () => import("~/components/feature_articles/Article7_6.vue"),
-  ),
-};
-
-const currentSpecialComponent = computed(() => {
-  if (!article.value || article.value.type !== "special") return null;
-  const matchKey = Object.keys(specialComponentsMap).find((key) =>
-    article.value.id.includes(key),
-  );
-  return matchKey ? specialComponentsMap[matchKey] : null;
-});
-
-// ─── SEO ────────────────────────────────────────────────
+// ─── SEO（在 page 層設定）────────────────────────────────────────
 useSeoMeta({
-  title: () =>
-    displayArticle.value
-      ? `${displayArticle.value.title} - 無境界者雜誌`
-      : "無境界者雜誌",
-  ogTitle: () => displayArticle.value?.title || "無境界者雜誌",
+  title: () => t.value.title + " - 無境界者雜誌",
+  ogTitle: () => t.value.title + " - 無境界者雜誌",
   description: () =>
-    displayArticle.value?.summary ||
-    "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
-  ogDescription: () =>
-    displayArticle.value?.summary ||
-    "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
-  ogImage: () =>
-    article.value?.seo?.image ||
-    "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
-  keywords: () =>
-    (displayArticle.value?.keyword || "")
-      .replace(/🌿/g, "")
-      .replace(/(關鍵字|关键字|Keywords|キーワード|키워드)\s*[:：]/gi, "")
-      .trim(),
-  author: () => displayArticle.value?.author,
-  twitterCard: "summary_large_image",
-  twitterTitle: () => displayArticle.value?.title,
-  twitterDescription: () => displayArticle.value?.summary,
-  twitterImage: () =>
-    article.value?.seo?.image ||
-    "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
+    ({
+      "zh-TW": "瀏覽無境界者雜誌歷年期刊與文章列表。",
+      "zh-HK": "瀏覽無境界者雜誌歷年期刊與文章列表。",
+      "zh-CN": "浏览无境界者杂志历年期刊与文章列表。",
+      en: "Browse issues and article archives from Faith Without Boundary.",
+      ja: "無境界者雑誌の号数と記事一覧を閲覧できます。",
+      ko: "무경계자 매거진의 호별 기사 목록을 살펴보세요.",
+    })[currentLang.value] || "瀏覽無境界者雜誌歷年期刊與文章列表。",
+  robots: "index, follow",
 });
 
-const translatedCategory = computed(() => {
-  if (!displayArticle.value?.category) return "";
-  const lang = currentLang.value === "default" ? "zh-TW" : currentLang.value;
-  return (
-    categoryTranslations[lang]?.[displayArticle.value.category] ||
-    displayArticle.value.category
-  );
-});
-
-const showTranslationHint = computed(
-  () => currentLang.value !== "zh-TW" && currentLang.value !== "default",
+// ─── 資料 ────────────────────────────────────────────────────────
+const groupedIssues = ref([]);
+const loading = ref(true);
+const selectedYear = ref(
+  parseInt(route.query.year) || new Date().getFullYear(),
 );
 
-const categoryColor = computed(() => {
-  const map = {
+const extractOrderFromId = (idStr) => {
+  if (!idStr) return 0;
+  const match = idStr.match(/-(\d+)/);
+  return match ? parseInt(match[1]) : parseInt(idStr) || 0;
+};
+const formatDisplayId = (num) => (num != null ? num.toString().padStart(2, "0") : "");
+const getCategoryColor = (cat) =>
+  ({
     專題文章: "#8b0000",
     評論與回應: "#ff8000",
     人物專訪: "#f0e137",
     生命故事: "#46b175",
-    時事感想: "#4682b4",
+    時事評論: "#4682b4",
     文藝創作: "#27408b",
     公告與剪影: "#6a5acd",
     封面故事: "#7d6c29",
-    光影時刻: "#7d6c29",
-    實驗園地: "#db7093",
     文獻與翻譯: "#008080",
-  };
-  return map[displayArticle.value?.category] || "#ff8000";
-});
+  })[cat] || "#999";
 
-const issueLinkParams = computed(() => {
-  if (!displayArticle.value?.issue) return {};
-  const year = 2025 + Math.floor((displayArticle.value.issue - 1) / 6);
-  return {
-    path: "/articles",
-    query: { year },
-    hash: `#issue-${displayArticle.value.issue}`,
-  };
-});
+const scrollToAnchor = async () => {
+  if (!route.hash) return;
+  await nextTick();
+  const el = document.getElementById(route.hash.substring(1));
+  if (el) el.scrollIntoView({ behavior: "auto", block: "center" });
+};
 
-const handleNavClick = () => {
+const saveScrollPosition = (selector) => {
   if (import.meta.client) {
     const state = window.history.state || {};
-    window.history.replaceState({ ...state, forceTop: true }, "");
+    window.history.replaceState({ ...state, scrollTo: selector }, "");
   }
 };
 
-const formatTextWithFootnote = (text) => {
-  if (!text) return "";
-  return text.replace(
-    /\[\^(\d+)\]/g,
-    (_, id) =>
-      `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`,
-  );
+const fetchAndGroupArticles = async () => {
+  loading.value = true;
+  let query = supabase
+    .from("issues")
+    .select(
+      `*, content:articles (id, category, title, subtitle, author, author_display, section, is_published, article_type, translations)`,
+    )
+    .order("id", { ascending: false });
+  if (!isEditor.value) query = query.eq("is_published", true);
+
+  const { data: issuesData, error } = await query;
+  if (error) {
+    loading.value = false;
+    return;
+  }
+
+  groupedIssues.value = issuesData.map((issue) => {
+    const CDN = "https://res.cloudinary.com/nonchurch2025/image/upload";
+    issue.hasCoverImg = !!issue.cover_img?.startsWith("http");
+    issue.cover_img = issue.hasCoverImg
+      ? issue.cover_img
+      : `${CDN}/cover-${issue.id}.png`;
+    issue.pdf_link = issue.pdf_link?.startsWith("http")
+      ? issue.pdf_link
+      : `https://res.cloudinary.com/nonchurch2025/image/upload/Vol.${issue.id}.pdf`;
+    issue.isDraft = !issue.is_published;
+
+    if (issue.content?.length > 0) {
+      if (!isEditor.value)
+        issue.content = issue.content.filter((a) => a.is_published);
+
+      // 先提取特殊文章 IDs（投稿資訊、編輯資訊），供 footer 連結用
+      const submissionInfo = issue.content.find((a) => a.article_type === "submission_info");
+      const editorialInfo = issue.content.find((a) => a.article_type === "editorial_info");
+      issue.submissionInfoId = submissionInfo?.id || null;
+      issue.editorialInfoId = editorialInfo?.id || null;
+
+      // 過濾掉「編輯資訊」section 及「目錄」文章（目次在「主題介紹」section，不受影響）
+      issue.content = issue.content.filter(
+        (a) => a.section?.trim() !== "編輯資訊" && a.title?.trim() !== "目錄",
+      );
+      issue.content.forEach((art) => {
+        art.routeId = art.id;
+        art._sortOrder = extractOrderFromId(art.id);
+        art.display_id = formatDisplayId(art._sortOrder);
+        art.color = getCategoryColor(art.category);
+        art.type = "article";
+        if (art.author_display) art.author = art.author_display;
+      });
+      issue.content.sort((a, b) => a._sortOrder - b._sortOrder);
+      // 「主題介紹」不顯示 section header（文章仍保留在最前方）
+      const HIDDEN_HEADERS = new Set(["主題介紹", "編輯資訊"]);
+      let lastSection = null;
+      issue.content.forEach((art) => {
+        const s = art.section?.trim();
+        art.showSectionHeader =
+          s && !HIDDEN_HEADERS.has(s) ? s !== lastSection : false;
+        if (s) lastSection = s;
+      });
+      const maxId = issue.content.at(-1)?._sortOrder || 0;
+      issue.content.push(
+        {
+          display_id: formatDisplayId(maxId + 1),
+          type: "text-only",
+          is_footer_start: true,
+          routeId: issue.submissionInfoId || null,
+        },
+        {
+          display_id: formatDisplayId(maxId + 2),
+          type: "text-only",
+          routeId: issue.editorialInfoId || null,
+        },
+      );
+    } else {
+      issue.content = [];
+    }
+    return issue;
+  });
+
+  // 設定初始年份
+  const queryYear = parseInt(route.query.year);
+  if (yearOptions.value.some((o) => o.value === queryYear))
+    selectedYear.value = queryYear;
+  else {
+    const latestYear =
+      groupedIssues.value.length > 0
+        ? 2025 + Math.floor((groupedIssues.value[0].id - 1) / 6)
+        : new Date().getFullYear();
+    if (yearOptions.value.some((o) => o.value === latestYear))
+      selectedYear.value = latestYear;
+  }
+
+  loading.value = false;
+  if (import.meta.client) scrollToAnchor();
 };
 
-/**
- * 核心渲染邏輯：content 已是 HTML，直接處理佔位符與圖片路徑
- */
-const htmlContent = computed(() => {
-  if (!article.value?.content) return "";
-  let html = article.value.content;
+// displayIssues：套用 Supabase translations 翻譯
+const filteredIssues = computed(() =>
+  groupedIssues.value.filter(
+    (i) => 2025 + Math.floor((i.id - 1) / 6) === selectedYear.value,
+  ),
+);
 
-  // 1. 處理新版：替換 [[圖片N]] 佔位符
-  const mediaAssets = article.value?.media_assets || [];
-  html = html.replace(/src="\[\[圖片(\d+)\]\]"/g, (match, orderStr) => {
-    const order = parseInt(orderStr);
-    const found = mediaAssets.find((m) => m.sort_order === order);
-    return found ? `src="${found.image_url}"` : match;
+const displayIssues = computed(() => {
+  const langKey =
+    currentLang.value === "default"
+      ? "zh_TW"
+      : currentLang.value.replace("-", "_");
+  return filteredIssues.value.map((issue) => {
+    const tIss = issue.translations?.[langKey] || {};
+    const mappedContent = issue.content.map((art) => {
+      if (art.type === "text-only") {
+        return {
+          ...art,
+          title: art.is_footer_start ? t.value.footer1 : t.value.footer2,
+        };
+      }
+      const tArt = art.translations?.[langKey] || {};
+      return {
+        ...art,
+        title: tArt.title || art.title,
+        subtitle: tArt.subtitle || art.subtitle,
+        author: tArt.author_display || tArt.author || art.author,
+      };
+    });
+    return {
+      ...issue,
+      title: tIss.title || issue.title,
+      date: tIss.date || issue.date,
+      content: mappedContent,
+    };
   });
-
-  // 2. 處理舊版：相容未帶 http 的純檔名路徑
-  html = html.replace(/src="([^"]+)"/g, (match, srcValue) => {
-    if (
-      srcValue.startsWith("http") ||
-      srcValue.startsWith("data:") ||
-      srcValue.startsWith("//") ||
-      srcValue.startsWith("[[圖片")
-    ) {
-      return match;
-    }
-    return `src="https://res.cloudinary.com/nonchurch2025/image/upload/${srcValue}"`;
-  });
-
-  return html;
 });
 
-const footnotesHtml = computed(() => {
-  if (!article.value?.footnotes?.length) return "";
-  const listItems = article.value.footnotes
-    .map(
-      (note) =>
-        `<li id="footnote-${note.id}"><div class="fn-body">${note.text}<a href="#footnote-ref-${note.id}" class="footnote-backref">↩</a></div></li>`,
-    )
-    .join("");
-  return `<div class="footnotes"><hr /><ol>${listItems}</ol></div>`;
-});
+watch(selectedYear, (v) =>
+  router.replace({ query: { ...route.query, year: v } }),
+);
+watch(isEditor, fetchAndGroupArticles);
 
-const keywordContent = computed(() => {
-  if (!displayArticle.value?.keyword) return "";
-  const kw = displayArticle.value.keyword;
-  const hasPrefix = /🌿|關鍵字/.test(kw);
-  return hasPrefix ? `<p>${kw}</p>` : `<p><strong>🌿 關鍵字：</strong>${kw}</p>`;
-});
+await useAsyncData(`articles-list-${isEditor.value}`, fetchAndGroupArticles);
 </script>
 
 <template>
-  <div v-if="loading" class="loading-state">
-    正在載入文章內容 🕊️<span class="loading-dots"></span>
-  </div>
+  <div class="article-list-page">
+    <h1 class="page-main-title">
+      <span class="emoji">📚</span>{{ t.title }}<span class="emoji">📚</span>
+    </h1>
+    <div class="main-divider"></div>
 
-  <div v-else-if="!article" class="not-found">
-    <h2>找不到這篇文章😖</h2>
-    <NuxtLink to="/articles" class="back-link">回文章列表</NuxtLink>
-  </div>
-
-  <article v-else class="article-content">
-    <div class="title-header">
-      <div
-        v-if="displayArticle.category"
-        class="featured-box"
-        :style="{ backgroundColor: categoryColor }"
-      >
-        {{ translatedCategory }}
+    <div class="year-selector-wrapper">
+      <label for="year-select">{{ t.selectYear }}</label>
+      <div class="custom-select">
+        <select id="year-select" v-model="selectedYear">
+          <option
+            v-for="item in yearOptions"
+            :key="item.value"
+            :value="item.value"
+          >
+            {{ item.label }}
+          </option>
+        </select>
+        <span class="arrow">▼</span>
       </div>
-      <h1
-        class="main-title"
-        v-html="formatTextWithFootnote(displayArticle.title)"
-      ></h1>
-      <h1
-        v-if="displayArticle.subtitle"
-        class="sub-title"
-        v-html="'──' + formatTextWithFootnote(displayArticle.subtitle)"
-      ></h1>
     </div>
 
-    <div v-if="showTranslationHint && t.browserTrans" class="translation-hint">
-      🌐 {{ t.browserTrans }}
+    <div v-if="loading" class="loading-state">
+      {{ t.loading }}<span class="loading-dots"></span>
     </div>
 
-    <div class="divider-thick"></div>
-    <div class="divider-gap"></div>
-    <div class="divider-thin"></div>
-
-    <div v-if="!isToc" class="author-info">
-      <p class="author-name">
-        <span v-html="formatTextWithFootnote(displayArticle.author)"></span>
-        <span
-          class="author-title"
-          v-html="formatTextWithFootnote(displayArticle.authorTitle)"
-        ></span>
-        <span
-          v-if="displayArticle.remark"
-          class="author-remark"
-          v-html="formatTextWithFootnote(displayArticle.remark)"
-        ></span>
-      </p>
+    <div v-else-if="displayIssues.length === 0" class="no-data">
+      <p>{{ t.noData(selectedYear) }}</p>
     </div>
 
     <div
-      v-if="!isToc && displayArticle.keyword"
-      class="keyword-section"
-      v-html="keywordContent"
-    ></div>
-
-    <!-- ── 目次專用渲染 ── -->
-    <div v-if="isToc" class="toc-page">
-      <ul class="toc-article-list">
-        <template v-for="(row, i) in tocDisplayRows" :key="i">
-          <li v-if="row.type === 'separator'" class="toc-sep-row">
-            <div class="toc-sep-line"></div>
-            <span v-if="row.showLabel" class="toc-sep-label">{{ row.section }}</span>
-          </li>
-          <li v-else class="toc-art-row">
-            <p>
-              <span class="toc-art-seq">{{ String(row.seq).padStart(2, "0") }}</span>
-              <span v-if="row.category" class="toc-art-cat" :style="{ color: row.color }">【{{ row.category }}】</span>
-              <NuxtLink v-if="row.article_type !== 'submission_info' && row.article_type !== 'editorial_info'" :to="`/articles/${row.id}`">
-                {{ row.title }}<span v-if="row.subtitle">──{{ row.subtitle }}</span>
-              </NuxtLink>
-              <span v-else>{{ row.title }}</span>
-              <span v-if="row.author" class="toc-art-author">｜{{ row.author }}</span>
-              <span v-if="row.page_start" class="toc-art-pp">｜pp. {{ row.page_start }}</span>
-              <span v-if="isEditor && !row.isPublished" class="toc-draft">（草稿）</span>
-            </p>
-          </li>
-        </template>
-      </ul>
-    </div>
-
-    <div v-else-if="displayArticle.type === 'special' && currentSpecialComponent">
+      v-else
+      v-for="(issue, index) in displayIssues"
+      :key="issue.id"
+      class="magazine-item"
+    >
       <br />
-      <div v-if="htmlContent" class="audiobook-intro">
-        <div class="markdown-body" v-html="htmlContent"></div>
+      <h2 :id="`issue-${issue.id}`">
+        <span>　　</span>{{ t.issueTitle(issue.id, issue.title) }}
+        <span class="issue-date">／{{ issue.date }}</span>
+        <span v-if="issue.isDraft" class="draft-badge"> {{ t.draft }} </span>
+      </h2>
+
+      <div class="content-wrapper">
+        <div class="left-section">
+          <ul>
+            <li v-for="(item, itemIndex) in issue.content" :key="itemIndex">
+              <div v-if="item.section && item.showSectionHeader">
+                <br />
+                <div class="title-box">
+                  <h3 class="theme-title">
+                    {{ translateCategory(item.section) }}
+                  </h3>
+                </div>
+              </div>
+              <div v-if="item.is_footer_start">
+                <br />
+                <div class="title-box"></div>
+              </div>
+              <p>
+                <span
+                  v-if="item.display_id"
+                  style="font-weight: bold; margin-right: 0.5em"
+                  >{{ item.display_id }}</span
+                >
+                <span
+                  v-if="item.category"
+                  class="article-type"
+                  :style="{
+                    color: item.color,
+                    marginRight: '0.5em',
+                    fontSize: '0.8em',
+                  }"
+                >
+                  {{ translateCategory(item.category) }}
+                </span>
+                <NuxtLink
+                  v-if="item.type !== 'text-only' || item.routeId"
+                  :to="`/articles/${item.routeId}`"
+                  @click="saveScrollPosition(`#issue-${issue.id}`)"
+                >
+                  {{ item.title
+                  }}<span v-if="item.subtitle">──{{ item.subtitle }}</span>
+                  <span
+                    v-if="isEditor && item.type !== 'text-only' && !item.is_published"
+                    style="
+                      color: red;
+                      font-size: 0.8em;
+                      font-weight: bold;
+                      margin-left: 5px;
+                    "
+                  >
+                    {{ t.artDraft }}
+                  </span>
+                </NuxtLink>
+                <span v-else>{{ item.title }}</span>
+                <span v-if="item.author" class="author"
+                  >｜{{ item.author }}</span
+                >
+              </p>
+            </li>
+          </ul>
+        </div>
+
+        <div class="right-section">
+          <template v-if="isEditor && issue.isDraft && !issue.hasCoverImg">
+            <div class="cover-unreleased">
+              <span class="cover-unreleased-label">待出版</span>
+            </div>
+            <p class="cover-description">{{ t.download }}</p>
+          </template>
+          <template v-else>
+            <a :href="issue.pdf_link" target="_blank" :title="t.download">
+              <img
+                :src="issue.cover_img"
+                :alt="`Vol.${issue.id} Cover`"
+                class="magazine-cover"
+              />
+            </a>
+            <p class="cover-description">{{ t.download }}</p>
+          </template>
+        </div>
       </div>
-      <ClientOnly>
-        <component :is="currentSpecialComponent" :article="displayArticle" />
-      </ClientOnly>
+
+      <br /><br />
       <div
-        v-if="footnotesHtml"
-        class="markdown-body"
-        v-html="footnotesHtml"
+        v-if="index !== displayIssues.length - 1"
+        class="issue-divider"
       ></div>
     </div>
-
-    <div v-else>
-      <br />
-      <div class="markdown-body" v-html="htmlContent"></div>
-      <div
-        v-if="footnotesHtml"
-        class="markdown-body"
-        v-html="footnotesHtml"
-      ></div>
-    </div>
-
-    <div class="article-navigation">
-      <div class="nav-item">
-        <template v-if="displayArticle.displayPrev">
-          <strong>{{ t.prev }}</strong>
-          <NuxtLink
-            :to="`/articles/${displayArticle.displayPrev.id}`"
-            @click="handleNavClick"
-          >
-            {{ displayArticle.displayPrev.title }}
-          </NuxtLink>
-        </template>
-      </div>
-      <div class="nav-item">
-        <strong>{{ t.backToToc }}</strong>
-        <NuxtLink :to="issueLinkParams" @click="handleNavClick">
-          {{ t.issuePrefix }}{{ displayArticle.issue }}{{ t.issueSuffix
-          }}{{ displayArticle.issueTitle }}
-        </NuxtLink>
-      </div>
-      <div class="nav-item">
-        <template v-if="displayArticle.displayNext">
-          <strong>{{ t.next }}</strong>
-          <NuxtLink
-            :to="`/articles/${displayArticle.displayNext.id}`"
-            @click="handleNavClick"
-          >
-            {{ displayArticle.displayNext.title }}
-          </NuxtLink>
-        </template>
-      </div>
-    </div>
-  </article>
+  </div>
 </template>
 
 <style scoped>
-.audiobook-intro {
-  margin-bottom: 3rem;
-  padding-bottom: 2rem;
-  border-bottom: 2px dashed #ccc;
-}
-.translation-hint {
-  background: #fff3cd;
-  border: 1px solid #ffeeba;
-  color: #856404;
-  padding: 10px 15px;
-  border-radius: 6px;
-  margin-bottom: 20px;
-  font-size: 1rem;
-}
-.title-header {
-  position: relative;
-  margin-bottom: 20px;
-}
-.featured-box {
-  position: absolute;
-  right: 0;
-  color: white;
-  font-weight: bold;
-  font-size: 1.6rem;
-  border-radius: 4px;
-  padding: 5px 15px;
-  margin-top: -3rem;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-.main-title {
-  font-family: "Times New Roman", serif;
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: #444;
+h2 {
   text-align: left;
-  margin-top: 40px;
-  line-height: 1.4;
-  padding-left: 2rem;
-}
-.sub-title {
-  font-family: "Times New Roman", serif;
+  color: #444;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
   font-size: 2rem;
   font-weight: bold;
-  color: #444;
-  margin-top: 10px;
-  text-align: left;
-  padding-left: 6rem;
 }
-.divider-thick {
-  height: 3px;
-  background: #444;
-  width: 100%;
+.issue-date {
+  color: #ff8000;
+  font-size: 20px;
+  font-weight: bold;
 }
-.divider-gap {
-  height: 3px;
+.draft-badge {
+  font-size: 0.9rem;
+  color: #999;
+  background: #f0f0f0;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 10px;
+  vertical-align: middle;
+  font-weight: normal;
 }
-.divider-thin {
-  height: 1px;
-  background: #444;
-  width: 100%;
-  margin-bottom: 20px;
-}
-.author-info {
-  text-align: right;
-  margin-bottom: 40px;
-  font-family: "Times New Roman", serif;
-  line-height: 1.5;
-}
-.author-name {
-  font-size: 1.2rem;
-  color: #444;
-}
-/* 讓作者名稱的 span 也以 block 呈現，與下方欄位行距一致 */
-.author-name > span:first-child {
-  display: block;
-}
-.author-title {
-  display: block;
-  font-size: 1.2rem;
-  color: #444;
-  margin-top: 0.6rem;
-}
-.author-remark {
-  display: block;
-  font-size: 1.2rem;
-  color: #444;
-  margin-top: 0.6rem;
-}
-.not-found {
-  text-align: center;
-  padding: 60px;
-  color: #666;
-}
-.back-link {
-  display: inline-block;
-  margin-top: 20px;
-  color: #007bff;
-  text-decoration: none;
-}
-.article-navigation {
+.content-wrapper {
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
   align-items: flex-start;
-  margin-top: 3rem;
-  padding: 20px 0;
-  border-top: 1px solid #ddd;
-  text-align: center;
-  gap: 1.5rem;
+  gap: 2rem;
 }
-.nav-item {
+.left-section {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 60px;
+  margin-left: 1.5rem;
 }
-.nav-item strong {
-  display: block;
-  margin-bottom: 8px;
-  color: #444;
-  font-size: 1.2rem;
-}
-.nav-item a {
-  text-decoration: none;
-  color: #007bff;
-  font-size: 1.2rem;
-  font-family: "Times New Roman", serif;
-  max-width: 20ch;
-  word-wrap: break-word;
+.right-section {
   text-align: center;
-  line-height: 1.4;
+  margin-top: 2rem;
+  flex-shrink: 0;
 }
-.nav-item a:hover {
-  text-decoration: underline;
+ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+li {
+  list-style: none;
+  position: relative;
+  margin-left: 2rem;
+  padding-left: 0.5em;
+  margin-bottom: 0.5rem;
+  line-height: 1.8;
+  font-size: 1.2rem;
+  font-family: serif;
+}
+.article-type {
+  font-weight: bold;
+  padding-right: 0.5rem;
+}
+.left-section a {
+  color: #007bff;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+.left-section li p {
+  margin: 0;
+  padding-left: 2rem;
+  text-indent: -2rem;
+}
+.left-section a:hover {
   color: #0056b3;
+  text-decoration: underline;
+}
+.author {
+  color: #333;
+  font-size: 1.2rem;
+}
+.magazine-cover {
+  width: 350px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+  margin-top: -2em;
+}
+.cover-unreleased {
+  width: 350px;
+  aspect-ratio: 176 / 250;
+  border-radius: 10px;
+  background: #d8d8c8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: -2em;
+}
+.cover-unreleased-label {
+  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
+  font-size: 1.1rem;
+  color: #666;
+  letter-spacing: 0.1em;
+}
+.magazine-cover:hover {
+  transform: scale(1.05);
+}
+.cover-description {
+  font-size: 1rem;
+  margin-top: 0.5rem;
+  color: #666;
+  font-family: serif;
+}
+.issue-divider {
+  width: 100%;
+  height: 2px;
+  background-color: rgba(0, 0, 0, 0.75);
+  border-radius: 2px;
+  margin: 20px auto;
+}
+.title-box {
+  text-align: center;
+  margin: 1rem 0;
+  position: relative;
+  min-height: 1px;
+}
+.title-box::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+.title-box h3 {
+  text-align: center !important;
+  display: inline-block;
+  padding: 0 1rem;
+  margin-top: 0.2em;
+  font-weight: bold;
+  position: relative;
+  color: #444;
 }
 .loading-state {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 50vh;
-  font-size: 2.5rem;
+  font-size: 2rem;
   color: #888;
-  font-family: "Times New Roman", serif;
+  font-family: serif;
   font-weight: bold;
 }
 .loading-dots::after {
@@ -821,151 +699,72 @@ const keywordContent = computed(() => {
     content: "......";
   }
 }
-:deep(.footnotes) {
-  margin-top: 60px;
-  padding-top: 20px;
-  border-top: 2px solid #444;
-  font-size: 1rem;
-  color: #666;
-}
-:deep(.footnotes h2),
-:deep(.footnotes hr) {
-  display: none;
-}
-:deep(.footnotes ol) {
-  padding-left: 0;
-  margin-left: -1rem;
-  list-style: none;
-  counter-reset: footnote-counter;
-}
-:deep(.footnotes li) {
-  display: flex;
-  align-items: baseline;
-  counter-increment: footnote-counter;
-  line-height: 1.6;
-}
-:deep(.footnotes li::before) {
-  content: counter(footnote-counter);
-  display: inline-block;
-  width: 2em;
-  flex-shrink: 0;
-  text-align: right;
-  color: #007bff;
-}
-:deep(.footnotes li p) {
-  margin: 0;
-  text-indent: 0 !important;
-  flex-grow: 1;
-  padding-left: 10px;
-  color: #444;
-  text-align: justify;
-  word-break: break-word;
-}
-:deep(.footnotes .footnote-backref) {
-  text-decoration: none;
-  color: #007bff;
-  margin-left: 5px;
+@media (max-width: 1024px) {
+  .content-wrapper {
+    gap: 1.5rem;
+  }
+  .left-section {
+    margin-left: 0;
+  }
+  .magazine-cover {
+    width: 220px;
+    margin-top: 0;
+  }
+  .cover-unreleased {
+    width: 220px;
+    margin-top: 0;
+    border-radius: 6px;
+  }
+  li {
+    font-size: 1.1rem;
+  }
 }
 @media (max-width: 768px) {
-  .featured-box {
-    position: relative;
-    float: right;
-    margin: 0 0 20px auto;
-    font-size: 1.2rem;
-  }
-  .main-title {
-    font-size: 2rem;
-    clear: both;
-    padding-left: 0;
-  }
-  .sub-title {
-    font-size: 1.5rem;
-    padding-left: 0;
-  }
-  .article-navigation {
+  .content-wrapper {
     flex-direction: column;
-    gap: 2rem;
   }
-  .nav-item {
+  .right-section {
+    order: 1;
+    margin: 0 auto 2rem auto;
     width: 100%;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 15px;
   }
-  .nav-item:last-child {
-    border-bottom: none;
+  .magazine-cover {
+    width: 80%;
+    max-width: 300px;
+    margin-top: 0;
   }
-}
-
-/* ── 目次頁 ─────────────────────────────────────────── */
-.toc-page {
-  margin-top: 1.5rem;
-}
-.toc-article-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
-  font-size: 1.2rem;
-  line-height: 1.9;
-}
-.toc-sep-row {
-  list-style: none;
-  margin: 1.4rem 0 0.4rem;
-}
-.toc-sep-line {
-  border-top: 2px solid #AAAAAA;
-  margin-bottom: 0.3rem;
-}
-.toc-sep-label {
-  display: block;
-  text-align: center;
-  font-weight: bold;
-  color: #333;
-  font-size: 1.1rem;
-  margin-bottom: 0.2rem;
-}
-.toc-art-row {
-  list-style: none;
-  margin-left: 2rem;
-  margin-bottom: 0.2rem;
-}
-.toc-art-row p {
-  margin: 0;
-  padding-left: 2rem;
-  text-indent: -2rem;
-}
-.toc-art-seq {
-  font-weight: bold;
-  font-family: monospace;
-  font-size: 1rem;
-  color: #333;
-  margin-right: 0.4em;
-}
-.toc-art-cat {
-  font-size: 0.88em;
-  font-weight: bold;
-  margin-right: 0.1em;
-}
-.toc-art-row a {
-  color: #007bff;
-  text-decoration: none;
-  transition: color 0.2s;
-}
-.toc-art-row a:hover {
-  color: #0056b3;
-  text-decoration: underline;
-}
-.toc-art-author {
-  color: #444;
-  font-size: 1rem;
-}
-.toc-art-pp {
-  color: #888;
-  font-size: 0.9rem;
-}
-.toc-draft {
-  color: red;
-  font-size: 0.8em;
-  margin-left: 0.4em;
+  .cover-unreleased {
+    width: 80%;
+    max-width: 300px;
+    margin-top: 0;
+    border-radius: 6px;
+  }
+  .left-section {
+    order: 2;
+    width: 100%;
+    margin-left: 0;
+  }
+  li {
+    margin-left: 0.5rem;
+    font-size: 1rem;
+  }
+  h2 {
+    font-size: 1.5rem;
+    text-align: center;
+  }
+  h2 span:first-child {
+    display: none;
+  }
+  .issue-date {
+    display: block;
+    font-size: 1rem;
+    margin-top: 5px;
+  }
+  .title-box h3 {
+    font-size: 1.3rem;
+  }
+  .author {
+    font-size: 1rem;
+  }
 }
 </style>

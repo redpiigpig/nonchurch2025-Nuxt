@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, nextTick } from "vue";
 import { supabase } from "~/supabase";
 import { useLanguage } from "~/composables/useLanguage";
@@ -835,7 +835,7 @@ const onKeydownKw = (e) => { if (e.key === "Enter") { e.preventDefault(); addKey
 
 const categories = [
   "專題文章", "評論與回應", "人物專訪", "生命故事",
-  "時事感想", "文藝創作", "公告與剪影", "文獻與翻譯",
+  "時事評論", "文藝創作", "公告與剪影", "文獻與翻譯",
   "光影時刻", "實驗園地",
 ];
 

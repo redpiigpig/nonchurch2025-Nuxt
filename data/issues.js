@@ -1,4 +1,4 @@
-// src/data/issues.js
+﻿// src/data/issues.js
 
 export const issues = [
   // ==========================================
@@ -81,7 +81,7 @@ export const issues = [
       },
       {
         displayId: "08",
-        category: "時事感想",
+        category: "時事評論",
         color: "#4682b4",
         title: "和而不同的基督徒政治觀",
         routeId: "6-8和而不同的基督徒政治觀",
@@ -409,7 +409,7 @@ export const issues = [
       },
       {
         displayId: "15",
-        category: "時事感想",
+        category: "時事評論",
         color: "#4682b4",
         title: "不為自己求安樂，但願眾生得離苦",
         subtitle: "從佛教信仰看待社會議題的關懷與推動",
@@ -467,7 +467,7 @@ export const issues = [
       },
       {
         displayId: "06",
-        category: "時事感想",
+        category: "時事評論",
         color: "#4682b4",
         title: "教宗方濟各對天主教會的影響",
         routeId: "3-6教宗方濟各對天主教會的影響",
@@ -556,7 +556,7 @@ export const issues = [
       },
       {
         displayId: "16",
-        category: "時事感想",
+        category: "時事評論",
         color: "#4682b4",
         title: "戒律與時代適應性",
         subtitle: "淺談佛教近日時事「性平剃度事件」",
@@ -815,7 +815,7 @@ export const issues = [
       { type: "header", text: "多元講堂", styleClass: "diverse-title" },
       {
         displayId: "12",
-        category: "時事感想",
+        category: "時事評論",
         color: "#4682b4",
         title: "誕是",
         routeId: "1-12誕是",

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { supabase } from "~/supabase";
@@ -60,7 +60,7 @@ const subMap = {
         color: "green",
       },
       {
-        name: "時事感想",
+        name: "時事評論",
         desc: "對政治、社會、文化、教界時事的感想，或書寫時事對信仰的啟發。約500-6,000字。",
         color: "blue",
       },
@@ -135,7 +135,7 @@ const subMap = {
         color: "green",
       },
       {
-        name: "時事感想",
+        name: "時事評論",
         desc: "對政治、社會、文化、教界時事嘅感想，或者書寫時事對信仰嘅啟發。約500-6,000字。",
         color: "blue",
       },
@@ -210,7 +210,7 @@ const subMap = {
         color: "green",
       },
       {
-        name: "时事感想",
+        name: "时事评论",
         desc: "对政治、社会、文化、教界时事的感想，或书写时事对信仰的启发。约500-6,000字。",
         color: "blue",
       },
@@ -300,7 +300,7 @@ const subMap = {
         color: "purple",
       },
       {
-        name: "Documents & Translation",
+        name: "Documents",
         desc: "Archival documents, unpublished manuscripts, or translations of theological and philosophical classics. Suggested: 2,000–8,000 words.",
         color: "teal",
       },
@@ -529,6 +529,7 @@ const fetchThemeData = async () => {
     } else {
       query = query
         .not("cfp_title", "is", null)
+        .neq("cfp_title", "")
         .order("id", { ascending: false })
         .limit(1);
     }
@@ -596,9 +597,7 @@ onMounted(() => {
       {{ t.loading }}<span class="loading-dots"></span>
     </div>
 
-    <div v-else-if="!translatedTheme" class="status-msg">{{ t.noData }}</div>
-
-    <section id="theme" v-else>
+    <section id="theme" v-else-if="translatedTheme">
       <section class="section-text">
         <p>{{ t.intro }}</p>
       </section>
@@ -778,8 +777,9 @@ h3 {
   border-bottom: none;
 }
 .type-block {
-  width: 120px;
+  min-width: 120px;
   height: 40px;
+  padding: 0 16px;
   color: white;
   font-weight: bold;
   display: flex;
@@ -790,6 +790,7 @@ h3 {
   margin-right: 20px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   font-size: 0.95rem;
+  white-space: nowrap;
 }
 .type-description {
   margin: 0;

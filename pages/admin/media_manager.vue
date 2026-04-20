@@ -35,13 +35,16 @@ const loadIssuesAndArticles = async () => {
   try {
     const { data: issues } = await supabase
       .from("issues")
-      .select("id, title")
+      .select("id, title, is_published")
       .order("id", { ascending: false });
     issuesList.value = issues || [];
 
     if (issues?.length) {
-      selectedIssue.value = issues[0].id;
-      await loadArticles(issues[0].id);
+      // 預設：最近一期尚未發布（id 最小的未發布）；全部已發布則取最新一期
+      const firstUnpublished = [...issues].reverse().find((i) => !i.is_published);
+      const defaultIssueId = firstUnpublished?.id ?? issues[0].id;
+      selectedIssue.value = defaultIssueId;
+      await loadArticles(defaultIssueId);
     }
   } catch (err) {
     console.error(err);

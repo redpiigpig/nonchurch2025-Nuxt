@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 後端 Gemini 分類 API
  * 接收前端送來的 HTML，呼叫 Gemini，回傳分類結果
  * API key 只存在後端，不會暴露到前端 bundle
@@ -149,7 +149,7 @@ function extractMetaHtml(html) {
 
 function buildPrompt(html, _formatSpec, issueNumber, issueTitle, nextSeq) {
   const categoryList = [
-    "專題文章", "評論與回應", "人物專訪", "生命故事", "時事感想",
+    "專題文章", "評論與回應", "人物專訪", "生命故事", "時事評論",
     "文藝創作", "公告與剪影", "封面故事", "光影時刻", "實驗園地", "文獻與翻譯",
   ].join("、");
 
