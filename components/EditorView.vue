@@ -1286,6 +1286,31 @@ const removeFootnote = (index) => {
   form.value.footnotes.forEach((fn, idx) => { fn.id = idx + 1; });
 };
 
+// 在 afterIndex 之後插入新腳注，並把內文中 >= insertId 的引用號碼全部 +1
+const insertFootnoteAfter = (afterIndex) => {
+  const insertId = afterIndex + 2;          // 新腳注的 1-based id
+  const prevMax = form.value.footnotes.length;
+
+  // 先更新內文 HTML（從大到小替換，避免 3→4 後又把 4 再替換成 5）
+  if (form.value.content && insertId <= prevMax) {
+    let html = form.value.content;
+    for (let n = prevMax; n >= insertId; n--) {
+      html = html
+        .replaceAll(`#footnote-${n}"`,      `#footnote-${n + 1}"`)
+        .replaceAll(`footnote-ref-${n}"`,   `footnote-ref-${n + 1}"`)
+        .replaceAll(`>${n}</a></sup>`,       `>${n + 1}</a></sup>`);
+    }
+    form.value.content = html;
+    editor.value?.commands.setContent(html);
+  }
+
+  // 遞增後續腳注 id
+  form.value.footnotes.forEach((fn) => { if (fn.id >= insertId) fn.id += 1; });
+
+  // 插入新空白腳注
+  form.value.footnotes.splice(afterIndex + 1, 0, { id: insertId, text: "" });
+};
+
 const moveFootnote = (index, direction) => {
   const arr = form.value.footnotes;
   const newIndex = index + direction;
@@ -1755,7 +1780,6 @@ const colorLabel = (color) => {
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'left')">左</button>
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'center')">中</button>
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'right')">右</button>
-                <button type="button" class="tool-btn img-btn img-btn-theme" @click="insertImageBlock(img.sort_order, 'theme')" title="插入為主題圖片">主</button>
                 <button type="button" class="tool-btn img-btn img-btn-person" @click="insertImageBlock(img.sort_order, 'person')" title="插入為受訪者照片">人</button>
               </div>
             </div>
@@ -1908,6 +1932,7 @@ const colorLabel = (color) => {
                 <button class="btn btn-sm" :disabled="index === 0" @click="moveFootnote(index, -1)" title="上移">▲</button>
                 <button class="btn btn-sm" :disabled="index === form.footnotes.length - 1" @click="moveFootnote(index, 1)" title="下移">▼</button>
               </div>
+              <button class="btn btn-sm btn-insert-fn" @click="insertFootnoteAfter(index)" title="在此之後插入新腳注">＋</button>
               <button class="btn btn-sm btn-danger" @click="removeFootnote(index)">X</button>
             </div>
             <button class="btn btn-sm" @click="addFootnote">+ 新增註腳</button>
@@ -2056,6 +2081,7 @@ const colorLabel = (color) => {
 .autosave-status.error { color: #e74c3c; }
 .btn-sm { padding: 4px 8px; font-size: 0.8rem; }
 .btn-danger { background: #e74c3c; color: white; margin-left: 10px; }
+.btn-insert-fn { background: #e8f5e9; color: #2e7d32; margin-left: 4px; }
 
 .btn-reupload {
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
