@@ -1780,7 +1780,6 @@ const colorLabel = (color) => {
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'left')">左</button>
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'center')">中</button>
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'right')">右</button>
-                <button type="button" class="tool-btn img-btn img-btn-person" @click="insertImageBlock(img.sort_order, 'person')" title="插入為受訪者照片">人</button>
               </div>
             </div>
           </template>
