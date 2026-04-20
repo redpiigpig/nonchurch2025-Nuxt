@@ -140,7 +140,7 @@ const loadArticle = async () => {
   loading.value = true;
   const { data, error } = await supabase
     .from("articles")
-    .select("*")
+    .select("*, media_assets(image_url, sort_order)")
     .eq("id", route.params.id)
     .single();
 
@@ -148,6 +148,24 @@ const loadArticle = async () => {
     alert("載入失敗：" + error.message);
     router.push(`/admin/editor/${route.params.id}`);
     return;
+  }
+
+  // 處理圖片佔位符，與 articles/[id].vue 的 htmlContent 邏輯一致
+  const mediaAssets = data.media_assets || [];
+  if (data.content) {
+    let html = data.content;
+    // 1. 替換 [[圖片N]] 佔位符
+    html = html.replace(/src="\[\[圖片(\d+)\]\]"/g, (match, orderStr) => {
+      const order = parseInt(orderStr);
+      const found = mediaAssets.find((m) => m.sort_order === order);
+      return found ? `src="${found.image_url}"` : match;
+    });
+    // 2. 相容舊版純檔名路徑
+    html = html.replace(/src="([^"]+)"/g, (match, srcValue) => {
+      if (srcValue.startsWith("http") || srcValue.startsWith("data:") || srcValue.startsWith("//") || srcValue.startsWith("[[圖片")) return match;
+      return `src="https://res.cloudinary.com/nonchurch2025/image/upload/${srcValue}"`;
+    });
+    data.content = html;
   }
 
   article.value = data;
