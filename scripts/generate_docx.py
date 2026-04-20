@@ -932,13 +932,19 @@ class ProfessionalDocxGenerator:
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after  = Pt(0)
             if toc_line:
-                # 目次行：主標題 13pt，副標題（── 之後）12pt
-                dash_pos = part.find('──')
-                if dash_pos != -1:
-                    self._add_inline(p, part[:dash_pos], size=13)
-                    self._add_inline(p, part[dash_pos:], size=12)
+                # 目次行格式：序號+分類 12pt，文章主標題 13pt，副標題以後 12pt
+                if '──' in part:
+                    # 副標題行（<br> 之後），全部 12pt
+                    self._add_inline(p, part, size=12)
                 else:
-                    self._add_inline(p, part, size=13)
+                    # 主標題行：找最後一個 HTML 結束 > 的位置
+                    # 之前 = 序號 + 分類標籤（12pt），之後 = 純標題文字（13pt）
+                    last_gt = max((m.end() for m in re.finditer(r'>', part)), default=0)
+                    if last_gt > 0:
+                        self._add_inline(p, part[:last_gt], size=12)
+                        self._add_inline(p, part[last_gt:], size=13)
+                    else:
+                        self._add_inline(p, part, size=13)
             else:
                 self._add_inline(p, part)
 
