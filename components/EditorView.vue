@@ -1338,14 +1338,6 @@ const insertFootnoteAfter = (afterIndex) => {
   form.value.footnotes.splice(afterIndex + 1, 0, { id: insertId, text: "" });
 };
 
-const moveFootnote = (index, direction) => {
-  const arr = form.value.footnotes;
-  const newIndex = index + direction;
-  if (newIndex < 0 || newIndex >= arr.length) return;
-  const [item] = arr.splice(index, 1);
-  arr.splice(newIndex, 0, item);
-  arr.forEach((fn, i) => { fn.id = i + 1; });
-};
 
 // ── 校對標記審閱 ─────────────────────────────────────────────────
 const annReplaceTexts = ref({});
@@ -1372,11 +1364,24 @@ const restoreMiniRange = () => {
   return true;
 };
 
+const fnFormatOpen = ref(null);
+const toggleFnFormat = (index) => {
+  fnFormatOpen.value = fnFormatOpen.value === index ? null : index;
+};
+
+// 把腳注欄中使用者手打的 HTML 標籤重新解析為實際格式
+const reparseFnHtml = (fn) => {
+  if (!activeMiniField.value) return;
+  const raw = activeMiniField.value.textContent || "";
+  activeMiniField.value.innerHTML = raw;
+  fn.text = activeMiniField.value.innerHTML;
+};
+
 const onMiniBlur = (e) => {
-  // 點格式按鈕前先存 range，blur 時若目標在工具列內則保留 activeMiniField
   saveMiniRange();
-  if (!e.relatedTarget?.closest?.(".mini-format-bar")) {
+  if (!e.relatedTarget?.closest?.(".fn-format-area")) {
     activeMiniField.value = null;
+    fnFormatOpen.value = null;
   }
 };
 
@@ -1933,15 +1938,6 @@ const colorLabel = (color) => {
               <span class="footnote-hint">在內文中插入 [^N] 引用</span>
             </label>
 
-            <!-- 迷你格式工具列（腳注欄用） -->
-            <div class="mini-format-bar" v-show="activeMiniField">
-              <button type="button" @mousedown.prevent="applyMiniFormat('bold')"><strong>B</strong></button>
-              <button type="button" @mousedown.prevent="wrapMiniTag('span', 'kaiti')">楷</button>
-              <button type="button" @mousedown.prevent="wrapMiniTag('i')"><i>I</i></button>
-              <button type="button" @mousedown.prevent="applyMiniFormat('underline')"><u>U</u></button>
-              <button type="button" @mousedown.prevent="wrapMiniLink">🔗</button>
-            </div>
-
             <div v-for="(fn, index) in form.footnotes" :key="fn.id" class="footnote-item">
               <span class="fn-id">[{{ fn.id }}]</span>
               <div
@@ -1954,9 +1950,20 @@ const colorLabel = (color) => {
                 @input="fn.text = $event.target.innerHTML"
                 v-safe-html="fn.text"
               ></div>
-              <div class="fn-move-btns">
-                <button class="btn btn-sm" :disabled="index === 0" @click="moveFootnote(index, -1)" title="上移">▲</button>
-                <button class="btn btn-sm" :disabled="index === form.footnotes.length - 1" @click="moveFootnote(index, 1)" title="下移">▼</button>
+              <div class="fn-format-area">
+                <button
+                  type="button"
+                  class="btn btn-sm fn-format-btn"
+                  @mousedown.prevent="toggleFnFormat(index)"
+                  title="格式工具"
+                >✏️▾</button>
+                <div v-show="fnFormatOpen === index" class="fn-format-popup">
+                  <button type="button" @mousedown.prevent="applyMiniFormat('bold')" title="粗體"><strong>B</strong></button>
+                  <button type="button" @mousedown.prevent="wrapMiniTag('i')" title="斜體"><i>I</i></button>
+                  <button type="button" @mousedown.prevent="wrapMiniTag('span', 'kaiti')" title="標楷體">楷</button>
+                  <button type="button" @mousedown.prevent="wrapMiniLink" title="超連結">🔗</button>
+                  <button type="button" @mousedown.prevent="reparseFnHtml(fn)" title="解析已輸入的 HTML 標籤">♻</button>
+                </div>
               </div>
               <button class="btn btn-sm btn-insert-fn" @click="insertFootnoteAfter(index)" title="在此之後插入新腳注">＋</button>
               <button class="btn btn-sm btn-danger" @click="removeFootnote(index)">X</button>
@@ -2737,15 +2744,44 @@ const colorLabel = (color) => {
   margin-bottom: 8px;
   gap: 8px;
 }
-.fn-move-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.fn-format-area {
+  position: relative;
+  flex-shrink: 0;
 }
-.fn-move-btns .btn {
-  padding: 1px 4px !important;
-  font-size: 0.65rem !important;
-  line-height: 1.2;
+.fn-format-btn {
+  font-size: 0.75rem !important;
+  padding: 3px 6px !important;
+  background: #f0f4ff;
+  border: 1px solid #c7d2fe;
+  color: #4338ca;
+  cursor: pointer;
+}
+.fn-format-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  z-index: 50;
+  white-space: nowrap;
+}
+.fn-format-popup button {
+  padding: 3px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.fn-format-popup button:hover {
+  background: #e0e7ff;
+  border-color: #6366f1;
 }
 
 .fn-id {
@@ -2782,26 +2818,6 @@ const colorLabel = (color) => {
   box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
 }
 
-.mini-format-bar {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-
-.mini-format-bar button {
-  padding: 3px 9px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: #f8f9fa;
-  cursor: pointer;
-  font-size: 0.85rem;
-  line-height: 1.4;
-}
-
-.mini-format-bar button:hover {
-  background: #e0e7ff;
-  border-color: #6366f1;
-}
 
 /* ── 備註 TipTap 編輯器 ── */
 .btn-remark-fn {
