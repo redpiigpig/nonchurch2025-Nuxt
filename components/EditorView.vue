@@ -1246,17 +1246,44 @@ const handleMediaUpload = async (event) => {
   event.target.value = "";
 };
 
-// ── 腳注引用插入 ──────────────────────────────────────────────────
+// ── 腳注引用插入（自動依游標位置計算序號，後方引用自動 +1）──────────
 const insertFootnoteRef = () => {
-  const num = prompt("腳注編號：", String(form.value.footnotes.length + 1));
-  if (!num) return;
-  editor.value
-    ?.chain()
-    .focus()
-    .insertContent(
-      `<sup class="footnote-ref"><a href="#footnote-${num}" id="footnote-ref-${num}">${num}</a></sup>`,
-    )
-    .run();
+  const editorInst = editor.value;
+  if (!editorInst) return;
+
+  const { state, view } = editorInst;
+  const cursorPos = state.selection.from;
+
+  // 1. 收集所有現有腳注引用節點與其文檔位置
+  const refs = [];
+  state.doc.descendants((node, pos) => {
+    if (node.type.name === "footnoteRef") {
+      refs.push({ pos, fnId: parseInt(node.attrs.fnId) || 0 });
+    }
+  });
+
+  // 2. 游標前有幾個引用 → 新腳注序號
+  const beforeCount = refs.filter((r) => r.pos < cursorPos).length;
+  const newId = beforeCount + 1;
+
+  // 3. 游標後的引用 fnId 全部 +1（從後往前更新，避免位置偏移）
+  const refsAfter = refs.filter((r) => r.pos >= cursorPos).sort((a, b) => b.pos - a.pos);
+  if (refsAfter.length > 0) {
+    const tr = state.tr;
+    refsAfter.forEach((r) => {
+      tr.setNodeMarkup(r.pos, undefined, { fnId: String(r.fnId + 1) });
+    });
+    view.dispatch(tr);
+  }
+
+  // 4. 在游標處插入新腳注引用
+  editorInst.chain().focus().insertContent(
+    `<sup class="footnote-ref"><a href="#footnote-${newId}" id="footnote-ref-${newId}">${newId}</a></sup>`,
+  ).run();
+
+  // 5. 同步更新 footnotes 陣列（後方的 id +1，再於正確位置插入新空白項）
+  form.value.footnotes.forEach((fn) => { if (fn.id >= newId) fn.id += 1; });
+  form.value.footnotes.splice(beforeCount, 0, { id: newId, text: "" });
 };
 
 // ── 連結插入 ─────────────────────────────────────────────────────
