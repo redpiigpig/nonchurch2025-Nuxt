@@ -1301,22 +1301,41 @@ const annEditorNotes = ref({});
 
 // ── 迷你富文本（腳注欄用）────────────────────────────────────────
 const activeMiniField = ref(null);
+const savedMiniRange = ref(null);  // 儲存選取範圍，讓格式按鈕點擊後可恢復
+
+const saveMiniRange = () => {
+  if (!activeMiniField.value) return;
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0) {
+    savedMiniRange.value = sel.getRangeAt(0).cloneRange();
+  }
+};
+
+const restoreMiniRange = () => {
+  if (!activeMiniField.value || !savedMiniRange.value) return false;
+  activeMiniField.value.focus();
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(savedMiniRange.value);
+  return true;
+};
 
 const onMiniBlur = (e) => {
+  // 點格式按鈕前先存 range，blur 時若目標在工具列內則保留 activeMiniField
+  saveMiniRange();
   if (!e.relatedTarget?.closest?.(".mini-format-bar")) {
     activeMiniField.value = null;
   }
 };
 
 const applyMiniFormat = (cmd) => {
-  if (!activeMiniField.value) return;
-  activeMiniField.value.focus();
+  if (!restoreMiniRange()) return;
   document.execCommand(cmd, false, null);
+  activeMiniField.value?.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
 const wrapMiniTag = (tag, className = null) => {
-  if (!activeMiniField.value) return;
-  activeMiniField.value.focus();
+  if (!restoreMiniRange()) return;
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
   const range = sel.getRangeAt(0);
@@ -1324,19 +1343,18 @@ const wrapMiniTag = (tag, className = null) => {
     const el = document.createElement(tag);
     if (className) el.className = className;
     range.surroundContents(el);
-  } catch {
-    // 選取跨越多個元素時無法用 surroundContents，靜默失敗
-  }
-  activeMiniField.value.dispatchEvent(new Event("input", { bubbles: true }));
+  } catch { /* 跨元素選取，靜默失敗 */ }
+  activeMiniField.value?.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
 const wrapMiniLink = () => {
-  if (!activeMiniField.value) return;
-  const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+  if (!savedMiniRange.value || !activeMiniField.value) return;
   const url = prompt("連結 URL：");
   if (!url) return;
-  activeMiniField.value.focus();
+  // prompt 會清掉 selection，需要先 restore
+  restoreMiniRange();
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
   const range = sel.getRangeAt(0);
   try {
     const el = document.createElement("a");
@@ -1345,7 +1363,7 @@ const wrapMiniLink = () => {
     el.rel = "noopener noreferrer";
     range.surroundContents(el);
   } catch { /* 跨元素選取，靜默失敗 */ }
-  activeMiniField.value.dispatchEvent(new Event("input", { bubbles: true }));
+  activeMiniField.value?.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
 const activeAnn = computed(() =>
@@ -1881,6 +1899,8 @@ const colorLabel = (color) => {
                 class="mini-editor-field"
                 @focus="activeMiniField = $event.target"
                 @blur="onMiniBlur"
+                @mouseup="saveMiniRange"
+                @keyup="saveMiniRange"
                 @input="fn.text = $event.target.innerHTML"
                 v-safe-html="fn.text"
               ></div>
