@@ -854,11 +854,11 @@ const convertToArticle = async (sub) => {
             <th width="30"></th>
             <th width="220">ID(自動排序)</th>
             <th width="60">頁數</th>
-            <th width="260">主標題</th>
+            <th width="200">主標題</th>
             <th width="130">圖片 SEO</th>
             <th width="100">上傳 PDF</th>
             <th width="90">校對狀態</th>
-            <th width="110">操作</th>
+            <th width="150">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -1003,7 +1003,7 @@ const convertToArticle = async (sub) => {
                     >🔍</NuxtLink
                   >
                   <button
-                    v-if="article.article_type !== 'toc' && article.article_type !== 'submission_info' && article.article_type !== 'editorial_info'"
+                    v-if="article.article_type !== 'submission_info' && article.article_type !== 'editorial_info'"
                     class="btn-word"
                     :disabled="downloadingWord === article.id"
                     @click="downloadWord(article)"
