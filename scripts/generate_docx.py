@@ -1514,14 +1514,14 @@ class ProfessionalDocxGenerator:
 
         p = self.doc.add_paragraph()
         p.paragraph_format.first_line_indent = Pt(0)
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-        # 明確覆蓋 Normal style 的 1.5× 行距，改為單行；前後各 0.75 行距
+        # 前後 9pt（≈0.75rem），單行行距
         pPr = p._element.get_or_add_pPr()
         sp = OxmlElement('w:spacing')
-        sp.set(qn('w:beforeLines'), '75')    # 0.75 行距
-        sp.set(qn('w:afterLines'),  '75')    # 0.75 行距
-        sp.set(qn('w:line'),        '240')   # 單行行距（240 = 1×）
+        sp.set(qn('w:before'),    '180')   # 9pt = 180 twips
+        sp.set(qn('w:after'),     '180')   # 9pt = 180 twips
+        sp.set(qn('w:line'),      '240')   # 單行行距（240 = 1×）
         sp.set(qn('w:lineRule'),    'auto')
         pPr.append(sp)
 
