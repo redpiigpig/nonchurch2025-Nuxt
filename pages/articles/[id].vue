@@ -482,6 +482,12 @@ const htmlContent = computed(() => {
     return `src="https://res.cloudinary.com/nonchurch2025/image/upload/${srcValue}"`;
   });
 
+  // 3. 外部連結開新頁
+  html = html.replace(/<a\s([^>]*href="https?:\/\/[^"]*"[^>]*)>/gi, (match, attrs) => {
+    if (/target=/.test(attrs)) return match;
+    return `<a ${attrs} target="_blank" rel="noopener noreferrer">`;
+  });
+
   return html;
 });
 
