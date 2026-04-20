@@ -39,7 +39,8 @@ export default defineEventHandler(async (event) => {
       "scripts",
       "generate_docx.py",
     );
-    const command = `python "${pythonScript}" "${tempJsonPath}" "${outputPath}"`;
+    const pythonBin = process.platform === "win32" ? "python" : "python3";
+    const command = `${pythonBin} "${pythonScript}" "${tempJsonPath}" "${outputPath}"`;
 
     console.log("🐍 執行 Python 腳本:", command);
 

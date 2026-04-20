@@ -50,7 +50,8 @@ export default defineEventHandler(async (event) => {
   const scriptPath = join(process.cwd(), "scripts", "merge_pdfs.py");
 
   return new Promise((resolve) => {
-    const py = spawn("python", [scriptPath], {
+    const pythonBin = process.platform === "win32" ? "python" : "python3";
+    const py = spawn(pythonBin, [scriptPath], {
       env: {
         ...process.env,
         CLOUDINARY_CLOUD_NAME: config.cloudinaryCloudName,
