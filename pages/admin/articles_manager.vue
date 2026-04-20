@@ -463,29 +463,100 @@ const goToEditor = (article) => {
 
 // ── 下載 Word ──
 const downloadingWord = ref(null);
+const TOC_SECTION_ORDER = ["主題介紹", "特稿專區", "主題廣場", "多元講堂", "編輯資訊"];
+const TOC_SECTIONS_WITH_SEPARATOR = new Set(["特稿專區", "主題廣場", "多元講堂", "編輯資訊"]);
+const TOC_SECTIONS_WITH_LABEL = new Set(["特稿專區", "主題廣場", "多元講堂"]);
+const TOC_CATEGORY_COLORS = {
+  "封面故事": "#7d6c29", "專題文章": "#8b0000",
+  "人物專訪": "#b8a000", "評論與回應": "#cc6600",
+  "生命故事": "#46b175", "公告與剪影": "#6a5acd",
+  "時事評論": "#4682b4", "時事感想": "#4682b4",
+  "文藝創作": "#27408b", "光影時刻": "#7d6c29",
+  "實驗園地": "#db7093", "文獻與翻譯": "#008080",
+};
+
+const generateTocHTML = (issueArticles) => {
+  const sorted = [...issueArticles]
+    .filter((a) => a.article_type !== "toc")
+    .map((a) => ({
+      ...a,
+      author: a.author_display || a.author || "",
+      section: TOC_SECTION_ORDER.includes(a.section) ? a.section : "主題介紹",
+      _seq: parseInt(a.id.match(/-(\d+)/)?.[1] || a.sort_order || 999),
+    }))
+    .sort((a, b) => {
+      const si = TOC_SECTION_ORDER.indexOf(a.section);
+      const sj = TOC_SECTION_ORDER.indexOf(b.section);
+      return si !== sj ? si - sj : a._seq - b._seq;
+    })
+    .map((a, i) => ({ ...a, tocSeq: i + 1 }));
+
+  const parts = [];
+  let lastSection = null;
+  for (const a of sorted) {
+    if (a.section !== lastSection) {
+      if (TOC_SECTIONS_WITH_SEPARATOR.has(a.section)) {
+        parts.push('<div class="custom-divider"></div>');
+        if (TOC_SECTIONS_WITH_LABEL.has(a.section)) {
+          parts.push(`<h3>${a.section}</h3>`);
+        }
+      }
+      lastSection = a.section;
+    }
+    const seqStr = String(a.tocSeq).padStart(2, "0");
+    const color = a.category ? (TOC_CATEGORY_COLORS[a.category] || "#000000") : null;
+    const catTag = a.category ? `<span style="color:${color};font-size:10pt">【${a.category}】</span>` : "";
+    const subtitlePart = a.subtitle ? `<br>──${a.subtitle}` : "";
+    const page = a.page_start != null ? a.page_start : "—";
+    const author = a.author ? `｜${a.author}` : "";
+    parts.push(`<p class="toc-line"><strong>${seqStr}</strong> ${catTag}${a.title}${subtitlePart}${author}｜pp. ${page}</p>`);
+  }
+  return parts.join("\n");
+};
+
 const downloadWord = async (article) => {
   downloadingWord.value = article.id;
   try {
-    const { data, error } = await supabase
-      .from("articles")
-      .select("id, title, subtitle, category, author, author_title, remark, keyword, content, footnotes, issue, issue_title, page_start, media_assets(image_url, sort_order)")
-      .eq("id", article.id)
-      .single();
-    if (error) throw error;
+    let exportData;
 
-    const assets = data.media_assets || [];
-    const resolvedContent = (data.content || "").replace(
-      /\[\[圖片(\d+)\]\]/g,
-      (match, orderStr) => {
-        const found = assets.find((m) => m.sort_order === parseInt(orderStr));
-        return found ? found.image_url : match;
-      },
-    );
+    if (article.article_type === "toc") {
+      // 目次：即時從同期文章生成最新 HTML
+      const { data: issueArts, error: iaErr } = await supabase
+        .from("articles")
+        .select("id, title, subtitle, author, author_display, category, section, sort_order, page_start, article_type")
+        .eq("issue", article.issue);
+      if (iaErr) throw iaErr;
+      exportData = {
+        id: article.id,
+        article_type: "toc",
+        title: "目次",
+        subtitle: "", category: "", author: "", author_title: "",
+        remark: "", keyword: "", footnotes: [],
+        issue: article.issue, issue_title: "", page_start: null,
+        content: generateTocHTML(issueArts || []),
+      };
+    } else {
+      const { data, error } = await supabase
+        .from("articles")
+        .select("id, title, subtitle, category, author, author_title, remark, keyword, content, footnotes, issue, issue_title, page_start, media_assets(image_url, sort_order)")
+        .eq("id", article.id)
+        .single();
+      if (error) throw error;
+      const assets = data.media_assets || [];
+      const resolvedContent = (data.content || "").replace(
+        /\[\[圖片(\d+)\]\]/g,
+        (match, orderStr) => {
+          const found = assets.find((m) => m.sort_order === parseInt(orderStr));
+          return found ? found.image_url : match;
+        },
+      );
+      exportData = { ...data, content: resolvedContent };
+    }
 
     const response = await fetch("/api/export-word", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...data, content: resolvedContent }),
+      body: JSON.stringify(exportData),
     });
     const result = await response.json();
     if (result.success) {

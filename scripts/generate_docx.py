@@ -931,7 +931,16 @@ class ProfessionalDocxGenerator:
                 p.paragraph_format.first_line_indent = Pt(24)
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after  = Pt(0)
-            self._add_inline(p, part)
+            if toc_line:
+                # 目次行：主標題 13pt，副標題（── 之後）12pt
+                dash_pos = part.find('──')
+                if dash_pos != -1:
+                    self._add_inline(p, part[:dash_pos], size=13)
+                    self._add_inline(p, part[dash_pos:], size=12)
+                else:
+                    self._add_inline(p, part, size=13)
+            else:
+                self._add_inline(p, part)
 
     def _add_custom_divider(self):
         """灰色水平分隔線，對應 CSS .custom-divider（3px gray）。
@@ -1587,7 +1596,7 @@ class ProfessionalDocxGenerator:
             result.append((current, current_emoji))
         return result
 
-    def _add_inline(self, paragraph, text, east_font='NSimSun', ascii_font='Times New Roman'):
+    def _add_inline(self, paragraph, text, east_font='NSimSun', ascii_font='Times New Roman', size=12):
         """
         解析 inline 標記：
           **text**           → 粗體
@@ -1630,19 +1639,19 @@ class ProfessionalDocxGenerator:
 
             if bold_md:
                 run = paragraph.add_run(bold_md.group(1))
-                self._apply_font(run, ascii_font, east_font, size=12, bold=True)
+                self._apply_font(run, ascii_font, east_font, size=size, bold=True)
             elif kaiti_md:
                 run = paragraph.add_run(kaiti_md.group(1))
-                self._apply_font(run, ascii_font, '標楷體', size=12)
+                self._apply_font(run, ascii_font, '標楷體', size=size)
             elif bold_html:
                 run = paragraph.add_run(bold_html.group(1))
-                self._apply_font(run, ascii_font, east_font, size=12, bold=True)
+                self._apply_font(run, ascii_font, east_font, size=size, bold=True)
             elif em_html:
                 run = paragraph.add_run(em_html.group(1))
-                self._apply_font(run, ascii_font, '標楷體', size=12)
+                self._apply_font(run, ascii_font, '標楷體', size=size)
             elif italic_html:
                 run = paragraph.add_run(italic_html.group(1))
-                self._apply_font(run, ascii_font, east_font, size=12, italic=True)
+                self._apply_font(run, ascii_font, east_font, size=size, italic=True)
             elif br_tag:
                 # 段落內換行（w:br）
                 br_run = paragraph.add_run()
@@ -1663,7 +1672,7 @@ class ProfessionalDocxGenerator:
                 elif 'kaiti' in class_v:
                     # <span class="kaiti"> → 標楷體
                     run = paragraph.add_run(inner)
-                    self._apply_font(run, ascii_font, '標楷體', size=12)
+                    self._apply_font(run, ascii_font, '標楷體', size=size)
                 else:
                     # 解析 style 屬性中的 color 與 font-size
                     color_m = re.search(r'color:\s*(#[0-9a-fA-F]{3,6}|\w+)', style_v)
@@ -1680,7 +1689,7 @@ class ProfessionalDocxGenerator:
                     else:
                         # 其他 span → 以正常字型輸出
                         run = paragraph.add_run(inner)
-                        self._apply_font(run, ascii_font, east_font, size=12)
+                        self._apply_font(run, ascii_font, east_font, size=size)
             elif fn_sup:
                 self._add_footnote_ref(paragraph, fn_sup.group(1))
             elif fn_m:
@@ -1696,13 +1705,13 @@ class ProfessionalDocxGenerator:
                 for chunk, is_emoji in self._split_emoji(seg):
                     if is_emoji:
                         run = paragraph.add_run(chunk)
-                        self._apply_font(run, 'Segoe UI Symbol', 'Segoe UI Symbol', size=12)
+                        self._apply_font(run, 'Segoe UI Symbol', 'Segoe UI Symbol', size=size)
                     else:
                         # 拆分特殊字元 ‧／∕ → 新細明體（PMingLiU）
                         for sub, is_special in self._split_special_chars(chunk):
                             r = paragraph.add_run(sub)
                             ef = 'PMingLiU' if is_special else east_font
-                            self._apply_font(r, ascii_font, ef, size=12)
+                            self._apply_font(r, ascii_font, ef, size=size)
 
     # ── 頁首頁尾 ────────────────────────────────────────────
 
@@ -1831,10 +1840,12 @@ def generate_article_docx(article_data, output_path):
               article_data.get('title') in ('目次', '目錄'))
 
     category_colors = {
-        '封面故事': '#833C0B', '專題文章': '#C00000',
-        '人物專訪': '#FFC000', '評論與回應': '#ED7D31',
-        '生命故事': '#00B050', '公告與剪影': '#7030A0',
-        '時事評論': '#0070C0',
+        '封面故事': '#7d6c29', '專題文章': '#8b0000',
+        '人物專訪': '#b8a000', '評論與回應': '#cc6600',
+        '生命故事': '#46b175', '公告與剪影': '#6a5acd',
+        '時事評論': '#4682b4', '時事感想': '#4682b4',
+        '文藝創作': '#27408b', '光影時刻': '#7d6c29',
+        '實驗園地': '#db7093', '文獻與翻譯': '#008080',
     }
     category = article_data.get('category', '')
     if category:
