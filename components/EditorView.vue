@@ -1065,16 +1065,27 @@ const sortedMediaAssets = computed(() =>
 );
 
 const insertImageBlock = (sortOrder, style) => {
+  const placeholder = `[[圖片${sortOrder}]]`;
+  const editorInst = editor.value;
+  if (!editorInst) return;
+
+  if (style === "theme") {
+    editorInst.commands.insertContent(`<div class="theme-image"><img src="${placeholder}" alt="主題圖片說明"></div>`);
+    return;
+  }
+  if (style === "person") {
+    editorInst.commands.insertContent(`<figure class="img-right px-300"><img src="${placeholder}" alt="受訪者姓名" style="border: 1px solid #000; outline: 4.5px solid #000; outline-offset: 1px;"></figure>`);
+    return;
+  }
+
   const figureClassMap = {
     left: "img-left px-300",
     center: "img-bottom px-600",
     right: "img-right px-300",
   };
   const newClass = figureClassMap[style];
-  const placeholder = `[[圖片${sortOrder}]]`;
 
   // 先在 editor 中找有沒有已包含這張圖的 rawBlock
-  const editorInst = editor.value;
   if (editorInst) {
     let foundPos = null;
     let foundNode = null;
@@ -1272,9 +1283,16 @@ const addFootnote = () => {
 
 const removeFootnote = (index) => {
   form.value.footnotes.splice(index, 1);
-  form.value.footnotes.forEach((fn, idx) => {
-    fn.id = idx + 1;
-  });
+  form.value.footnotes.forEach((fn, idx) => { fn.id = idx + 1; });
+};
+
+const moveFootnote = (index, direction) => {
+  const arr = form.value.footnotes;
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= arr.length) return;
+  const [item] = arr.splice(index, 1);
+  arr.splice(newIndex, 0, item);
+  arr.forEach((fn, i) => { fn.id = i + 1; });
 };
 
 // ── 校對標記審閱 ─────────────────────────────────────────────────
@@ -1309,7 +1327,24 @@ const wrapMiniTag = (tag, className = null) => {
   } catch {
     // 選取跨越多個元素時無法用 surroundContents，靜默失敗
   }
-  // 同步 innerHTML 回 model
+  activeMiniField.value.dispatchEvent(new Event("input", { bubbles: true }));
+};
+
+const wrapMiniLink = () => {
+  if (!activeMiniField.value) return;
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+  const url = prompt("連結 URL：");
+  if (!url) return;
+  activeMiniField.value.focus();
+  const range = sel.getRangeAt(0);
+  try {
+    const el = document.createElement("a");
+    el.href = url;
+    el.target = "_blank";
+    el.rel = "noopener noreferrer";
+    range.surroundContents(el);
+  } catch { /* 跨元素選取，靜默失敗 */ }
   activeMiniField.value.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
@@ -1628,8 +1663,12 @@ const colorLabel = (color) => {
               📚 書籍簡介
             </button>
             <button type="button" class="tool-btn comp-btn"
+              @click="insertRaw(`<figure class='img-bottom px-600'><img src='圖片網址' alt='圖片說明'><figcaption>圖片說明</figcaption></figure>`)">
+              🖼 一般圖片
+            </button>
+            <button type="button" class="tool-btn comp-btn"
               @click="insertRaw(`<figure class='img-right px-300'><img src='圖片網址' alt='受訪者姓名' style='border: 1px solid #000; outline: 4.5px solid #000; outline-offset: 1px;'></figure>`)">
-              🖼 受訪者照片
+              👤 受訪者照片
             </button>
             <button type="button" class="tool-btn comp-btn"
               @click="insertRaw(`<div class='theme-image'><img src='圖片網址' alt='主題圖片說明'></div>`)">
@@ -1698,6 +1737,8 @@ const colorLabel = (color) => {
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'left')">左</button>
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'center')">中</button>
                 <button type="button" class="tool-btn img-btn" @click="insertImageBlock(img.sort_order, 'right')">右</button>
+                <button type="button" class="tool-btn img-btn img-btn-theme" @click="insertImageBlock(img.sort_order, 'theme')" title="插入為主題圖片">主</button>
+                <button type="button" class="tool-btn img-btn img-btn-person" @click="insertImageBlock(img.sort_order, 'person')" title="插入為受訪者照片">人</button>
               </div>
             </div>
           </template>
@@ -1830,6 +1871,7 @@ const colorLabel = (color) => {
               <button type="button" @mousedown.prevent="wrapMiniTag('span', 'kaiti')">楷</button>
               <button type="button" @mousedown.prevent="wrapMiniTag('i')"><i>I</i></button>
               <button type="button" @mousedown.prevent="applyMiniFormat('underline')"><u>U</u></button>
+              <button type="button" @mousedown.prevent="wrapMiniLink">🔗</button>
             </div>
 
             <div v-for="(fn, index) in form.footnotes" :key="fn.id" class="footnote-item">
@@ -1842,6 +1884,10 @@ const colorLabel = (color) => {
                 @input="fn.text = $event.target.innerHTML"
                 v-safe-html="fn.text"
               ></div>
+              <div class="fn-move-btns">
+                <button class="btn btn-sm" :disabled="index === 0" @click="moveFootnote(index, -1)" title="上移">▲</button>
+                <button class="btn btn-sm" :disabled="index === form.footnotes.length - 1" @click="moveFootnote(index, 1)" title="下移">▼</button>
+              </div>
               <button class="btn btn-sm btn-danger" @click="removeFootnote(index)">X</button>
             </div>
             <button class="btn btn-sm" @click="addFootnote">+ 新增註腳</button>
@@ -2186,6 +2232,8 @@ const colorLabel = (color) => {
 .comp-btn:hover { background: #e0e7ff; }
 
 .img-btn { padding: 2px 5px !important; font-size: 0.72rem !important; }
+.img-btn-theme { background: #e8f4f8 !important; color: #0070C0 !important; }
+.img-btn-person { background: #fef0e6 !important; color: #cc6600 !important; }
 
 .toolbar-section-label {
   font-size: 0.75rem;
@@ -2616,6 +2664,16 @@ const colorLabel = (color) => {
   align-items: center;
   margin-bottom: 8px;
   gap: 8px;
+}
+.fn-move-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fn-move-btns .btn {
+  padding: 1px 4px !important;
+  font-size: 0.65rem !important;
+  line-height: 1.2;
 }
 
 .fn-id {
