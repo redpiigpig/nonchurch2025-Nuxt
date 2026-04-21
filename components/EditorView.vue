@@ -1110,14 +1110,14 @@ const insertImageBlock = (sortOrder, style) => {
     return;
   }
   if (style === "person") {
-    editorInst.commands.insertContent(`<figure class="img-right px-300"><img src="${placeholder}" alt="受訪者姓名" style="border: 1px solid #000; outline: 4.5px solid #000; outline-offset: 1px;"></figure>`);
+    editorInst.commands.insertContent(`<figure class="img-right px-400"><img src="${placeholder}" alt="受訪者姓名" style="border: 1px solid #000; outline: 4.5px solid #000; outline-offset: 1px;"></figure>`);
     return;
   }
 
   const figureClassMap = {
-    left: "img-left px-300",
+    left: "img-left px-400",
     center: "img-bottom px-600",
-    right: "img-right px-300",
+    right: "img-right px-400",
   };
   const newClass = figureClassMap[style];
 
@@ -1156,9 +1156,9 @@ const insertImageBlock = (sortOrder, style) => {
 
   // 找不到 → 在游標位置插入新 figure
   const templates = {
-    left: `<figure class="img-left px-300"><img src="${placeholder}" alt="描述"><figcaption>圖片說明</figcaption></figure>`,
+    left: `<figure class="img-left px-400"><img src="${placeholder}" alt="描述"><figcaption>圖片說明</figcaption></figure>`,
     center: `<figure class="img-bottom px-600"><img src="${placeholder}" alt="描述"><figcaption>圖片說明文字</figcaption></figure>`,
-    right: `<figure class="img-right px-300"><img src="${placeholder}" alt="描述"><figcaption>圖片說明</figcaption></figure>`,
+    right: `<figure class="img-right px-400"><img src="${placeholder}" alt="描述"><figcaption>圖片說明</figcaption></figure>`,
   };
   editorInst?.commands.insertContent(templates[style]);
 };
@@ -1840,7 +1840,7 @@ const colorLabel = (color) => {
               🖼 一般圖片
             </button>
             <button type="button" class="tool-btn comp-btn"
-              @click="insertRaw(`<figure class='img-right px-300'><img src='圖片網址' alt='受訪者姓名' style='border: 1px solid #000; outline: 4.5px solid #000; outline-offset: 1px;'></figure>`)">
+              @click="insertRaw(`<figure class='img-right px-400'><img src='圖片網址' alt='受訪者姓名' style='border: 1px solid #000; outline: 4.5px solid #000; outline-offset: 1px;'></figure>`)">
               👤 受訪者照片
             </button>
             <button type="button" class="tool-btn comp-btn"

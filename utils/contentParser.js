@@ -552,8 +552,8 @@ function extractFootnotesFromHtml(html) {
 // layout 對應的 CSS class
 const LAYOUT_CLASS = {
   center: "img-bottom px-600",
-  left: "img-left px-300",
-  right: "img-right px-300",
+  left: "img-left px-400",
+  right: "img-right px-400",
 };
 
 /**
