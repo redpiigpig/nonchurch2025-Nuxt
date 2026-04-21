@@ -509,15 +509,34 @@ class ProfessionalDocxGenerator:
         # 圖文區塊前空一行
         self._add_blank_line()
 
-        # 左/右/置中 全部統一為「圖片+圖說同一個浮動表格容器」
-        # 這樣在 Word 裡比較容易整塊選取、搬移與縮放。
-        self._add_figure_textbox(
-            img_stream,
-            width_cm,
-            caption_lines,
-            float_dir or 'center',
-            portrait_border=has_portrait_border,
-        )
+        if float_dir:
+            # 左/右圖：浮動群組（可整塊移動）
+            self._add_figure_textbox(
+                img_stream,
+                width_cm,
+                caption_lines,
+                float_dir,
+                portrait_border=has_portrait_border,
+            )
+        else:
+            # bottom 圖：行內置中，不文繞圖，避免文字跑到左右兩側
+            p = self.doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after  = Pt(0)
+            run = p.add_run()
+            if has_portrait_border:
+                run.add_picture(img_stream, width=Cm(width_cm), height=Cm(width_cm))
+                self._add_portrait_double_border(run)
+            else:
+                run.add_picture(img_stream, width=Cm(width_cm))
+
+            if caption_lines:
+                pc = self.doc.add_paragraph()
+                pc.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                pc.paragraph_format.space_before = Pt(0)
+                pc.paragraph_format.space_after  = Pt(0)
+                self._add_caption_runs(pc, caption_lines)
 
         # 圖文區塊後空一行
         self._add_blank_line()

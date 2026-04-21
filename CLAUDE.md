@@ -68,6 +68,11 @@
 每次 Write/Edit 新增或刪除頁面、元件、API、工具檔時，
 立即更新 `tree.txt`，保持目錄結構與實際一致。
 
+### 每次 AI 修改後，必須提交並上傳 Git
+- 只要 AI 完成可運行的修正，就要執行：`git add` → `git commit` → `git push`
+- commit 訊息需清楚描述修正目的（例如：修復 Word 匯出、修正 401、調整腳注規則）
+- 若 push 失敗，需在回報中明確說明原因（權限、網路、遠端衝突）與下一步處理方式
+
 ### 檔案儲存：一律用 Cloudinary，不用 Supabase Storage
 - 使用者使用 Supabase **免費版**，Storage 空間受限
 - 所有媒體檔案（圖片、PDF、Word、音訊）**必須上傳 Cloudinary**
