@@ -569,6 +569,12 @@ function normalizeInlineTags(html) {
   return result;
 }
 
+// 統一地球 emoji 顯示為彩色版本（FE0F）
+function normalizeEmojiVariant(text) {
+  if (!text) return text;
+  return String(text).replace(/\uFE0E/g, "\uFE0F");
+}
+
 // ── Form 狀態 ─────────────────────────────────────────────────────
 const route = useRoute();
 const router = useRouter();
@@ -760,12 +766,12 @@ const loadArticle = async (id) => {
       author_title: data.author_title || "",
       remark: cleanRemarkHtml(data.remark || ""),
       summary: data.summary || "",
-      content: data.content || "",
+      content: normalizeEmojiVariant(data.content || ""),
       keyword: data.keyword || "",
       footnotes: (data.footnotes || []).map((fn) => ({
         ...fn,
         // 相容舊資料：若腳注文字被存成 escaped HTML，載入時還原
-        text: normalizeInlineTags(fn?.text || ""),
+        text: normalizeEmojiVariant(normalizeInlineTags(fn?.text || "")),
       })),
       media_assets: data.media_assets || [],
       prev_id: data.prev_id || "",
@@ -779,7 +785,9 @@ const loadArticle = async (id) => {
     proofreadAnnotations.value = data.proofread_annotations || [];
     proofreadStatus.value = data.proofread_status || "incomplete";
 
-    editor.value?.commands.setContent(normalizeInlineTags(data.content || ""));
+    editor.value?.commands.setContent(
+      normalizeEmojiVariant(normalizeInlineTags(data.content || "")),
+    );
 
     await nextTick();
     const rawRemark = form.value.remark;
@@ -854,12 +862,12 @@ const saveArticle = async (silent = false) => {
     author_title: form.value.author_title,
     remark: form.value.remark,
     summary: form.value.summary,
-    content: form.value.content,
+    content: normalizeEmojiVariant(form.value.content),
     keyword: form.value.keyword,
     footnotes: (form.value.footnotes || []).map((fn) => ({
       ...fn,
       // 儲存前再次正規化，避免把 <span class="kaiti"> 存成純文字
-      text: normalizeInlineTags(fn?.text || ""),
+      text: normalizeEmojiVariant(normalizeInlineTags(fn?.text || "")),
     })),
     prev_id: form.value.prev_id || null,
     next_id: form.value.next_id || null,
@@ -1843,9 +1851,9 @@ const colorLabel = (color) => {
               @click="insertRaw(`<div class='info-card'><div class='info-card-inner'><img src='圖片網址' alt='名稱'><div><h3>名稱</h3><div class='info-card-links'><a href='連結網址' target='_blank'>臉書粉專</a><a href='連結網址' target='_blank'>官方網站</a></div></div></div></div>`)">
               📋 粉專介紹
             </button>
-            <button type="button" class="tool-btn comp-btn"
-              @click="insertRaw('🌏\uFE0E')">
-              🌏 結尾
+            <button type="button" class="tool-btn comp-btn end-earth-btn"
+              @click="insertRaw('🌏️')">
+              <span class="emoji-color">🌏️</span> 結尾
             </button>
           </div>
 
@@ -2388,6 +2396,10 @@ const colorLabel = (color) => {
 
 .comp-btn { background: #f0f4ff; border-color: #c7d2fe; color: #4338ca; }
 .comp-btn:hover { background: #e0e7ff; }
+.end-earth-btn .emoji-color {
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+  font-variant-emoji: emoji;
+}
 
 .img-btn { padding: 2px 5px !important; font-size: 0.72rem !important; }
 .img-btn-theme { background: #e8f4f8 !important; color: #0070C0 !important; }

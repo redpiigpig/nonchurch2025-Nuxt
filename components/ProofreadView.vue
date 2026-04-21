@@ -165,7 +165,14 @@ const loadArticle = async () => {
       if (srcValue.startsWith("http") || srcValue.startsWith("data:") || srcValue.startsWith("//") || srcValue.startsWith("[[圖片")) return match;
       return `src="https://res.cloudinary.com/nonchurch2025/image/upload/${srcValue}"`;
     });
-    data.content = html;
+    data.content = normalizeEmojiVariant(html);
+  }
+
+  if (Array.isArray(data.footnotes)) {
+    data.footnotes = data.footnotes.map((fn) => ({
+      ...fn,
+      text: normalizeEmojiVariant(fn?.text || ""),
+    }));
   }
 
   article.value = data;
@@ -399,8 +406,10 @@ const statusInfo = computed(() => {
   return map[proofreadStatus.value] || map.pending;
 });
 
+const normalizeEmojiVariant = (text = "") => String(text).replace(/\uFE0E/g, "\uFE0F");
+
 const normalizeFootnoteHtml = (html = "") =>
-  String(html)
+  normalizeEmojiVariant(String(html))
     .replace(/&lt;b&gt;/g, "<strong>")
     .replace(/&lt;\/b&gt;/g, "</strong>")
     .replace(/&lt;strong&gt;/g, "<strong>")

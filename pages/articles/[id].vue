@@ -454,12 +454,14 @@ const formatTextWithFootnote = (text) => {
   );
 };
 
+const normalizeEmojiVariant = (text = "") => String(text).replace(/\uFE0E/g, "\uFE0F");
+
 /**
  * 核心渲染邏輯：content 已是 HTML，直接處理佔位符與圖片路徑
  */
 const htmlContent = computed(() => {
   if (!article.value?.content) return "";
-  let html = article.value.content;
+  let html = normalizeEmojiVariant(article.value.content);
 
   // 1. 處理新版：替換 [[圖片N]] 佔位符
   const mediaAssets = article.value?.media_assets || [];
@@ -492,7 +494,7 @@ const htmlContent = computed(() => {
 });
 
 const normalizeFootnoteHtml = (html = "") =>
-  String(html)
+  normalizeEmojiVariant(String(html))
     .replace(/&lt;b&gt;/g, "<strong>")
     .replace(/&lt;\/b&gt;/g, "</strong>")
     .replace(/&lt;strong&gt;/g, "<strong>")

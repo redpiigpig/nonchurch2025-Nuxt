@@ -1,6 +1,5 @@
 <script setup>
 import { ref, onMounted } from "vue";
-import { supabase } from "~/supabase"; // 修正路徑
 
 definePageMeta({
   layout: "admin",
@@ -14,6 +13,7 @@ useHead({
 const authors = ref([]);
 const loading = ref(false);
 const saving = ref(false);
+const supabase = useSupabaseClient();
 
 const showModal = ref(false);
 const isEditing = ref(false);
@@ -91,16 +91,26 @@ const saveAuthor = async () => {
 
     let error = null;
     if (isEditing.value) {
-      const { error: updateErr } = await supabase
+      const { data: updatedRows, error: updateErr } = await supabase
         .from("authors")
         .update(payload)
-        .eq("id", currentAuthor.value.id);
-      error = updateErr;
+        .eq("id", currentAuthor.value.id)
+        .select("id");
+      error =
+        updateErr ||
+        (!updatedRows || updatedRows.length === 0
+          ? new Error("未更新任何資料（可能登入已過期或權限不足）")
+          : null);
     } else {
-      const { error: insertErr } = await supabase
+      const { data: insertedRows, error: insertErr } = await supabase
         .from("authors")
-        .insert([payload]);
-      error = insertErr;
+        .insert([payload])
+        .select("id");
+      error =
+        insertErr ||
+        (!insertedRows || insertedRows.length === 0
+          ? new Error("未寫入任何資料（可能登入已過期或權限不足）")
+          : null);
     }
 
     if (error) throw error;
@@ -117,7 +127,7 @@ const saveAuthor = async () => {
 
 const deleteAuthor = async (id, name) => {
   if (!confirm(`確定要刪除作者「${name}」嗎？\n此動作無法復原！`)) return;
-  const { error } = await supabase.from("authors").delete().eq("id", id);
+  const { error } = await supabase.from("authors").delete().eq("id", id).select("id");
   if (error) {
     alert("刪除失敗：" + error.message);
   } else {
