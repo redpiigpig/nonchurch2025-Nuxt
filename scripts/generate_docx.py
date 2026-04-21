@@ -106,6 +106,7 @@ class ProfessionalDocxGenerator:
         self._footnotes = []    # [(word_id, text), ...]
         self._fn_counter = 1
         self._fn_map = {}       # "[^N]" → text
+        self._media_assets_map = {}  # sort_order(int) -> image_url
         self._img_counter = 1
 
     # ── 頁面設定 ────────────────────────────────────────────
@@ -213,10 +214,32 @@ class ProfessionalDocxGenerator:
         h = hex_color.lstrip('#')
         return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
 
+    def _resolve_image_src(self, src):
+        src = (src or '').strip()
+        if not src:
+            return ''
+        m = re.fullmatch(r'\[\[圖片(\d+)\]\]', src)
+        if m:
+            order = int(m.group(1))
+            return self._media_assets_map.get(order, src)
+        return src
+
     # ── 腳注 ────────────────────────────────────────────────
 
     def set_footnotes(self, footnotes):
         self._fn_map = {str(fn.get('id', '')): fn.get('text', '') for fn in (footnotes or [])}
+
+    def set_media_assets(self, media_assets):
+        mapping = {}
+        for asset in (media_assets or []):
+            try:
+                sort_order = int(asset.get('sort_order'))
+            except (TypeError, ValueError):
+                continue
+            image_url = (asset.get('image_url') or '').strip()
+            if image_url:
+                mapping[sort_order] = image_url
+        self._media_assets_map = mapping
 
     def _add_footnote_ref(self, paragraph, fn_num_str):
         """在段落插入 Word 腳注引用標記（右上角小字）"""
@@ -426,6 +449,10 @@ class ProfessionalDocxGenerator:
 
     def _download_image(self, src):
         """下載圖片並清除 EXIF，回傳 BytesIO 或 None"""
+        src = self._resolve_image_src(src)
+        if not src.startswith(('http://', 'https://', 'data:', '//')):
+            print(f'Warning: unsupported image src {src}')
+            return None
         try:
             req = urllib.request.Request(src, headers={'User-Agent': 'Mozilla/5.0'})
             img_bytes = urllib.request.urlopen(req, timeout=15).read()
@@ -441,6 +468,10 @@ class ProfessionalDocxGenerator:
 
     def _download_and_crop_square(self, src):
         """下載圖片，中心裁切為正方形，回傳 BytesIO 或 None"""
+        src = self._resolve_image_src(src)
+        if not src.startswith(('http://', 'https://', 'data:', '//')):
+            print(f'⚠️ 作者圖片來源不支援: {src}', file=sys.stderr)
+            return None
         try:
             req = urllib.request.Request(src, headers={'User-Agent': 'Mozilla/5.0'})
             img_bytes = urllib.request.urlopen(req, timeout=15).read()
@@ -877,6 +908,8 @@ class ProfessionalDocxGenerator:
             self._add_reference_box(html)
         elif 'theme-image' in outer_class:
             self._add_theme_image(html)
+        elif 'info-card' in outer_class:
+            self._add_info_card(html)
         elif 'author-profile' in outer_class:
             self._add_author_profile(html)
         elif 'footnotes' in outer_class:
@@ -1205,6 +1238,98 @@ class ProfessionalDocxGenerator:
                 p = _ref_para()
                 run = p.add_run('• ' + line)
                 self._apply_font(run, 'Times New Roman', 'NSimSun', size=11)
+
+        self._add_blank_line()
+
+    def _add_info_card(self, html):
+        """資訊卡（.info-card）：外框 + 置中圖片 + 標題 + 連結。"""
+        src_m = re.search(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\']', html, re.IGNORECASE)
+        title_m = re.search(r'<h3[^>]*>(.*?)</h3>', html, re.IGNORECASE | re.DOTALL)
+        links = re.findall(
+            r'<a\b[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
+            html,
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        src = src_m.group(1).strip() if src_m else ''
+        title = re.sub(r'<[^>]+>', '', title_m.group(1)).strip() if title_m else ''
+        link_items = []
+        for href, text in links:
+            clean_text = re.sub(r'<[^>]+>', '', text).strip()
+            if clean_text and href.strip():
+                link_items.append((clean_text, href.strip()))
+
+        self._add_blank_line()
+
+        card = self.doc.add_table(rows=1, cols=1)
+        card.style = 'Table Grid'
+        tbl = card._tbl
+        tblPr = tbl.find(qn('w:tblPr'))
+        if tblPr is None:
+            tblPr = OxmlElement('w:tblPr')
+            tbl.insert(0, tblPr)
+        for old in tblPr.findall(qn('w:tblW')):
+            tblPr.remove(old)
+        tblW = OxmlElement('w:tblW')
+        tblW.set(qn('w:w'), '8051')  # 14.2cm
+        tblW.set(qn('w:type'), 'dxa')
+        tblPr.append(tblW)
+
+        cell = card.cell(0, 0)
+        tcPr = cell._tc.get_or_add_tcPr()
+        tcBorders = OxmlElement('w:tcBorders')
+        for side in ('top', 'left', 'bottom', 'right'):
+            bd = OxmlElement(f'w:{side}')
+            bd.set(qn('w:val'), 'single')
+            bd.set(qn('w:sz'), '16')
+            bd.set(qn('w:space'), '0')
+            bd.set(qn('w:color'), '4F7F39')
+            tcBorders.append(bd)
+        tcPr.append(tcBorders)
+        tcMar = OxmlElement('w:tcMar')
+        for side, val in (('top', '220'), ('bottom', '220'), ('left', '180'), ('right', '180')):
+            mar = OxmlElement(f'w:{side}')
+            mar.set(qn('w:w'), val)
+            mar.set(qn('w:type'), 'dxa')
+            tcMar.append(mar)
+        tcPr.append(tcMar)
+
+        p_img = cell.paragraphs[0]
+        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_img.paragraph_format.space_before = Pt(0)
+        p_img.paragraph_format.space_after = Pt(8)
+        p_img.paragraph_format.first_line_indent = Pt(0)
+        img_stream = self._download_image(src) if src else None
+        if img_stream:
+            p_img.add_run().add_picture(img_stream, width=Cm(5.8), height=Cm(5.8))
+
+        if title:
+            p_title = cell.add_paragraph()
+            p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_title.paragraph_format.space_before = Pt(0)
+            p_title.paragraph_format.space_after = Pt(8)
+            p_title.paragraph_format.first_line_indent = Pt(0)
+            title_run = p_title.add_run(title)
+            self._apply_font(title_run, 'Times New Roman', 'NSimSun', size=14, bold=True)
+            title_run.font.color.rgb = RGBColor(0x3D, 0x5D, 0x33)
+
+        if link_items:
+            p_link = cell.add_paragraph()
+            p_link.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_link.paragraph_format.space_before = Pt(0)
+            p_link.paragraph_format.space_after = Pt(0)
+            p_link.paragraph_format.first_line_indent = Pt(0)
+            for idx, (text, href) in enumerate(link_items):
+                if idx > 0:
+                    gap = p_link.add_run('    ')
+                    self._apply_font(gap, 'Times New Roman', 'NSimSun', size=11)
+                txt_run = p_link.add_run(text)
+                self._apply_font(txt_run, 'Times New Roman', 'NSimSun', size=11)
+                txt_run.font.underline = True
+                txt_run.font.color.rgb = RGBColor(0x00, 0x56, 0xB3)
+                href_run = p_link.add_run(f' ({href})')
+                self._apply_font(href_run, 'Times New Roman', 'NSimSun', size=10)
+                href_run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
 
         self._add_blank_line()
 
@@ -1865,6 +1990,7 @@ class ProfessionalDocxGenerator:
 def generate_article_docx(article_data, output_path):
     generator = ProfessionalDocxGenerator()
     generator.set_footnotes(article_data.get('footnotes', []))
+    generator.set_media_assets(article_data.get('media_assets', []))
 
     is_toc = (article_data.get('article_type') == 'toc' or
               article_data.get('title') in ('目次', '目錄'))
