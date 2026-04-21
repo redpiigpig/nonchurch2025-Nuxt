@@ -474,7 +474,7 @@ onBeforeUnmount(() => {
             <p>
               <span>{{ article.author }}</span>
               <span v-if="article.author_title" class="author-title">{{ article.author_title }}</span>
-              <span v-if="article.remark" class="author-remark">{{ article.remark }}</span>
+              <span v-if="article.remark" class="author-remark" v-html="article.remark"></span>
             </p>
           </div>
 

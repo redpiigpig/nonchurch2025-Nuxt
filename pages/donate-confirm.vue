@@ -77,7 +77,7 @@ const handleSubmit = async () => {
       <div class="result-icon">✅</div>
       <h2>感謝您的支持！</h2>
       <p class="no-indent">我們已收到您的回填資訊，確認匯款後將以電子郵件通知您。願您平安。</p>
-      <a href="/subscribe" class="btn-subscribe">📮 線上訂閱電子報</a>
+      <a href="/subscribe" class="btn-subscribe" target="_blank" rel="noopener">📮 線上訂閱電子報</a>
     </div>
 
     <!-- 錯誤 -->
@@ -153,7 +153,7 @@ const handleSubmit = async () => {
 
       <div class="subscribe-hint">
         <p>尚未訂閱《無境界者》電子報嗎？每期出刊時我們將寄送通知至您的信箱：</p>
-        <a href="/subscribe" class="btn-subscribe">📮 線上訂閱電子報</a>
+        <a href="/subscribe" class="btn-subscribe" target="_blank" rel="noopener">📮 線上訂閱電子報</a>
       </div>
 
     </form>
