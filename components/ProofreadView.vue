@@ -408,6 +408,27 @@ const statusInfo = computed(() => {
 
 const normalizeEmojiVariant = (text = "") => String(text).replace(/\uFE0E/g, "\uFE0F");
 
+/** 與前台 articles/[id] 相同：備註／作者欄 [^N] → 上標連結 */
+const formatTextWithFootnote = (text) => {
+  if (!text) return "";
+  return String(text).replace(
+    /\[\^(\d+)\]/g,
+    (_, id) =>
+      `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`,
+  );
+};
+
+/** 備註依 <br> 拆行，與作者／頭銜等距排列 */
+const remarkAuthorLines = computed(() => {
+  const r = article.value?.remark;
+  if (!r) return [];
+  return String(r)
+    .trim()
+    .split(/<br\s*\/?>/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
+});
+
 const normalizeFootnoteHtml = (html = "") =>
   normalizeEmojiVariant(String(html))
     .replace(/&lt;b&gt;/g, "<strong>")
@@ -427,7 +448,10 @@ const normalizeFootnoteHtml = (html = "") =>
 const footnotesHtml = computed(() => {
   if (!article.value?.footnotes?.length) return "";
   const items = article.value.footnotes
-    .map((n) => `<li><p>${normalizeFootnoteHtml(n.text)}</p></li>`)
+    .map(
+      (n) =>
+        `<li id="footnote-${n.id}"><div class="fn-body">${normalizeFootnoteHtml(n.text)}<a href="#footnote-ref-${n.id}" class="footnote-backref">↩</a></div></li>`,
+    )
     .join("");
   return `<div class="footnotes"><hr /><ol>${items}</ol></div>`;
 });
@@ -498,11 +522,23 @@ onBeforeUnmount(() => {
           <div class="divider-gap"></div>
           <div class="divider-thin"></div>
           <div class="author-info">
-            <p>
-              <span>{{ article.author }}</span>
-              <span v-if="article.author_title" class="author-title">{{ article.author_title }}</span>
-              <span v-if="article.remark" class="author-remark" v-html="article.remark"></span>
-            </p>
+            <div class="author-meta-stack">
+              <span
+                class="author-line"
+                v-html="formatTextWithFootnote(article.author || '')"
+              ></span>
+              <span
+                v-if="article.author_title"
+                class="author-line author-title-line"
+                v-html="formatTextWithFootnote(article.author_title)"
+              ></span>
+              <span
+                v-for="(seg, idx) in remarkAuthorLines"
+                :key="'remark-' + idx"
+                class="author-line author-remark-line"
+                v-html="formatTextWithFootnote(seg)"
+              ></span>
+            </div>
           </div>
 
           <!-- 段落 -->
@@ -794,11 +830,22 @@ onBeforeUnmount(() => {
   text-align: right;
   margin-bottom: 24px;
   font-family: "Times New Roman", serif;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   color: #444;
+  line-height: 1.5;
 }
-.author-title  { display: block; margin-top: 2px; }
-.author-remark { display: block; margin-top: 6px; font-size: 0.95rem; }
+.author-meta-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.65rem;
+}
+.author-line {
+  display: block;
+  max-width: 100%;
+  margin: 0;
+  line-height: 1.5;
+}
 
 /* 段落 */
 .paragraphs-area { margin-top: 12px; }

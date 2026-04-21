@@ -454,6 +454,17 @@ const formatTextWithFootnote = (text) => {
   );
 };
 
+/** 備註依 <br> 拆行，與作者／頭銜用同一垂直節奏（等距） */
+const remarkAuthorLines = computed(() => {
+  const r = displayArticle.value?.remark;
+  if (!r) return [];
+  return String(r)
+    .trim()
+    .split(/<br\s*\/?>/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
+});
+
 const normalizeEmojiVariant = (text = "") => String(text).replace(/\uFE0E/g, "\uFE0F");
 
 /**
@@ -567,18 +578,23 @@ const keywordContent = computed(() => {
     <div class="divider-thin"></div>
 
     <div v-if="!isToc" class="author-info">
-      <p class="author-name">
-        <span v-html="formatTextWithFootnote(displayArticle.author)"></span>
+      <div class="author-meta-stack">
         <span
-          class="author-title"
+          class="author-line"
+          v-html="formatTextWithFootnote(displayArticle.author)"
+        ></span>
+        <span
+          v-if="displayArticle.authorTitle"
+          class="author-line author-title-line"
           v-html="formatTextWithFootnote(displayArticle.authorTitle)"
         ></span>
         <span
-          v-if="displayArticle.remark"
-          class="author-remark"
-          v-html="formatTextWithFootnote(displayArticle.remark)"
+          v-for="(seg, idx) in remarkAuthorLines"
+          :key="'remark-' + idx"
+          class="author-line author-remark-line"
+          v-html="formatTextWithFootnote(seg)"
         ></span>
-      </p>
+      </div>
     </div>
 
     <div
@@ -738,27 +754,21 @@ const keywordContent = computed(() => {
   text-align: right;
   margin-bottom: 40px;
   font-family: "Times New Roman", serif;
+  font-size: 1.2rem;
+  color: #444;
   line-height: 1.5;
 }
-.author-name {
-  font-size: 1.2rem;
-  color: #444;
+.author-meta-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.65rem;
 }
-/* 讓作者名稱的 span 也以 block 呈現，與下方欄位行距一致 */
-.author-name > span:first-child {
+.author-line {
   display: block;
-}
-.author-title {
-  display: block;
-  font-size: 1.2rem;
-  color: #444;
-  margin-top: 0.6rem;
-}
-.author-remark {
-  display: block;
-  font-size: 1.2rem;
-  color: #444;
-  margin-top: 0.6rem;
+  max-width: 100%;
+  margin: 0;
+  line-height: 1.5;
 }
 .not-found {
   text-align: center;
