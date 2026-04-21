@@ -5,6 +5,7 @@ import { supabase } from "~/supabase";
 import { useTempArticlesStore } from "~/stores/tempArticles";
 import { useLanguage } from "~/composables/useLanguage";
 import { useEditorMode } from "~/composables/useEditorMode";
+import { splitAuthorRemarkLines } from "~/utils/authorRemark";
 
 const route = useRoute();
 const { currentLang } = useLanguage();
@@ -447,23 +448,17 @@ const handleNavClick = () => {
 
 const formatTextWithFootnote = (text) => {
   if (!text) return "";
-  return text.replace(
-    /\[\^(\d+)\]/g,
+  return String(text).replace(
+    /\[\^\s*(\d+)\s*\]/g,
     (_, id) =>
       `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`,
   );
 };
 
-/** 備註依 <br> 拆行，與作者／頭銜用同一垂直節奏（等距） */
-const remarkAuthorLines = computed(() => {
-  const r = displayArticle.value?.remark;
-  if (!r) return [];
-  return String(r)
-    .trim()
-    .split(/<br\s*\/?>/i)
-    .map((p) => p.trim())
-    .filter(Boolean);
-});
+/** 備註拆行（含多 <p>），與作者／頭銜同一垂直節奏 */
+const remarkAuthorLines = computed(() =>
+  splitAuthorRemarkLines(displayArticle.value?.remark),
+);
 
 const normalizeEmojiVariant = (text = "") => String(text).replace(/\uFE0E/g, "\uFE0F");
 
@@ -579,21 +574,21 @@ const keywordContent = computed(() => {
 
     <div v-if="!isToc" class="author-info">
       <div class="author-meta-stack">
-        <span
+        <div
           class="author-line"
           v-html="formatTextWithFootnote(displayArticle.author)"
-        ></span>
-        <span
+        ></div>
+        <div
           v-if="displayArticle.authorTitle"
           class="author-line author-title-line"
           v-html="formatTextWithFootnote(displayArticle.authorTitle)"
-        ></span>
-        <span
+        ></div>
+        <div
           v-for="(seg, idx) in remarkAuthorLines"
           :key="'remark-' + idx"
           class="author-line author-remark-line"
           v-html="formatTextWithFootnote(seg)"
-        ></span>
+        ></div>
       </div>
     </div>
 
@@ -769,6 +764,12 @@ const keywordContent = computed(() => {
   max-width: 100%;
   margin: 0;
   line-height: 1.5;
+}
+.author-meta-stack .author-line :deep(p) {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: inline;
+  font: inherit;
 }
 .not-found {
   text-align: center;

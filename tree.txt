@@ -159,6 +159,7 @@ Directory structure:
     ├── templates/
     │   └── article-template.dotx
     └── utils/
+        ├── authorRemark.js
         ├── cdn.js
         ├── cloudinary.js
         ├── contentParser.js

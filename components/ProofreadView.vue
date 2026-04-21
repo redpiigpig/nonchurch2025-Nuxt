@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { supabase } from "~/supabase";
+import { splitAuthorRemarkLines } from "~/utils/authorRemark";
 
 const route = useRoute();
 const router = useRouter();
@@ -412,22 +413,13 @@ const normalizeEmojiVariant = (text = "") => String(text).replace(/\uFE0E/g, "\u
 const formatTextWithFootnote = (text) => {
   if (!text) return "";
   return String(text).replace(
-    /\[\^(\d+)\]/g,
+    /\[\^\s*(\d+)\s*\]/g,
     (_, id) =>
       `<sup class="footnote-ref"><a href="#footnote-${id}" id="footnote-ref-${id}">${id}</a></sup>`,
   );
 };
 
-/** 備註依 <br> 拆行，與作者／頭銜等距排列 */
-const remarkAuthorLines = computed(() => {
-  const r = article.value?.remark;
-  if (!r) return [];
-  return String(r)
-    .trim()
-    .split(/<br\s*\/?>/i)
-    .map((p) => p.trim())
-    .filter(Boolean);
-});
+const remarkAuthorLines = computed(() => splitAuthorRemarkLines(article.value?.remark));
 
 const normalizeFootnoteHtml = (html = "") =>
   normalizeEmojiVariant(String(html))
@@ -523,21 +515,21 @@ onBeforeUnmount(() => {
           <div class="divider-thin"></div>
           <div class="author-info">
             <div class="author-meta-stack">
-              <span
+              <div
                 class="author-line"
                 v-html="formatTextWithFootnote(article.author || '')"
-              ></span>
-              <span
+              ></div>
+              <div
                 v-if="article.author_title"
                 class="author-line author-title-line"
                 v-html="formatTextWithFootnote(article.author_title)"
-              ></span>
-              <span
+              ></div>
+              <div
                 v-for="(seg, idx) in remarkAuthorLines"
                 :key="'remark-' + idx"
                 class="author-line author-remark-line"
                 v-html="formatTextWithFootnote(seg)"
-              ></span>
+              ></div>
             </div>
           </div>
 
@@ -829,7 +821,7 @@ onBeforeUnmount(() => {
 .author-info {
   text-align: right;
   margin-bottom: 24px;
-  font-family: "Times New Roman", serif;
+  font-family: "Times New Roman", "PMingLiU", "新細明體", serif;
   font-size: 1.2rem;
   color: #444;
   line-height: 1.5;
@@ -844,7 +836,25 @@ onBeforeUnmount(() => {
   display: block;
   max-width: 100%;
   margin: 0;
+  padding: 0;
   line-height: 1.5;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 400;
+  color: inherit;
+}
+/* 備註若含 TipTap 的 <p>，避免另套字級／行距與段落 margin 打亂等距 */
+.author-meta-stack .author-line :deep(p) {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: inline;
+  font: inherit !important;
+  line-height: inherit !important;
+}
+.author-meta-stack .author-line :deep(strong),
+.author-meta-stack .author-line :deep(b),
+.author-meta-stack .author-line :deep(span) {
+  font: inherit;
 }
 
 /* 段落 */
