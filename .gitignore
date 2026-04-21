@@ -18,6 +18,17 @@ logs
 .fleet
 .idea
 
+# 本地完整雜誌稿／圖檔（體積大，不進 Git；`git add .` 會自動略過）
+stores/無境界者雜誌/
+
+# Office / system temp files
+~$*.docx
+
+# Python cache / local temp
+__pycache__/
+*.pyc
+temp/
+
 # Local env files
 .env
 .env.*

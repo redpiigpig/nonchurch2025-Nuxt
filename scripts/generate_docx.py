@@ -50,12 +50,14 @@
   _add_reference_box(html)                    L.1037 參考資料框（綠色左線）
   _add_theme_image(html)                      L.1082 主題圖片（置中大圖）
   _add_author_profile(html)                   L.1097 作者簡介（頭像 + 文字）
+  _add_info_card / _insert_info_card_wps_roundrect  L.1608  資訊卡（wps 圓角矩形外框）
   _add_right_aligned(text)                    L.1210 置右文字段落
   _add_blockquote(text, rel_text)             L.1447 一般引言（標楷體，rel 置右）
 
 【圖片系統】
-  _add_figure(html)                           L.384  圖片區塊（含圖說）
-  _add_figure_textbox(...)                    L.450  圖片文字框（浮動排版）
+  _add_figure(html)                           L.518  圖片區塊（含圖說）
+  _insert_figure_wordprocessing_group(...)    L.614  圖＋圖說 wpg 群組（可縮放／穿透繞排）
+  _add_figure_textbox(...)                    L.589  左／右浮動圖（呼叫 wpg）
   _add_caption_runs(paragraph, lines)         L.563  圖說文字渲染
   _insert_float_image(p, stream, width, dir)  L.295  插入浮動圖片（繞排）
 
@@ -86,7 +88,9 @@ import re
 import html as _html_mod
 import urllib.request
 import io
+import uuid
 from PIL import Image as PILImage
+from PIL import ImageOps
 
 # 強制 stdout/stderr 使用 UTF-8，避免 Windows CP950 無法輸出 emoji
 if sys.stdout.encoding != 'utf-8':
@@ -94,11 +98,22 @@ if sys.stdout.encoding != 'utf-8':
 if sys.stderr.encoding != 'utf-8':
     sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1)
 
+# 正文欄寬（_setup_page：版面寬 18.2cm − 左右邊界各 2cm）。匯出 Word 時圖寬不依編輯器 px。
+DOC_BODY_WIDTH_CM = 14.2
+DOC_PORTRAIT_SIDE_CM = 8.0
+DOC_FLOAT_BODY_HALF_CM = DOC_BODY_WIDTH_CM / 2
+
+# 「本期作者簡介」頁：表格外框灰；頭像框線為黑色減淡約 25%（#404040，對照編輯用語）
+AUTHOR_INTRO_TABLE_BORDER_GRAY = "A6A6A6"
+AUTHOR_INTRO_PHOTO_BORDER_LIGHT_BLACK = "404040"
+
 
 class ProfessionalDocxGenerator:
 
     def __init__(self):
         self.doc = Document()
+        # 由 generate_article_docx 設定：標題或 id 含「作者簡介」時為 True
+        self.is_author_intro_article = False
         self._setup_page()
         self._setup_styles()
         self._inject_footnote_ref_style()
@@ -447,8 +462,23 @@ class ProfessionalDocxGenerator:
 
     # ── 圖片段落 ────────────────────────────────────────────
 
+    def _pil_to_doc_bytes(self, pil_img):
+        """依格式寫入 BytesIO；JPEG 前先轉 RGB（去透明）。"""
+        clean = io.BytesIO()
+        fmt = (pil_img.format or 'JPEG').upper()
+        if fmt in ('JPEG', 'JPG'):
+            if pil_img.mode in ('RGBA', 'P'):
+                pil_img = pil_img.convert('RGB')
+            pil_img.save(clean, format='JPEG', quality=95)
+        else:
+            if pil_img.mode == 'P':
+                pil_img = pil_img.convert('RGBA')
+            pil_img.save(clean, format='PNG')
+        clean.seek(0)
+        return clean
+
     def _download_image(self, src):
-        """下載圖片並清除 EXIF，回傳 BytesIO 或 None"""
+        """下載圖片、套用 EXIF 方向、回傳 BytesIO 或 None（Word 不讀 EXIF 方向，需先轉正像素）。"""
         src = self._resolve_image_src(src)
         if not src.startswith(('http://', 'https://', 'data:', '//')):
             print(f'Warning: unsupported image src {src}')
@@ -457,11 +487,11 @@ class ProfessionalDocxGenerator:
             req = urllib.request.Request(src, headers={'User-Agent': 'Mozilla/5.0'})
             img_bytes = urllib.request.urlopen(req, timeout=15).read()
             pil_img = PILImage.open(io.BytesIO(img_bytes))
-            clean = io.BytesIO()
-            fmt = (pil_img.format or 'JPEG').upper()
-            pil_img.save(clean, format='JPEG' if fmt in ('JPEG','JPG') else 'PNG', quality=95)
-            clean.seek(0)
-            return clean
+            try:
+                pil_img = ImageOps.exif_transpose(pil_img)
+            except Exception:
+                pass
+            return self._pil_to_doc_bytes(pil_img)
         except Exception as e:
             print(f'Warning: cannot download {src}: {e}')
             return None
@@ -476,6 +506,10 @@ class ProfessionalDocxGenerator:
             req = urllib.request.Request(src, headers={'User-Agent': 'Mozilla/5.0'})
             img_bytes = urllib.request.urlopen(req, timeout=15).read()
             pil_img = PILImage.open(io.BytesIO(img_bytes))
+            try:
+                pil_img = ImageOps.exif_transpose(pil_img)
+            except Exception:
+                pass
             if pil_img.mode not in ('RGB', 'L'):
                 pil_img = pil_img.convert('RGB')
             w, h = pil_img.size
@@ -511,10 +545,6 @@ class ProfessionalDocxGenerator:
         if 'img-right' in html: float_dir = 'right'
         elif 'img-left' in html: float_dir = 'left'
 
-        width_m  = re.search(r'px-(\d+)', html)
-        px       = int(width_m.group(1)) if width_m else 250
-        width_cm = min(px * 0.02, 6.0) if float_dir else min(px * 0.02, 14.2)
-
         # 偵測人物照片雙框線樣式（CSS border + outline）
         img_style_m = re.search(r'<img\b[^>]*style=["\']([^"\']*)["\']', html, re.IGNORECASE)
         has_portrait_border = bool(
@@ -523,12 +553,16 @@ class ProfessionalDocxGenerator:
             'border'  in img_style_m.group(1).lower()
         )
 
-        # 人物照片：正方形裁切 + 固定 7cm；一般圖片正常下載
+        # 圖片寬度：不依文章裡的顯示 px，依版位固定（置中＝滿欄、左右＝半欄、人物照＝8cm 方塊）
         if has_portrait_border:
             img_stream = self._download_and_crop_square(src) if src else None
-            width_cm = 7.0
+            width_cm = DOC_PORTRAIT_SIDE_CM
+        elif float_dir:
+            img_stream = self._download_image(src) if src else None
+            width_cm = DOC_FLOAT_BODY_HALF_CM
         else:
             img_stream = self._download_image(src) if src else None
+            width_cm = DOC_BODY_WIDTH_CM
 
         if not img_stream:
             p = self.doc.add_paragraph()
@@ -537,153 +571,47 @@ class ProfessionalDocxGenerator:
             self._apply_font(run, 'Times New Roman', 'NSimSun', size=10, color=(0x80,0x80,0x80))
             return
 
-        # 圖文區塊前空一行
-        self._add_blank_line()
+        # 僅置中大圖前後保留空行；左右浮動圖與正文緊密銜接（對照編輯需求）
+        if not float_dir:
+            self._add_blank_line()
 
         if float_dir:
-            # 左/右圖：浮動群組（可整塊移動）
+            # 左/右圖：浮動群組（可整塊移動）。本期作者簡介稿用矩形文繞圖（wrapSquare），其餘維持穿透繞排
+            wrap_through = not getattr(self, "is_author_intro_article", False)
             self._add_figure_textbox(
                 img_stream,
                 width_cm,
                 caption_lines,
                 float_dir,
                 portrait_border=has_portrait_border,
+                wrap_through=wrap_through,
             )
         else:
-            # bottom 圖：行內置中，不文繞圖，避免文字跑到左右兩側
-            p = self.doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.paragraph_format.space_before = Pt(0)
-            p.paragraph_format.space_after  = Pt(0)
-            run = p.add_run()
-            if has_portrait_border:
-                run.add_picture(img_stream, width=Cm(width_cm), height=Cm(width_cm))
-                self._add_portrait_double_border(run)
-            else:
-                run.add_picture(img_stream, width=Cm(width_cm))
+            # 置中圖：wordprocessingGroup 浮動錨點（與左右浮動圖相同，可整組縮放／搬移）
+            self._insert_figure_wordprocessing_group(
+                img_stream,
+                width_cm,
+                caption_lines,
+                float_dir='center',
+                portrait_border=has_portrait_border,
+                wrap_through=False,
+            )
 
-            if caption_lines:
-                pc = self.doc.add_paragraph()
-                pc.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                pc.paragraph_format.space_before = Pt(0)
-                pc.paragraph_format.space_after  = Pt(0)
-                self._add_caption_runs(pc, caption_lines)
-
-        # 圖文區塊後空一行
-        self._add_blank_line()
+        if not float_dir:
+            self._add_blank_line()
 
     def _add_figure_textbox(self, img_stream, width_cm, caption_lines, float_dir,
-                            portrait_border=False):
-        """浮動表格：圖片＋圖說組成矩形群組，整體文繞圖
-        portrait_border=True 時加人物照片單層3px粗框（DrawingML，與行內圖一致）"""
-        margin_dxa = 0
-        table_width_dxa = int(width_cm * 567)
-
-        tbl = self.doc.add_table(rows=1, cols=1)
-
-        # ── tblPr ──
-        tblPr = tbl._element.find(qn('w:tblPr'))
-        if tblPr is None:
-            tblPr = OxmlElement('w:tblPr')
-            tbl._element.insert(0, tblPr)
-
-        # 浮動定位
-        tblpPr = OxmlElement('w:tblpPr')
-        tblpPr.set(qn('w:leftFromText'),  '170')
-        tblpPr.set(qn('w:rightFromText'), '170')
-        tblpPr.set(qn('w:topFromText'),    '0')
-        tblpPr.set(qn('w:bottomFromText'), '0')
-        tblpPr.set(qn('w:vertAnchor'),  'text')
-        tblpPr.set(qn('w:horzAnchor'), 'margin')
-        tblpPr.set(qn('w:tblpXSpec'), float_dir)   # 'right' / 'left' / 'center'
-        tblPr.insert(0, tblpPr)
-
-        # 表格寬度（含 margin）
-        tblW = tblPr.find(qn('w:tblW'))
-        if tblW is None:
-            tblW = OxmlElement('w:tblW')
-            tblPr.append(tblW)
-        tblW.set(qn('w:w'),    str(table_width_dxa))
-        tblW.set(qn('w:type'), 'dxa')
-
-        # 表格框線（全部清除；portrait 的外框設在圖片 DrawingML）
-        tblBorders = OxmlElement('w:tblBorders')
-        for side in ('top','left','bottom','right','insideH','insideV'):
-            b = OxmlElement(f'w:{side}')
-            b.set(qn('w:val'), 'none')
-            b.set(qn('w:sz'), '0')
-            b.set(qn('w:space'), '0')
-            b.set(qn('w:color'), 'auto')
-            tblBorders.append(b)
-        tblPr.append(tblBorders)
-
-        # 表格層級：強制 cellSpacing=0，防止 Word 預設留白影響框線位置
-        tblCellSpacing = OxmlElement('w:tblCellSpacing')
-        tblCellSpacing.set(qn('w:w'), '0')
-        tblCellSpacing.set(qn('w:type'), 'dxa')
-        tblPr.append(tblCellSpacing)
-
-        tblCellMar = OxmlElement('w:tblCellMar')
-        for side in ('top', 'left', 'bottom', 'right'):
-            m = OxmlElement(f'w:{side}')
-            m.set(qn('w:w'), '0')
-            m.set(qn('w:type'), 'dxa')
-            tblCellMar.append(m)
-        tblPr.append(tblCellMar)
-
-        # ── 儲存格 ──
-        cell = tbl.rows[0].cells[0]
-        tcPr = cell._tc.find(qn('w:tcPr'))
-        if tcPr is None:
-            tcPr = OxmlElement('w:tcPr')
-            cell._tc.insert(0, tcPr)
-
-        tcW = tcPr.find(qn('w:tcW'))
-        if tcW is None:
-            tcW = OxmlElement('w:tcW')
-            tcPr.append(tcW)
-        tcW.set(qn('w:w'),    str(table_width_dxa))
-        tcW.set(qn('w:type'), 'dxa')
-
-        tcBorders = OxmlElement('w:tcBorders')
-        for side in ('top','left','bottom','right'):
-            b = OxmlElement(f'w:{side}')
-            b.set(qn('w:val'), 'none')
-            b.set(qn('w:sz'), '0')
-            b.set(qn('w:space'), '0')
-            b.set(qn('w:color'), 'auto')
-            tcBorders.append(b)
-        tcPr.append(tcBorders)
-
-        # 儲存格 margin：全部 0，圖片緊貼邊界
-        tcMar = OxmlElement('w:tcMar')
-        for side in ('top', 'left', 'bottom', 'right'):
-            m = OxmlElement(f'w:{side}')
-            m.set(qn('w:w'),    '0')
-            m.set(qn('w:type'), 'dxa')
-            tcMar.append(m)
-        tcPr.append(tcMar)
-
-        # 圖片（第 1 段）— 消除段前/後距，讓圖片貼緊儲存格邊界
-        img_para = cell.paragraphs[0]
-        img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        img_para.paragraph_format.space_before = Pt(0)
-        img_para.paragraph_format.space_after  = Pt(0)
-        img_run = img_para.add_run()
-        if portrait_border:
-            # 人物照片：寬高都是 7cm（已正方形裁切），套雙框線
-            img_run.add_picture(img_stream, width=Cm(width_cm), height=Cm(width_cm))
-            self._add_portrait_double_border(img_run)
-        else:
-            img_run.add_picture(img_stream, width=Cm(width_cm))
-
-        # 圖說（第 2 段，支援 <br> 換行）
-        if caption_lines:
-            cap_para = cell.add_paragraph()
-            cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            cap_para.paragraph_format.space_before = Pt(0)
-            cap_para.paragraph_format.space_after  = Pt(0)
-            self._add_caption_runs(cap_para, caption_lines)
+                            portrait_border=False, wrap_through=True):
+        """左／右浮動圖：wordprocessingGroup（圖＋透明圖說），可整組縮放搬移。
+        wrap_through=True 時為穿透繞排；False 時為矩形文繞圖（wp:wrapSquare）。"""
+        self._insert_figure_wordprocessing_group(
+            img_stream,
+            width_cm,
+            caption_lines,
+            float_dir=float_dir,
+            portrait_border=portrait_border,
+            wrap_through=wrap_through,
+        )
 
     def _add_caption_runs(self, paragraph, lines):
         """將圖說多行（原 <br> 分割）加入段落，行間用 w:br 換行"""
@@ -694,6 +622,238 @@ class ProfessionalDocxGenerator:
                 br_run._element.append(br)
             run = paragraph.add_run(line)
             self._apply_font(run, 'Times New Roman', 'PMingLiU', size=10, color=(0x59,0x59,0x59))
+
+    def _caption_xml_escape(self, text):
+        return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    def _insert_figure_wordprocessing_group(
+        self,
+        img_stream,
+        width_cm,
+        caption_lines,
+        float_dir,
+        portrait_border=False,
+        wrap_through=False,
+    ):
+        """圖＋圖說：Word `wordprocessingGroup`（wpg:wgp），與參考稿 stores/08跨越宗教藩籬的情誼 三校.docx 相同類型。
+        整塊為單一浮動物件，在 Word 裡可一起縮放、搬移；圖說為透明底文字方塊（srgbClr + alpha 0）。
+        wrap_through=True 時使用 wp:wrapThrough（穿透繞排）；False 且左右浮動時使用 wp:wrapSquare（矩形文繞圖）；置中大圖為上下環繞。"""
+        from docx.oxml.parser import parse_xml
+        from docx.oxml.shape import CT_Picture
+
+        WPG_URI = 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup'
+        NS_WP14 = 'http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing'
+
+        p = self.doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
+        p.paragraph_format.first_line_indent = Pt(0)
+        part = p.part
+        run = p.add_run()
+
+        r_id, image = part.get_or_add_image(img_stream)
+        if portrait_border:
+            img_cx, img_cy = image.scaled_dimensions(Cm(width_cm), Cm(width_cm))
+        else:
+            img_cx, img_cy = image.scaled_dimensions(Cm(width_cm), None)
+        img_cx, img_cy = int(img_cx), int(img_cy)
+
+        # 圖說高度：約 10pt/行（過大會在圖說下方留下空白區）
+        cap_gap = 6350 if caption_lines else 0
+        line_emu = 210000
+        cap_h = (len(caption_lines) * line_emu + 50000) if caption_lines else 0
+
+        Wg = img_cx
+        Hg = img_cy + cap_gap + cap_h
+
+        pic_id = part.next_id
+        pic_el = CT_Picture.new(pic_id, image.filename, r_id, img_cx, img_cy)
+        if portrait_border:
+            self._drawingml_portrait_double_border_on_pic(pic_el)
+
+        wgp = parse_xml(
+            '<wpg:wgp xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" '
+            'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" '
+            'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+            'xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">'
+            '<wpg:cNvGrpSpPr/>'
+            '<wpg:grpSpPr>'
+            '<a:xfrm>'
+            '<a:off x="0" y="0"/>'
+            f'<a:ext cx="{Wg}" cy="{Hg}"/>'
+            f'<a:chOff x="0" y="0"/>'
+            f'<a:chExt cx="{Wg}" cy="{Hg}"/>'
+            '</a:xfrm>'
+            '</wpg:grpSpPr>'
+            '</wpg:wgp>'
+        )
+        wgp.append(pic_el)
+
+        if caption_lines:
+            y_cap = img_cy + cap_gap
+            cap_shape_id = pic_id + 1
+            wsp_cap = parse_xml(
+                f'<wps:wsp xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" '
+                f'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+                f'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                f'<wps:cNvPr id="{cap_shape_id}" name="Caption"/>'
+                '<wps:cNvSpPr/>'
+                '<wps:spPr>'
+                f'<a:xfrm><a:off x="0" y="{y_cap}"/><a:ext cx="{Wg}" cy="{cap_h}"/></a:xfrm>'
+                '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 0"/></a:avLst></a:prstGeom>'
+                '<a:solidFill><a:srgbClr val="000000"><a:alpha val="0"/></a:srgbClr></a:solidFill>'
+                '<a:ln w="12700" cap="flat"><a:noFill/><a:miter lim="400000"/></a:ln>'
+                '<a:effectLst/>'
+                '</wps:spPr>'
+                '<wps:txbx><w:txbxContent/></wps:txbx>'
+                '<wps:bodyPr wrap="square" lIns="12700" tIns="6350" rIns="12700" bIns="6350" '
+                'numCol="1" anchor="t"><a:noAutofit/></wps:bodyPr>'
+                '</wps:wsp>'
+            )
+            txc = None
+            for el in wsp_cap.iter():
+                if el.tag.endswith('txbxContent'):
+                    txc = el
+                    break
+            if txc is None:
+                txc = OxmlElement('w:txbxContent')
+                for el in wsp_cap.iter():
+                    if el.tag.endswith('txbx'):
+                        el.append(txc)
+                        break
+            for line in caption_lines:
+                w_p = OxmlElement('w:p')
+                w_ppr = OxmlElement('w:pPr')
+                jc = OxmlElement('w:jc')
+                jc.set(qn('w:val'), 'center')
+                w_ppr.append(jc)
+                spx = OxmlElement('w:spacing')
+                spx.set(qn('w:before'), '0')
+                spx.set(qn('w:after'), '0')
+                spx.set(qn('w:line'), '240')
+                spx.set(qn('w:lineRule'), 'auto')
+                w_ppr.append(spx)
+                w_p.append(w_ppr)
+                w_r = OxmlElement('w:r')
+                w_rpr = OxmlElement('w:rPr')
+                rf = OxmlElement('w:rFonts')
+                rf.set(qn('w:ascii'), 'Times New Roman')
+                rf.set(qn('w:hAnsi'), 'Times New Roman')
+                rf.set(qn('w:eastAsia'), 'PMingLiU')
+                w_rpr.append(rf)
+                co = OxmlElement('w:color')
+                co.set(qn('w:val'), '595959')
+                w_rpr.append(co)
+                sz = OxmlElement('w:sz')
+                sz.set(qn('w:val'), '20')
+                w_rpr.append(sz)
+                szc = OxmlElement('w:szCs')
+                szc.set(qn('w:val'), '20')
+                w_rpr.append(szc)
+                w_r.append(w_rpr)
+                wt = OxmlElement('w:t')
+                wt.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+                wt.text = self._caption_xml_escape(line)
+                w_r.append(wt)
+                w_p.append(w_r)
+                txc.append(w_p)
+            wgp.append(wsp_cap)
+
+        graphic = OxmlElement('a:graphic')
+        gd = OxmlElement('a:graphicData')
+        gd.set('uri', WPG_URI)
+        gd.append(wgp)
+        graphic.append(gd)
+
+        anchor_doc_id = pic_id + 2
+        anchor = OxmlElement('wp:anchor')
+        for k, v in [
+            ('distT', '152400'),
+            ('distB', '152400'),
+            ('distL', '152400'),
+            ('distR', '152400'),
+            ('simplePos', '0'),
+            ('relativeHeight', '251750400'),
+            ('behindDoc', '0'),
+            ('locked', '0'),
+            ('layoutInCell', '1'),
+            ('allowOverlap', '1'),
+        ]:
+            anchor.set(k, v)
+        anchor.set(f'{{{NS_WP14}}}anchorId', uuid.uuid4().hex[:8].upper())
+        anchor.set(f'{{{NS_WP14}}}editId', uuid.uuid4().hex[:8].upper())
+
+        sp0 = OxmlElement('wp:simplePos')
+        sp0.set('x', '0')
+        sp0.set('y', '0')
+        anchor.append(sp0)
+
+        pos_h = OxmlElement('wp:positionH')
+        pos_h.set('relativeFrom', 'margin')
+        al = OxmlElement('wp:align')
+        if float_dir == 'center':
+            al.text = 'center'
+        elif float_dir == 'right':
+            al.text = 'right'
+        else:
+            al.text = 'left'
+        pos_h.append(al)
+        anchor.append(pos_h)
+
+        pos_v = OxmlElement('wp:positionV')
+        pos_v.set('relativeFrom', 'paragraph')
+        po = OxmlElement('wp:posOffset')
+        po.text = '0'
+        pos_v.append(po)
+        anchor.append(pos_v)
+
+        ext_a = OxmlElement('wp:extent')
+        ext_a.set('cx', str(Wg))
+        ext_a.set('cy', str(Hg))
+        anchor.append(ext_a)
+
+        eff = OxmlElement('wp:effectExtent')
+        for side in ('l', 't', 'r', 'b'):
+            eff.set(side, '0')
+        anchor.append(eff)
+
+        if wrap_through and float_dir in ('left', 'right'):
+            wthr = OxmlElement('wp:wrapThrough')
+            wthr.set('wrapText', 'bothSides')
+            wthr.set('distL', '152400')
+            wthr.set('distR', '152400')
+            poly = OxmlElement('wp:wrapPolygon')
+            poly.set('edited', '1')
+            st = OxmlElement('wp:start')
+            st.set('x', '0')
+            st.set('y', '0')
+            poly.append(st)
+            for x, y in (('21600', '0'), ('21600', '21600'), ('0', '21600'), ('0', '0')):
+                lt = OxmlElement('wp:lineTo')
+                lt.set('x', x)
+                lt.set('y', y)
+                poly.append(lt)
+            wthr.append(poly)
+            anchor.append(wthr)
+        elif float_dir == 'center':
+            anchor.append(OxmlElement('wp:wrapTopAndBottom'))
+        else:
+            ws = OxmlElement('wp:wrapSquare')
+            ws.set('wrapText', 'bothSides')
+            anchor.append(ws)
+
+        doc_pr = OxmlElement('wp:docPr')
+        doc_pr.set('id', str(anchor_doc_id))
+        doc_pr.set('name', 'Figure')
+        doc_pr.set('descr', '圖組')
+        anchor.append(doc_pr)
+        anchor.append(OxmlElement('wp:cNvGraphicFramePr'))
+        anchor.append(graphic)
+
+        drawing = OxmlElement('w:drawing')
+        drawing.append(anchor)
+        run._r.append(drawing)
 
     # ── 結構元件 ─────────────────────────────────────────────
 
@@ -1294,8 +1454,298 @@ class ProfessionalDocxGenerator:
         hyperlink.append(new_run)
         paragraph._p.append(hyperlink)
 
+    def _insert_info_card_wps_roundrect(self, paragraph, img_stream, title, link_items):
+        """資訊卡：wps 圓角矩形外框 + 文字方塊內容（對照 stores/11作為無教會主義的一種實踐？ 重校.docx 實測 OOXML）。"""
+        from docx.opc.constants import RELATIONSHIP_TYPE as RT
+        from docx.oxml.parser import parse_xml
+
+        WPS_URI = 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape'
+        NS_WP14 = 'http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing'
+
+        # 參考稿 roundRect 外框錨點與線條、圓角調整值；內嵌圖 ellipse 外框尺寸（EMU）
+        CX_CARD, CY_CARD = 3038475, 2614930
+        LN_W = 28575  # 約 2.25pt（28575/12700）
+        LN_COLOR = '548135'
+        ROUND_ADJ = 16667
+        IMG_CX, IMG_CY = 1493520, 1591310
+
+        part = paragraph.part
+        inline_pic = None
+        if img_stream:
+            inline_pic = part.new_pic_inline(img_stream, Emu(IMG_CX), Emu(IMG_CY))
+            pic_el = inline_pic.graphic.graphicData.pic
+            for ch in list(pic_el.spPr):
+                if ch.tag.endswith('prstGeom'):
+                    ch.set('prst', 'ellipse')
+                    break
+            anchor_doc_id = int(inline_pic.docPr.id) + 1
+        else:
+            anchor_doc_id = part.next_id
+
+        run = paragraph.add_run()
+        drawing = OxmlElement('w:drawing')
+
+        anchor = OxmlElement('wp:anchor')
+        for k, v in [
+            ('distT', '0'),
+            ('distB', '0'),
+            ('distL', '114300'),
+            ('distR', '114300'),
+            ('simplePos', '0'),
+            ('relativeHeight', '251658240'),
+            ('behindDoc', '0'),
+            ('locked', '0'),
+            ('layoutInCell', '1'),
+            ('allowOverlap', '1'),
+        ]:
+            anchor.set(k, v)
+        # Word 2010+ 錨點識別（與參考稿一致層級）
+        anchor.set(f'{{{NS_WP14}}}anchorId', uuid.uuid4().hex[:8].upper())
+        anchor.set(f'{{{NS_WP14}}}editId', uuid.uuid4().hex[:8].upper())
+
+        sp0 = OxmlElement('wp:simplePos')
+        sp0.set('x', '0')
+        sp0.set('y', '0')
+        anchor.append(sp0)
+
+        pos_h = OxmlElement('wp:positionH')
+        pos_h.set('relativeFrom', 'margin')
+        al = OxmlElement('wp:align')
+        al.text = 'right'
+        pos_h.append(al)
+        anchor.append(pos_h)
+
+        pos_v = OxmlElement('wp:positionV')
+        pos_v.set('relativeFrom', 'paragraph')
+        po = OxmlElement('wp:posOffset')
+        po.text = '0'
+        pos_v.append(po)
+        anchor.append(pos_v)
+
+        ext_a = OxmlElement('wp:extent')
+        ext_a.set('cx', str(CX_CARD))
+        ext_a.set('cy', str(CY_CARD))
+        anchor.append(ext_a)
+
+        eff = OxmlElement('wp:effectExtent')
+        eff.set('l', '19050')
+        eff.set('t', '19050')
+        eff.set('r', '28575')
+        eff.set('b', '13970')
+        anchor.append(eff)
+
+        wrap = OxmlElement('wp:wrapSquare')
+        wrap.set('wrapText', 'bothSides')
+        anchor.append(wrap)
+
+        doc_pr = OxmlElement('wp:docPr')
+        doc_pr.set('id', str(anchor_doc_id))
+        doc_pr.set('name', '資訊卡')
+        anchor.append(doc_pr)
+        anchor.append(OxmlElement('wp:cNvGraphicFramePr'))
+
+        graphic = OxmlElement('a:graphic')
+        gd = OxmlElement('a:graphicData')
+        gd.set('uri', WPS_URI)
+        wsp = parse_xml(
+            '<wsp:wsp xmlns:wsp="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">'
+            '<wsp:cNvSpPr/>'
+            '</wsp:wsp>'
+        )
+        sp_pr = parse_xml(
+            '<wsp:spPr xmlns:wsp="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" '
+            'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+            '</wsp:spPr>'
+        )
+        xfrm = OxmlElement('a:xfrm')
+        off = OxmlElement('a:off')
+        off.set('x', '0')
+        off.set('y', '0')
+        xfrm.append(off)
+        ext_sp = OxmlElement('a:ext')
+        ext_sp.set('cx', str(CX_CARD))
+        ext_sp.set('cy', str(CY_CARD))
+        xfrm.append(ext_sp)
+        sp_pr.append(xfrm)
+
+        prst = OxmlElement('a:prstGeom')
+        prst.set('prst', 'roundRect')
+        av = OxmlElement('a:avLst')
+        gd_adj = OxmlElement('a:gd')
+        gd_adj.set('name', 'adj')
+        gd_adj.set('fmla', f'val {ROUND_ADJ}')
+        av.append(gd_adj)
+        prst.append(av)
+        sp_pr.append(prst)
+
+        sp_pr.append(OxmlElement('a:noFill'))
+
+        ln = OxmlElement('a:ln')
+        ln.set('w', str(LN_W))
+        ln.set('cap', 'flat')
+        ln.set('cmpd', 'sng')
+        sf = OxmlElement('a:solidFill')
+        sc = OxmlElement('a:srgbClr')
+        sc.set('val', LN_COLOR)
+        sf.append(sc)
+        ln.append(sf)
+        pr_dash = OxmlElement('a:prstDash')
+        pr_dash.set('val', 'solid')
+        ln.append(pr_dash)
+        mit = OxmlElement('a:miter')
+        mit.set('lim', '800000')
+        ln.append(mit)
+        for tag in ('headEnd', 'tailEnd'):
+            he = OxmlElement(f'a:{tag}')
+            he.set('type', 'none')
+            he.set('w', 'sm')
+            he.set('len', 'sm')
+            ln.append(he)
+        sp_pr.append(ln)
+        wsp.append(sp_pr)
+
+        txbx = parse_xml(
+            '<wsp:txbx xmlns:wsp="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" '
+            'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            '<w:txbxContent/>'
+            '</wsp:txbx>'
+        )
+        txc = None
+        for _ch in txbx.iter():
+            if _ch.tag.endswith('}txbxContent') or _ch.tag.endswith('txbxContent'):
+                txc = _ch
+                break
+        if txc is None:
+            txc = OxmlElement('w:txbxContent')
+            txbx.append(txc)
+
+        def _p_center():
+            pp = OxmlElement('w:p')
+            pp_pr = OxmlElement('w:pPr')
+            jc = OxmlElement('w:jc')
+            jc.set(qn('w:val'), 'center')
+            pp_pr.append(jc)
+            spc = OxmlElement('w:spacing')
+            spc.set(qn('w:before'), '0')
+            spc.set(qn('w:after'), '0')
+            spc.set(qn('w:line'), '240')
+            spc.set(qn('w:lineRule'), 'auto')
+            pp_pr.append(spc)
+            pp.append(pp_pr)
+            return pp
+
+        if inline_pic is not None:
+            p_img = _p_center()
+            r_img = OxmlElement('w:r')
+            r_img.append(OxmlElement('w:rPr'))
+            dr = OxmlElement('w:drawing')
+            dr.append(inline_pic)
+            r_img.append(dr)
+            p_img.append(r_img)
+            txc.append(p_img)
+
+        if title:
+            p_ti = _p_center()
+            r_ti = OxmlElement('w:r')
+            rpr = OxmlElement('w:rPr')
+            rpr.append(OxmlElement('w:b'))
+            rf = OxmlElement('w:rFonts')
+            rf.set(qn('w:ascii'), 'Times New Roman')
+            rf.set(qn('w:hAnsi'), 'Times New Roman')
+            rf.set(qn('w:eastAsia'), 'NSimSun')
+            rpr.append(rf)
+            col = OxmlElement('w:color')
+            col.set(qn('w:val'), LN_COLOR)
+            rpr.append(col)
+            sz = OxmlElement('w:sz')
+            sz.set(qn('w:val'), '28')
+            rpr.append(sz)
+            szc = OxmlElement('w:szCs')
+            szc.set(qn('w:val'), '28')
+            rpr.append(szc)
+            r_ti.append(rpr)
+            wt = OxmlElement('w:t')
+            wt.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+            wt.text = title
+            r_ti.append(wt)
+            p_ti.append(r_ti)
+            txc.append(p_ti)
+
+        if link_items:
+            p_lk = _p_center()
+            for idx, (text, href) in enumerate(link_items):
+                if idx > 0:
+                    rs = OxmlElement('w:r')
+                    rprs = OxmlElement('w:rPr')
+                    rfs = OxmlElement('w:rFonts')
+                    rfs.set(qn('w:ascii'), 'PMingLiU')
+                    rfs.set(qn('w:hAnsi'), 'PMingLiU')
+                    rfs.set(qn('w:eastAsia'), 'PMingLiU')
+                    rprs.append(rfs)
+                    szs = OxmlElement('w:sz')
+                    szs.set(qn('w:val'), '22')
+                    rprs.append(szs)
+                    szcs = OxmlElement('w:szCs')
+                    szcs.set(qn('w:val'), '22')
+                    rprs.append(szcs)
+                    rs.append(rprs)
+                    ts = OxmlElement('w:t')
+                    ts.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+                    ts.text = '\u3000\u3000'
+                    rs.append(ts)
+                    p_lk.append(rs)
+                h_rid = part.relate_to(href, RT.HYPERLINK, is_external=True)
+                h = OxmlElement('w:hyperlink')
+                h.set(qn('r:id'), h_rid)
+                h.set(qn('w:history'), '1')
+                nr = OxmlElement('w:r')
+                nrpr = OxmlElement('w:rPr')
+                nrf = OxmlElement('w:rFonts')
+                nrf.set(qn('w:ascii'), 'PMingLiU')
+                nrf.set(qn('w:hAnsi'), 'PMingLiU')
+                nrf.set(qn('w:eastAsia'), 'PMingLiU')
+                nrpr.append(nrf)
+                nc = OxmlElement('w:color')
+                nc.set(qn('w:val'), '2B7CE8')
+                nrpr.append(nc)
+                nu = OxmlElement('w:u')
+                nu.set(qn('w:val'), 'single')
+                nrpr.append(nu)
+                nsz = OxmlElement('w:sz')
+                nsz.set(qn('w:val'), '22')
+                nrpr.append(nsz)
+                nszc = OxmlElement('w:szCs')
+                nszc.set(qn('w:val'), '22')
+                nrpr.append(nszc)
+                nr.append(nrpr)
+                nt = OxmlElement('w:t')
+                nt.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+                nt.text = text
+                nr.append(nt)
+                h.append(nr)
+                p_lk.append(h)
+            txc.append(p_lk)
+
+        wsp.append(txbx)
+
+        body_pr = parse_xml(
+            '<wsp:bodyPr xmlns:wsp="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" '
+            'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+            'rot="0" vert="horz" wrap="square" lIns="91440" tIns="45720" rIns="91440" '
+            'bIns="45720" anchor="t" anchorCtr="0">'
+            '<a:spAutoFit/>'
+            '</wsp:bodyPr>'
+        )
+        wsp.append(body_pr)
+
+        gd.append(wsp)
+        graphic.append(gd)
+        anchor.append(graphic)
+        drawing.append(anchor)
+        run._r.append(drawing)
+
     def _add_info_card(self, html):
-        """資訊卡（.info-card）：置右浮動，保留左側文字流空間。"""
+        """資訊卡（.info-card）：置右浮動 wps 圓角矩形外框（對照 stores 參考稿 OOXML）。"""
         src_m = re.search(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\']', html, re.IGNORECASE)
         title_m = re.search(r'<h3[^>]*>(.*?)</h3>', html, re.IGNORECASE | re.DOTALL)
         links = re.findall(
@@ -1313,120 +1763,12 @@ class ProfessionalDocxGenerator:
                 link_items.append((clean_text, href.strip()))
 
         self._add_blank_line()
-
-        card_width_cm = 7.1  # 約頁面一半寬度，左側留給正文
-        card = self.doc.add_table(rows=1, cols=1)
-        tbl = card._tbl
-        tblPr = tbl.find(qn('w:tblPr'))
-        if tblPr is None:
-            tblPr = OxmlElement('w:tblPr')
-            tbl.insert(0, tblPr)
-
-        # 置右浮動（文字可在左側繞排）
-        tblpPr = OxmlElement('w:tblpPr')
-        tblpPr.set(qn('w:leftFromText'), '170')
-        tblpPr.set(qn('w:rightFromText'), '170')
-        tblpPr.set(qn('w:topFromText'), '0')
-        tblpPr.set(qn('w:bottomFromText'), '0')
-        tblpPr.set(qn('w:vertAnchor'), 'text')
-        tblpPr.set(qn('w:horzAnchor'), 'margin')
-        tblpPr.set(qn('w:tblpXSpec'), 'right')
-        tblPr.insert(0, tblpPr)
-
-        for old in tblPr.findall(qn('w:tblW')):
-            tblPr.remove(old)
-        tblW = OxmlElement('w:tblW')
-        table_width_dxa = int(card_width_cm * 567)
-        tblW.set(qn('w:w'), str(table_width_dxa))
-        tblW.set(qn('w:type'), 'dxa')
-        tblPr.append(tblW)
-        tblLayout = OxmlElement('w:tblLayout')
-        tblLayout.set(qn('w:type'), 'fixed')
-        tblPr.append(tblLayout)
-
-        cell = card.cell(0, 0)
-        tcPr = cell._tc.get_or_add_tcPr()
-        tcW = OxmlElement('w:tcW')
-        tcW.set(qn('w:w'), str(table_width_dxa))
-        tcW.set(qn('w:type'), 'dxa')
-        tcPr.append(tcW)
-        tcBorders = OxmlElement('w:tcBorders')
-        for side in ('top', 'left', 'bottom', 'right'):
-            bd = OxmlElement(f'w:{side}')
-            bd.set(qn('w:val'), 'single')
-            bd.set(qn('w:sz'), '14')
-            bd.set(qn('w:space'), '0')
-            bd.set(qn('w:color'), '4F7F39')
-            tcBorders.append(bd)
-        tcPr.append(tcBorders)
-        tcMar = OxmlElement('w:tcMar')
-        for side, val in (('top', '220'), ('bottom', '220'), ('left', '180'), ('right', '180')):
-            mar = OxmlElement(f'w:{side}')
-            mar.set(qn('w:w'), val)
-            mar.set(qn('w:type'), 'dxa')
-            tcMar.append(mar)
-        tcPr.append(tcMar)
-
-        p_img = cell.paragraphs[0]
-        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p_img.paragraph_format.space_before = Pt(0)
-        p_img.paragraph_format.space_after = Pt(8)
-        p_img.paragraph_format.first_line_indent = Pt(0)
+        p = self.doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
+        p.paragraph_format.first_line_indent = Pt(0)
         img_stream = self._download_image(src) if src else None
-        if img_stream:
-            # 近似 10% 圓角卡片視覺：圖片維持較大且置中
-            p_img.add_run().add_picture(img_stream, width=Cm(4.4), height=Cm(4.4))
-
-        if title:
-            p_title = cell.add_paragraph()
-            p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p_title.paragraph_format.space_before = Pt(0)
-            p_title.paragraph_format.space_after = Pt(8)
-            p_title.paragraph_format.first_line_indent = Pt(0)
-            title_run = p_title.add_run(title)
-            self._apply_font(title_run, 'Times New Roman', 'NSimSun', size=14, bold=True)
-            title_run.font.color.rgb = RGBColor(0x3D, 0x5D, 0x33)
-
-        if link_items:
-            links_tbl = cell.add_table(rows=1, cols=2)
-            links_tbl.style = 'Table Grid'
-            links_tbl.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            lt = links_tbl._tbl
-            ltPr = lt.find(qn('w:tblPr'))
-            if ltPr is None:
-                ltPr = OxmlElement('w:tblPr')
-                lt.insert(0, ltPr)
-            for old in ltPr.findall(qn('w:tblW')):
-                ltPr.remove(old)
-            ltW = OxmlElement('w:tblW')
-            ltW.set(qn('w:w'), str(int(table_width_dxa * 0.9)))
-            ltW.set(qn('w:type'), 'dxa')
-            ltPr.append(ltW)
-
-            for idx in range(2):
-                lcell = links_tbl.cell(0, idx)
-                ltcPr = lcell._tc.get_or_add_tcPr()
-                ltcShd = OxmlElement('w:shd')
-                ltcShd.set(qn('w:val'), 'clear')
-                ltcShd.set(qn('w:color'), 'auto')
-                ltcShd.set(qn('w:fill'), 'EAF3FF')  # 淺藍底
-                ltcPr.append(ltcShd)
-                p = lcell.paragraphs[0]
-                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                p.paragraph_format.first_line_indent = Pt(0)
-                p.paragraph_format.space_before = Pt(0)
-                p.paragraph_format.space_after = Pt(0)
-                if idx < len(link_items):
-                    text, href = link_items[idx]
-                    self._add_hyperlink_run(
-                        p, text, href,
-                        color='0563C1',
-                        underline=True,
-                        ascii_font='PMingLiU',
-                        east_font='PMingLiU',
-                        size=11,
-                    )
-
+        self._insert_info_card_wps_roundrect(p, img_stream, title, link_items)
         self._add_blank_line()
 
     def _add_theme_image(self, html):
@@ -1446,7 +1788,13 @@ class ProfessionalDocxGenerator:
 
     def _add_author_profile(self, html):
         """作者簡介（.author-profile）：左圖右文表格排版，符合原版 PDF 格式。
-        左欄：5×5cm 正方形照片（含 2px 邊框）；右欄：粗體姓名 + 簡介段落。"""
+        左欄：5×5cm 正方形照片（含 2px 邊框）；右欄：粗體姓名 + 簡介段落。
+        「本期作者簡介」專頁時：表灰框、頭像框線黑色較淺約 25%、左右欄垂直置中。"""
+        gray = getattr(self, "is_author_intro_article", False)
+        border_color = AUTHOR_INTRO_TABLE_BORDER_GRAY if gray else "262626"
+        photo_border_color = (
+            AUTHOR_INTRO_PHOTO_BORDER_LIGHT_BLACK if gray else "000000"
+        )
         # 提取圖片網址
         img_m = re.search(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\']', html, re.IGNORECASE)
         img_src = img_m.group(1).strip() if img_m else None
@@ -1502,7 +1850,7 @@ class ProfessionalDocxGenerator:
                 bd.set(qn('w:val'),   'single')
                 bd.set(qn('w:sz'),    '4')
                 bd.set(qn('w:space'), '0')
-                bd.set(qn('w:color'), '262626')   # 黑色淺15%
+                bd.set(qn('w:color'), border_color)
                 tcBorders.append(bd)
             tcPr.append(tcBorders)
 
@@ -1519,6 +1867,12 @@ class ProfessionalDocxGenerator:
             tcMar.append(mar)
         left_tcPr.append(tcMar)
 
+        # 右欄：與左欄頭像垂直對齊（本期作者簡介稿）
+        right_tcPr = right_cell._tc.get_or_add_tcPr()
+        vAlign_r = OxmlElement('w:vAlign')
+        vAlign_r.set(qn('w:val'), 'center')
+        right_tcPr.append(vAlign_r)
+
         # 左欄：照片（5×5cm，正方形裁切，2pt 邊框）
         lp = left_cell.paragraphs[0]
         lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1529,14 +1883,18 @@ class ProfessionalDocxGenerator:
             if img_stream:
                 img_run = lp.add_run()
                 img_run.add_picture(img_stream, width=Cm(5.0), height=Cm(5.0))
-                self._add_picture_border(img_run, border_pt=2.0)
+                self._add_picture_border(img_run, border_pt=2.0, color=photo_border_color)
             else:
                 lp.add_run(f'[圖片：{img_src}]')
 
         # 右欄：作者姓名（粗體）+ 簡介
         rp_name = right_cell.paragraphs[0]
-        rp_name.paragraph_format.space_before = Pt(6)
-        rp_name.paragraph_format.space_after  = Pt(4)
+        if gray:
+            rp_name.paragraph_format.space_before = Pt(0)
+            rp_name.paragraph_format.space_after = Pt(2)
+        else:
+            rp_name.paragraph_format.space_before = Pt(6)
+            rp_name.paragraph_format.space_after = Pt(4)
         if name:
             name_run = rp_name.add_run(name)
             self._apply_font(name_run, 'Times New Roman', 'NSimSun', size=12, bold=True)
@@ -1568,11 +1926,11 @@ class ProfessionalDocxGenerator:
             p.paragraph_format.first_line_indent = Pt(0)
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after  = Pt(0)
-            # 「作者依照文章先後順序排列」：新細明體 10pt，黑色淺15%（#262626），置右
+            # 「作者依照文章先後順序排列」：新細明體 9pt，黑色淺約 15%（#262626），置右
             clean_line = re.sub(r'<[^>]+>', '', line).strip()
             if '作者依照文章先後順序排列' in clean_line:
                 run = p.add_run(clean_line)
-                self._apply_font(run, 'PMingLiU', 'PMingLiU', size=10,
+                self._apply_font(run, 'PMingLiU', 'PMingLiU', size=9,
                                  color=(38, 38, 38))
             else:
                 self._add_inline(p, line)
@@ -1616,16 +1974,12 @@ class ProfessionalDocxGenerator:
                                      size=11, bold=(ctag.lower() == 'th'))
         self._add_blank_line()
 
-    def _add_portrait_double_border(self, run):
-        """人物照片雙框線：1pt 細線 + 1pt 空格 + 3pt 粗線（DrawingML thinThick compound）"""
+    def _drawingml_portrait_double_border_on_pic(self, pic_el):
+        """在 pic:pic 的 spPr 上套用人物照雙線框（對照 stores/05聆聽被遺忘的苦難 三校.docx 浮動頭像）。"""
         from lxml import etree as lxml_etree
         PIC_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture'
-        A_NS   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+        A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
 
-        drawing = run._r.find(qn('w:drawing'))
-        if drawing is None:
-            return
-        pic_el = drawing.find('.//' + f'{{{PIC_NS}}}pic')
         if pic_el is None:
             return
         spPr_el = pic_el.find(f'{{{PIC_NS}}}spPr')
@@ -1636,21 +1990,34 @@ class ProfessionalDocxGenerator:
             spPr_el.remove(ln_el)
         for geom_el in list(spPr_el.findall(f'{{{A_NS}}}prstGeom')):
             spPr_el.remove(geom_el)
+        for eff in list(spPr_el.findall(f'{{{A_NS}}}effectLst')):
+            spPr_el.remove(eff)
 
-        # 明確宣告矩形形狀，框線才不會被截斷
         geom_el = lxml_etree.SubElement(
             spPr_el, f'{{{A_NS}}}prstGeom', attrib={'prst': 'rect'})
         lxml_etree.SubElement(geom_el, f'{{{A_NS}}}avLst')
 
-        # thinThick：細線（內）+ 自動空格 + 粗線（外）
-        # 總寬 ≈ 5pt → 細線≈1pt、空格≈1pt、粗線≈3pt
-        total_emu = int(5 * 12700)
+        # 參考稿：cmpd="thickThin" w="38100"（約 3pt compound）、黑色實線、方頭
         ln_el = lxml_etree.SubElement(
             spPr_el, f'{{{A_NS}}}ln',
-            attrib={'w': str(total_emu), 'cap': 'flat', 'cmpd': 'thinThick', 'algn': 'ctr'})
+            attrib={'w': '38100', 'cap': 'sq', 'cmpd': 'thickThin', 'algn': 'ctr'})
         sf_el = lxml_etree.SubElement(ln_el, f'{{{A_NS}}}solidFill')
         lxml_etree.SubElement(sf_el, f'{{{A_NS}}}srgbClr', attrib={'val': '000000'})
         lxml_etree.SubElement(ln_el, f'{{{A_NS}}}prstDash', attrib={'val': 'solid'})
+        lxml_etree.SubElement(ln_el, f'{{{A_NS}}}miter', attrib={'lim': '800000'})
+
+        eff_lst = lxml_etree.SubElement(spPr_el, f'{{{A_NS}}}effectLst')
+        ishw = lxml_etree.SubElement(eff_lst, f'{{{A_NS}}}innerShdw', attrib={'blurRad': '76200'})
+        lxml_etree.SubElement(ishw, f'{{{A_NS}}}srgbClr', attrib={'val': '000000'})
+
+    def _add_portrait_double_border(self, run):
+        """人物照片雙線框：與 05 三校稿一致之 thickThin compound + 內陰影。"""
+        drawing = run._r.find(qn('w:drawing'))
+        if drawing is None:
+            return
+        PIC_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture'
+        pic_el = drawing.find('.//' + f'{{{PIC_NS}}}pic')
+        self._drawingml_portrait_double_border_on_pic(pic_el)
 
     def _add_picture_border(self, run, border_pt=0.75, color='000000'):
         """在已插入圖片的 run 上加 drawingML 內框線（模擬 CSS border）。"""
@@ -1767,6 +2134,12 @@ class ProfessionalDocxGenerator:
         if not inner_html:
             return
 
+        inner_plain = _html_mod.unescape(re.sub(r'<[^>]+>', '', inner_html)).strip()
+        # 本期作者簡介：「◇本期專欄作者」段前多留一空行（對照三校稿）
+        if getattr(self, "is_author_intro_article", False) and inner_plain.startswith("◇"):
+            if not self._should_skip_blank_before():
+                self._add_blank_line()
+
         # 前置空行（前面已是空行或小標題時略過，避免重複）
         if not self._should_skip_blank_before():
             self._add_blank_line()
@@ -1790,6 +2163,11 @@ class ProfessionalDocxGenerator:
             r'|\[\^\d+\]'
             r'|<[^>]+>)',
             re.IGNORECASE | re.DOTALL)
+        # 對照 02本期作者簡介 三校：「☆本期特邀…」「◇本期專欄…」均為 14pt 粗體（不依 h2/h3 區分）
+        if getattr(self, "is_author_intro_article", False):
+            title_size = 14
+        else:
+            title_size = 16 if level == 2 else 14
         for seg in H3_TOKEN.split(inner_html):
             if not seg:
                 continue
@@ -1806,9 +2184,18 @@ class ProfessionalDocxGenerator:
                 pass  # 略過其他 HTML 標籤
             else:
                 text = _html_mod.unescape(seg)
+                if not text:
+                    continue
+                # 與 02本期作者簡介 三校相同：星形／菱形用 Segoe UI Symbol，其餘新細明體
+                if getattr(self, "is_author_intro_article", False) and text[0] in "☆◇":
+                    r_sym = p.add_run(text[0])
+                    self._apply_font(
+                        r_sym, "Segoe UI Symbol", "Segoe UI Symbol",
+                        size=title_size, bold=True,
+                    )
+                    text = text[1:]
                 if text:
                     run = p.add_run(text)
-                    title_size = 16 if level == 2 else 14
                     self._apply_font(run, 'Times New Roman', 'NSimSun', size=title_size, bold=True)
 
     def _add_blockquote(self, text, rel_text=''):
@@ -2001,6 +2388,7 @@ class ProfessionalDocxGenerator:
         id_str = str(article_id) if article_id else '04'
         num_m  = re.search(r'-(\d+)', id_str)
         display_num = num_m.group(1).zfill(2) if num_m else id_str.zfill(2)
+        vol_line = f'無境界者｜Vol. {issue_number}（2026.02-04）'
 
         # ── 偶數頁（左頁）頁首 ──
         even_hdr = section.even_page_header
@@ -2009,7 +2397,7 @@ class ProfessionalDocxGenerator:
         p1 = even_hdr.paragraphs[0]
         p1.paragraph_format.space_before = Pt(0)
         p1.paragraph_format.space_after  = Pt(0)
-        r1 = p1.add_run(f'無境界者｜Vol. {issue_number}（2026.02-04）')
+        r1 = p1.add_run(vol_line)
         self._apply_font(r1, 'Times New Roman', '微軟正黑體', size=10, color=dark)
 
         p2 = even_hdr.add_paragraph()
@@ -2029,23 +2417,24 @@ class ProfessionalDocxGenerator:
         r2.underline = True
 
         # ── 奇數頁（右頁）頁首 ──
-        # 第一行空白佔位（與偶數頁第一行等高），第二行才是實際文字
-        # 讓兩者底部對齊在同一高度
+        # 第一行：與偶數頁第一行同字串但隱藏（w:vanish），撐出相同行高，使第二行底線與偶數頁對齊
         odd_hdr = section.header
         for p in odd_hdr.paragraphs: p.clear()
 
         p3_blank = odd_hdr.paragraphs[0]
         p3_blank.paragraph_format.space_before = Pt(0)
         p3_blank.paragraph_format.space_after  = Pt(0)
-        r3_blank = p3_blank.add_run('')
+        r3_blank = p3_blank.add_run(vol_line)
         self._apply_font(r3_blank, 'Times New Roman', '微軟正黑體', size=10, color=dark)
+        r3_blank.font.hidden = True
 
         p3 = odd_hdr.add_paragraph()
         p3.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        p3.paragraph_format.space_before = Pt(0)
+        # 奇數頁底線再下移約 3px（96dpi 下 3px ≈ 2.25pt）
+        p3.paragraph_format.space_before = Pt(2.25)
         p3.paragraph_format.space_after  = Pt(0)
-        # 奇數頁：前6空白 + 編號 + 標題 + 後1空格，靠右對齊，底線包含後面空格
-        header_text = f'      {display_num} {article_title} '   # 後1個半形空格
+        # 奇數頁：前 8 半形空格 + 編號 + 標題 + 後 1 空格，靠右；底線與偶數頁第二行對齊（靠第一行隱藏同高）
+        header_text = f'        {display_num} {article_title} '   # 後 1 個半形空格
         r3 = p3.add_run(header_text)
         self._apply_font(r3, 'Times New Roman', '微軟正黑體', size=10, color=dark)
         # 底線需包住尾端空格：改用段落底框線模擬，或直接設 underline
@@ -2109,6 +2498,12 @@ def generate_article_docx(article_data, output_path):
     generator = ProfessionalDocxGenerator()
     generator.set_footnotes(article_data.get('footnotes', []))
     generator.set_media_assets(article_data.get('media_assets', []))
+
+    _title = article_data.get('title') or ''
+    _aid = str(article_data.get('id') or '')
+    generator.is_author_intro_article = (
+        '作者簡介' in _title or '作者簡介' in _aid
+    )
 
     is_toc = (article_data.get('article_type') == 'toc' or
               article_data.get('title') in ('目次', '目錄'))
