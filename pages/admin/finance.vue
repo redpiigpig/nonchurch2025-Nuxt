@@ -65,11 +65,20 @@ async function toggleConfirm(d) {
     ? { confirmed: true, confirmed_at: new Date().toISOString() }
     : { confirmed: false, confirmed_at: null };
   const { error } = await supabase.from("donations").update(update).eq("id", d.id);
-  if (!error) {
-    d.confirmed = update.confirmed;
-    d.confirmed_at = update.confirmed_at;
-  } else {
-    alert("更新失敗：" + error.message);
+  if (error) { alert("更新失敗：" + error.message); return; }
+  d.confirmed = update.confirmed;
+  d.confirmed_at = update.confirmed_at;
+
+  // 標記為已確認時，寄確認信給贊助者
+  if (newVal) {
+    try {
+      await $fetch("/api/donate-send-confirm", {
+        method: "POST",
+        body: { name: d.name, email: d.email },
+      });
+    } catch (err) {
+      alert("資料庫已更新，但確認信寄送失敗：" + (err?.data?.message || err.message));
+    }
   }
 }
 

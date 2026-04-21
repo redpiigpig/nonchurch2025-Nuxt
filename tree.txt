@@ -145,6 +145,7 @@ Directory structure:
     │       ├── submit.post.js
     │       ├── donate-inquiry.post.js
     │       ├── donate-confirm.post.js
+    │       ├── donate-send-confirm.post.js
     │       ├── subscribe.post.js
     │       ├── subscribe-print.post.js
     │       ├── send-newsletter.post.js
