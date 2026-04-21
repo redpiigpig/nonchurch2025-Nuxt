@@ -4,6 +4,8 @@ Directory structure:
     ├── .gitignore
     ├── CLAUDE.md
     ├── README.md
+    ├── requirements.txt
+    ├── nixpacks.toml
     ├── app.vue
     ├── nuxt.config.ts
     ├── package.json
