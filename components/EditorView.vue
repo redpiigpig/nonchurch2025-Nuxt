@@ -1552,9 +1552,11 @@ const colorLabel = (color) => {
             📤 更新內文
           </button>
         </template>
+        <!-- 下載 Word 暫時停用（伺服器缺 python-docx）
         <button v-if="isEditMode" class="btn btn-download" @click="exportToWord" :disabled="loading">
           📥 下載 Word
         </button>
+        -->
         <button
           v-if="isEditMode && proofreadStatus === 'incomplete'"
           class="btn btn-draft-done"
