@@ -805,7 +805,7 @@ class ProfessionalDocxGenerator:
 
     def _split_into_segments(self, content):
         """將 HTML 內容切分為 (type, html) segments，正確處理嵌套標籤。"""
-        BLOCK_TAGS = ('figure', 'blockquote', 'table', 'div', 'p', 'h1', 'h2', 'h3')
+        BLOCK_TAGS = ('figure', 'blockquote', 'table', 'div', 'p', 'h1', 'h2', 'h3', 'hr')
         start_re = re.compile(
             r'<(' + '|'.join(BLOCK_TAGS) + r')(\b[^>]*)?>',
             re.IGNORECASE
@@ -879,6 +879,8 @@ class ProfessionalDocxGenerator:
                 self._dispatch_div(seg_html)
             elif seg_type == 'table':
                 self._add_table(seg_html)
+            elif seg_type == 'hr':
+                self._add_custom_divider()
             elif seg_type == 'p':
                 self._add_paragraph_element(seg_html)
             elif seg_type in ('h1', 'h2', 'h3'):
@@ -1241,8 +1243,51 @@ class ProfessionalDocxGenerator:
 
         self._add_blank_line()
 
+    def _add_hyperlink_run(self, paragraph, text, url, color='0563C1', underline=True,
+                           ascii_font='Times New Roman', east_font='NSimSun', size=11):
+        """在段落中插入可點擊超連結 run。"""
+        from docx.opc.constants import RELATIONSHIP_TYPE
+        part = paragraph.part
+        r_id = part.relate_to(url, RELATIONSHIP_TYPE.HYPERLINK, is_external=True)
+
+        hyperlink = OxmlElement('w:hyperlink')
+        hyperlink.set(qn('r:id'), r_id)
+
+        new_run = OxmlElement('w:r')
+        rPr = OxmlElement('w:rPr')
+
+        rFonts = OxmlElement('w:rFonts')
+        rFonts.set(qn('w:ascii'), ascii_font)
+        rFonts.set(qn('w:hAnsi'), ascii_font)
+        rFonts.set(qn('w:eastAsia'), east_font)
+        rPr.append(rFonts)
+
+        c = OxmlElement('w:color')
+        c.set(qn('w:val'), color)
+        rPr.append(c)
+
+        if underline:
+            u = OxmlElement('w:u')
+            u.set(qn('w:val'), 'single')
+            rPr.append(u)
+
+        sz = OxmlElement('w:sz')
+        sz.set(qn('w:val'), str(size * 2))
+        rPr.append(sz)
+        szCs = OxmlElement('w:szCs')
+        szCs.set(qn('w:val'), str(size * 2))
+        rPr.append(szCs)
+
+        new_run.append(rPr)
+        t = OxmlElement('w:t')
+        t.text = text
+        new_run.append(t)
+
+        hyperlink.append(new_run)
+        paragraph._p.append(hyperlink)
+
     def _add_info_card(self, html):
-        """資訊卡（.info-card）：外框 + 置中圖片 + 標題 + 連結。"""
+        """資訊卡（.info-card）：置右浮動，保留左側文字流空間。"""
         src_m = re.search(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\']', html, re.IGNORECASE)
         title_m = re.search(r'<h3[^>]*>(.*?)</h3>', html, re.IGNORECASE | re.DOTALL)
         links = re.findall(
@@ -1261,27 +1306,47 @@ class ProfessionalDocxGenerator:
 
         self._add_blank_line()
 
+        card_width_cm = 7.1  # 約頁面一半寬度，左側留給正文
         card = self.doc.add_table(rows=1, cols=1)
-        card.style = 'Table Grid'
         tbl = card._tbl
         tblPr = tbl.find(qn('w:tblPr'))
         if tblPr is None:
             tblPr = OxmlElement('w:tblPr')
             tbl.insert(0, tblPr)
+
+        # 置右浮動（文字可在左側繞排）
+        tblpPr = OxmlElement('w:tblpPr')
+        tblpPr.set(qn('w:leftFromText'), '170')
+        tblpPr.set(qn('w:rightFromText'), '170')
+        tblpPr.set(qn('w:topFromText'), '0')
+        tblpPr.set(qn('w:bottomFromText'), '0')
+        tblpPr.set(qn('w:vertAnchor'), 'text')
+        tblpPr.set(qn('w:horzAnchor'), 'margin')
+        tblpPr.set(qn('w:tblpXSpec'), 'right')
+        tblPr.insert(0, tblpPr)
+
         for old in tblPr.findall(qn('w:tblW')):
             tblPr.remove(old)
         tblW = OxmlElement('w:tblW')
-        tblW.set(qn('w:w'), '8051')  # 14.2cm
+        table_width_dxa = int(card_width_cm * 567)
+        tblW.set(qn('w:w'), str(table_width_dxa))
         tblW.set(qn('w:type'), 'dxa')
         tblPr.append(tblW)
+        tblLayout = OxmlElement('w:tblLayout')
+        tblLayout.set(qn('w:type'), 'fixed')
+        tblPr.append(tblLayout)
 
         cell = card.cell(0, 0)
         tcPr = cell._tc.get_or_add_tcPr()
+        tcW = OxmlElement('w:tcW')
+        tcW.set(qn('w:w'), str(table_width_dxa))
+        tcW.set(qn('w:type'), 'dxa')
+        tcPr.append(tcW)
         tcBorders = OxmlElement('w:tcBorders')
         for side in ('top', 'left', 'bottom', 'right'):
             bd = OxmlElement(f'w:{side}')
             bd.set(qn('w:val'), 'single')
-            bd.set(qn('w:sz'), '16')
+            bd.set(qn('w:sz'), '14')
             bd.set(qn('w:space'), '0')
             bd.set(qn('w:color'), '4F7F39')
             tcBorders.append(bd)
@@ -1301,7 +1366,8 @@ class ProfessionalDocxGenerator:
         p_img.paragraph_format.first_line_indent = Pt(0)
         img_stream = self._download_image(src) if src else None
         if img_stream:
-            p_img.add_run().add_picture(img_stream, width=Cm(5.8), height=Cm(5.8))
+            # 近似 10% 圓角卡片視覺：圖片維持較大且置中
+            p_img.add_run().add_picture(img_stream, width=Cm(4.4), height=Cm(4.4))
 
         if title:
             p_title = cell.add_paragraph()
@@ -1314,22 +1380,44 @@ class ProfessionalDocxGenerator:
             title_run.font.color.rgb = RGBColor(0x3D, 0x5D, 0x33)
 
         if link_items:
-            p_link = cell.add_paragraph()
-            p_link.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p_link.paragraph_format.space_before = Pt(0)
-            p_link.paragraph_format.space_after = Pt(0)
-            p_link.paragraph_format.first_line_indent = Pt(0)
-            for idx, (text, href) in enumerate(link_items):
-                if idx > 0:
-                    gap = p_link.add_run('    ')
-                    self._apply_font(gap, 'Times New Roman', 'NSimSun', size=11)
-                txt_run = p_link.add_run(text)
-                self._apply_font(txt_run, 'Times New Roman', 'NSimSun', size=11)
-                txt_run.font.underline = True
-                txt_run.font.color.rgb = RGBColor(0x00, 0x56, 0xB3)
-                href_run = p_link.add_run(f' ({href})')
-                self._apply_font(href_run, 'Times New Roman', 'NSimSun', size=10)
-                href_run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+            links_tbl = cell.add_table(rows=1, cols=2)
+            links_tbl.style = 'Table Grid'
+            links_tbl.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            lt = links_tbl._tbl
+            ltPr = lt.find(qn('w:tblPr'))
+            if ltPr is None:
+                ltPr = OxmlElement('w:tblPr')
+                lt.insert(0, ltPr)
+            for old in ltPr.findall(qn('w:tblW')):
+                ltPr.remove(old)
+            ltW = OxmlElement('w:tblW')
+            ltW.set(qn('w:w'), str(int(table_width_dxa * 0.9)))
+            ltW.set(qn('w:type'), 'dxa')
+            ltPr.append(ltW)
+
+            for idx in range(2):
+                lcell = links_tbl.cell(0, idx)
+                ltcPr = lcell._tc.get_or_add_tcPr()
+                ltcShd = OxmlElement('w:shd')
+                ltcShd.set(qn('w:val'), 'clear')
+                ltcShd.set(qn('w:color'), 'auto')
+                ltcShd.set(qn('w:fill'), 'EAF3FF')  # 淺藍底
+                ltcPr.append(ltcShd)
+                p = lcell.paragraphs[0]
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p.paragraph_format.first_line_indent = Pt(0)
+                p.paragraph_format.space_before = Pt(0)
+                p.paragraph_format.space_after = Pt(0)
+                if idx < len(link_items):
+                    text, href = link_items[idx]
+                    self._add_hyperlink_run(
+                        p, text, href,
+                        color='0563C1',
+                        underline=True,
+                        ascii_font='PMingLiU',
+                        east_font='PMingLiU',
+                        size=11,
+                    )
 
         self._add_blank_line()
 
@@ -1759,6 +1847,7 @@ class ProfessionalDocxGenerator:
           <b>/<strong>       → 粗體
           <em>               → 標楷體
           <i>                → 斜體
+          <u>                → 底線
           <br>               → 段落內換行（w:br）
           <span style="..."> → 小字體 / 置右等樣式
           [^N]               → Word 腳注引用
@@ -1771,6 +1860,7 @@ class ProfessionalDocxGenerator:
             r'|<(?:b|strong)>[^<]*</(?:b|strong)>'
             r'|<em>[^<]*</em>'
             r'|<i>[^<]*</i>'
+            r'|<u>[^<]*</u>'
             r'|<br\s*/?>'
             r'|<span\b[^>]*>.*?</span>'
             r'|<sup\b[^>]*class="footnote-ref"[^>]*><a\b[^>]*>[^<]*</a></sup>'
@@ -1785,6 +1875,7 @@ class ProfessionalDocxGenerator:
             bold_html   = re.fullmatch(r'<(?:b|strong)>([^<]*)</(?:b|strong)>', seg, re.IGNORECASE)
             em_html     = re.fullmatch(r'<em>([^<]*)</em>', seg, re.IGNORECASE)
             italic_html = re.fullmatch(r'<i>([^<]*)</i>', seg, re.IGNORECASE)
+            underline_html = re.fullmatch(r'<u>([^<]*)</u>', seg, re.IGNORECASE)
             br_tag      = re.fullmatch(r'<br\s*/?>', seg, re.IGNORECASE)
             span_m      = re.fullmatch(r'<span\b([^>]*)>(.*?)</span>', seg, re.IGNORECASE | re.DOTALL)
             fn_sup_m    = re.search(r'<a\b[^>]*>([^<]*)</a>', seg) if seg.startswith('<sup') else None
@@ -1807,6 +1898,10 @@ class ProfessionalDocxGenerator:
             elif italic_html:
                 run = paragraph.add_run(italic_html.group(1))
                 self._apply_font(run, ascii_font, east_font, size=size, italic=True)
+            elif underline_html:
+                run = paragraph.add_run(underline_html.group(1))
+                self._apply_font(run, ascii_font, east_font, size=size)
+                run.font.underline = True
             elif br_tag:
                 # 段落內換行（w:br）
                 br_run = paragraph.add_run()
