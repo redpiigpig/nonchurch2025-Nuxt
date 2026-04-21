@@ -884,10 +884,11 @@ class ProfessionalDocxGenerator:
             elif seg_type == 'p':
                 self._add_paragraph_element(seg_html)
             elif seg_type in ('h1', 'h2', 'h3'):
+                level = int(seg_type[1]) if len(seg_type) == 2 and seg_type[1].isdigit() else 3
                 inner = re.sub(r'^<h[1-3][^>]*>', '', seg_html, count=1, flags=re.IGNORECASE)
                 inner = re.sub(r'</h[1-3]>\s*$', '', inner, flags=re.IGNORECASE).strip()
                 if inner:
-                    self._add_section_title(inner)
+                    self._add_section_title(inner, level=level)
             else:  # text
                 normalized = re.sub(r'<br\s*/?>', '\n', seg_html)
                 for line in normalized.split('\n'):
@@ -927,6 +928,9 @@ class ProfessionalDocxGenerator:
                 if 'right' in style_m.group(1).lower():
                     self._add_right_aligned(inner)
                     return
+                if 'center' in style_m.group(1).lower():
+                    self._add_center_aligned(inner)
+                    return
             for line in inner.split('\n'):
                 line = line.strip()
                 if line:
@@ -944,17 +948,21 @@ class ProfessionalDocxGenerator:
                                    html, re.IGNORECASE))
         toc_line  = bool(re.search(r'class=["\'][^"\']*toc-line[^"\']*["\']',
                                    html, re.IGNORECASE))
-        # 偵測 text-align: right → 交由 _add_right_aligned 統一處理
+        # 偵測 text-align: right/center → 交由對應函式統一處理
         tag_m = re.match(r'<p\b([^>]*)>', html, re.IGNORECASE)
         if tag_m:
             style_m = re.search(r'style=["\']([^"\']*)["\']', tag_m.group(1), re.IGNORECASE)
-            if style_m and 'text-align' in style_m.group(1) and 'right' in style_m.group(1):
+            if style_m and 'text-align' in style_m.group(1):
+                align_style = style_m.group(1).lower()
                 inner = re.sub(r'^<p[^>]*>', '', html, count=1, flags=re.IGNORECASE)
                 inner = re.sub(r'</p>\s*$', '', inner, flags=re.IGNORECASE).strip()
                 inner = re.sub(r'<[^>]+>', '', inner).strip()
-                if inner:
+                if inner and 'right' in align_style:
                     self._add_right_aligned(inner)
-                return
+                    return
+                if inner and 'center' in align_style:
+                    self._add_center_aligned(inner)
+                    return
         inner = re.sub(r'^<p[^>]*>', '', html, count=1, flags=re.IGNORECASE)
         inner = re.sub(r'</p>\s*$',  '', inner, flags=re.IGNORECASE).strip()
         if not inner:
@@ -1569,6 +1577,19 @@ class ProfessionalDocxGenerator:
             else:
                 self._add_inline(p, line)
 
+    def _add_center_aligned(self, text):
+        """置中段落（對應 style="text-align: center"）。"""
+        for line in text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            p = self.doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.first_line_indent = Pt(0)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after  = Pt(0)
+            self._add_inline(p, line)
+
     def _add_table(self, html):
         """解析並插入 HTML 表格（<table class="data-table">）。"""
         rows_html = re.findall(r'<tr\b[^>]*>(.*?)</tr>', html,
@@ -1699,7 +1720,8 @@ class ProfessionalDocxGenerator:
 
         heading_match = re.match(r'^(#{1,3})\s+(.+)', line)
         if heading_match:
-            self._add_section_title(heading_match.group(2))
+            level = len(heading_match.group(1))
+            self._add_section_title(heading_match.group(2), level=level)
             return
 
         if line.startswith('>'):
@@ -1724,7 +1746,7 @@ class ProfessionalDocxGenerator:
         p.paragraph_format.space_after  = Pt(0)
         self._add_inline(p, line)
 
-    def _add_section_title(self, inner_html):
+    def _add_section_title(self, inner_html, level=3):
         """段落小標題：14pt 粗體，前置空行，段後 9pt（0.5 行距），無首行縮排，無列表符號
         inner_html 可包含 inline 標記（如 <sup class="footnote-ref">）。
         """
@@ -1786,7 +1808,8 @@ class ProfessionalDocxGenerator:
                 text = _html_mod.unescape(seg)
                 if text:
                     run = p.add_run(text)
-                    self._apply_font(run, 'Times New Roman', 'NSimSun', size=14, bold=True)
+                    title_size = 16 if level == 2 else 14
+                    self._apply_font(run, 'Times New Roman', 'NSimSun', size=title_size, bold=True)
 
     def _add_blockquote(self, text, rel_text=''):
         """獨立引用：標楷體，左縮排 24pt，首行與末行各空一行，中間行無間距。
