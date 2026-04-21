@@ -103,6 +103,26 @@
 | sort_order | integer | YES | 1 |
 | created_at | timestamptz | YES | now() |
 
+## Table: donations（新增於 2026-04-21）
+| 欄位 | 類型 | 可空 | 預設 |
+|------|------|------|------|
+| id | bigint | NO | auto identity |
+| created_at | timestamptz | YES | now() |
+| name | text | NO | |
+| email | text | NO | |
+| donate_date | text | NO | |
+| amount | text | NO | |
+| last5 | text | NO | |
+| is_public | text | NO | |
+| message | text | YES | |
+| confirmed | boolean | YES | false |
+| confirmed_at | timestamptz | YES | |
+| note | text | YES | |
+
+# RLS 政策（donations）：
+#   anon        → 無存取（由 service key 後端 INSERT）
+#   authenticated → SELECT / UPDATE / DELETE
+
 ## Table: submissions（新增於 2026-04-14）
 | 欄位 | 類型 | 可空 | 預設 |
 |------|------|------|------|

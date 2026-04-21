@@ -1,6 +1,7 @@
 // server/api/donate-confirm.post.js
-// 贊助者回填後：寄確認信給贊助者、寄通知信給編輯團隊
+// 贊助者回填後：寄確認信給贊助者、寄通知信給編輯團隊，並寫入 Supabase donations 資料表
 import nodemailer from "nodemailer";
+import { createClient } from "@supabase/supabase-js";
 
 const REPLY_EMAIL = "nonchurch2025@gmail.com";
 
@@ -116,6 +117,20 @@ export default defineEventHandler(async (event) => {
       html: buildTeamEmail(name.trim(), email.trim(), date.trim(), amount.trim(), last5.trim(), is_public, message?.trim() || ""),
     }),
   ]);
+
+  // 寫入 Supabase（使用 service key 繞過 RLS）
+  if (config.supabaseServiceKey && config.public?.supabaseUrl) {
+    const supabase = createClient(config.public.supabaseUrl, config.supabaseServiceKey);
+    await supabase.from("donations").insert({
+      name: name.trim(),
+      email: email.trim(),
+      donate_date: date.trim(),
+      amount: amount.trim(),
+      last5: last5.trim(),
+      is_public,
+      message: message?.trim() || null,
+    });
+  }
 
   return { success: true };
 });
