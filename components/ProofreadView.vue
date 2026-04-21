@@ -399,9 +399,27 @@ const statusInfo = computed(() => {
   return map[proofreadStatus.value] || map.pending;
 });
 
+const normalizeFootnoteHtml = (html = "") =>
+  String(html)
+    .replace(/&lt;b&gt;/g, "<strong>")
+    .replace(/&lt;\/b&gt;/g, "</strong>")
+    .replace(/&lt;strong&gt;/g, "<strong>")
+    .replace(/&lt;\/strong&gt;/g, "</strong>")
+    .replace(/&lt;i&gt;/g, "<i>")
+    .replace(/&lt;\/i&gt;/g, "</i>")
+    .replace(/&lt;em&gt;/g, '<span class="kaiti">')
+    .replace(/&lt;\/em&gt;/g, "</span>")
+    .replace(/&lt;span class=&quot;kaiti&quot;&gt;/g, '<span class="kaiti">')
+    .replace(/&lt;\/span&gt;/g, "</span>")
+    // Markdown legacy：**text** => 標楷體；*text* => 粗體
+    .replace(/\*\*([^*]+)\*\*/g, '<span class="kaiti">$1</span>')
+    .replace(/\*([^*]+)\*/g, "<strong>$1</strong>");
+
 const footnotesHtml = computed(() => {
   if (!article.value?.footnotes?.length) return "";
-  const items = article.value.footnotes.map((n) => `<li><p>${n.text}</p></li>`).join("");
+  const items = article.value.footnotes
+    .map((n) => `<li><p>${normalizeFootnoteHtml(n.text)}</p></li>`)
+    .join("");
   return `<div class="footnotes"><hr /><ol>${items}</ol></div>`;
 });
 
@@ -1141,8 +1159,11 @@ onBeforeUnmount(() => {
 :deep(.markdown-body p)  { margin: 0.5em 0; line-height: 1.85; }
 :deep(.markdown-body h2) { margin: 1.2em 0 0.5em; }
 :deep(.markdown-body h3) { margin: 1em 0 0.4em; }
-:deep(.footnotes)        { margin-top: 40px; padding-top: 16px; border-top: 1px solid #ccc; font-size: 0.9rem; color: #666; }
+:deep(.footnotes)        { margin-top: 40px; padding-top: 16px; border-top: 1px solid #ccc; font-size: 1rem; color: #444; font-family: "Times New Roman", serif; }
 :deep(.footnotes h2), :deep(.footnotes hr) { display: none; }
+:deep(.footnotes li) { line-height: 1.6; font-family: "Times New Roman", serif; }
+:deep(.footnotes li p) { margin: 0; text-indent: 0 !important; color: #444; font-family: "Times New Roman", serif; font-size: 1rem; }
+:deep(.footnotes .kaiti) { font-family: "DFKai-SB", "標楷體", "BiauKai", "Kaiti TC", "Songti TC", serif; font-style: normal; }
 
 @media (max-width: 900px) {
   .annotation-panel { display: none; }

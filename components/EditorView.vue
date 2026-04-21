@@ -10,7 +10,6 @@ import { Node, Extension, Mark, mergeAttributes } from "@tiptap/core";
 import Italic from "@tiptap/extension-italic";
 import { Plugin } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { supabase } from "~/supabase";
 
 // ── 自訂 directive：像 v-html 但 focus 時不重繪（防止 contenteditable 游標跳位）
 const vSafeHtml = {
@@ -543,6 +542,13 @@ function normalizeInlineTags(html) {
     .replace(/&lt;u&gt;/g, "<u>")
     .replace(/&lt;\/u&gt;/g, "</u>");
 
+  // ── Phase 1.5: Markdown legacy 規則（專案自訂）
+  // **text** => 標楷體；*text* => 粗體
+  // 先處理 ** 再處理 *，避免相互干擾
+  result = result
+    .replace(/\*\*([^*]+)\*\*/g, '<span class="kaiti">$1</span>')
+    .replace(/\*([^*]+)\*/g, "<strong>$1</strong>");
+
   // ── Phase 2: block HTML ────────────────────────────────────────
   // 若一個 <p> 的全部內容都是 escaped block HTML，解包還原
   const BLOCK_RE = /^<(figure|table|div[\s>]|blockquote|iframe|video|audio)\b/i;
@@ -566,6 +572,7 @@ function normalizeInlineTags(html) {
 // ── Form 狀態 ─────────────────────────────────────────────────────
 const route = useRoute();
 const router = useRouter();
+const supabase = useSupabaseClient();
 const loading = ref(false);
 const isEditMode = ref(false);
 const showSource = ref(false);
@@ -755,7 +762,11 @@ const loadArticle = async (id) => {
       summary: data.summary || "",
       content: data.content || "",
       keyword: data.keyword || "",
-      footnotes: data.footnotes || [],
+      footnotes: (data.footnotes || []).map((fn) => ({
+        ...fn,
+        // 相容舊資料：若腳注文字被存成 escaped HTML，載入時還原
+        text: normalizeInlineTags(fn?.text || ""),
+      })),
       media_assets: data.media_assets || [],
       prev_id: data.prev_id || "",
       next_id: data.next_id || "",
@@ -845,7 +856,11 @@ const saveArticle = async (silent = false) => {
     summary: form.value.summary,
     content: form.value.content,
     keyword: form.value.keyword,
-    footnotes: form.value.footnotes,
+    footnotes: (form.value.footnotes || []).map((fn) => ({
+      ...fn,
+      // 儲存前再次正規化，避免把 <span class="kaiti"> 存成純文字
+      text: normalizeInlineTags(fn?.text || ""),
+    })),
     prev_id: form.value.prev_id || null,
     next_id: form.value.next_id || null,
     seo: seoParsed,
@@ -856,13 +871,26 @@ const saveArticle = async (silent = false) => {
   };
   delete payload.media_assets;
 
-  const { error } = await supabase
-    .from("articles")
-    .upsert(payload, { onConflict: "id" });
+  // 重要：編輯既有文章時改用 update，避免每次都走 upsert(on_conflict=id)
+  // 某些 RLS/權限組合下 upsert 會觸發 401（尤其是只允許 update 不允許 insert 時）
+  const { data: writeRows, error } = isEditMode.value
+    ? await supabase
+      .from("articles")
+      .update(payload)
+      .eq("id", payload.id)
+      .select("id")
+    : await supabase
+      .from("articles")
+      .upsert(payload, { onConflict: "id" })
+      .select("id");
 
-  if (error) {
+  const noRowUpdated = !error && isEditMode.value && (!writeRows || writeRows.length === 0);
+  if (error || noRowUpdated) {
     autoSaveStatus.value = "error";
-    if (!silent) alert("儲存失敗！\n" + error.message);
+    if (!silent) {
+      const msg = error?.message || "未更新任何資料（可能登入已過期或資料庫權限不足）";
+      alert("儲存失敗！\n" + msg);
+    }
   } else {
     autoSaveStatus.value = "saved";
     isEditMode.value = true;
@@ -1364,6 +1392,27 @@ const restoreMiniRange = () => {
   return true;
 };
 
+// 取得目前可用的腳注選取範圍：
+// 1) 優先使用「當下」選取（若仍在 activeMiniField 內）
+// 2) 否則回退到 savedMiniRange（例如點工具按鈕後失焦）
+const getMiniActiveRange = () => {
+  if (!activeMiniField.value) return null;
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0) {
+    const current = sel.getRangeAt(0);
+    const startNode = current.startContainer?.nodeType === globalThis.Node?.TEXT_NODE
+      ? current.startContainer.parentNode
+      : current.startContainer;
+    if (startNode && activeMiniField.value.contains(startNode)) {
+      return current;
+    }
+  }
+  if (!restoreMiniRange()) return null;
+  const restoredSel = window.getSelection();
+  if (!restoredSel || restoredSel.rangeCount === 0) return null;
+  return restoredSel.getRangeAt(0);
+};
+
 const fnFormatOpen = ref(null);
 const toggleFnFormat = (index) => {
   fnFormatOpen.value = fnFormatOpen.value === index ? null : index;
@@ -1377,7 +1426,13 @@ const reparseFnHtml = (fn) => {
   fn.text = activeMiniField.value.innerHTML;
 };
 
-const onMiniBlur = (e) => {
+const onMiniBlur = (e, fn = null) => {
+  // 失焦時把 **text** / *text* / escaped inline tags 正規化成 HTML
+  if (fn && activeMiniField.value) {
+    const normalized = normalizeInlineTags(activeMiniField.value.innerHTML || "");
+    activeMiniField.value.innerHTML = normalized;
+    fn.text = normalized;
+  }
   saveMiniRange();
   if (!e.relatedTarget?.closest?.(".fn-format-area")) {
     activeMiniField.value = null;
@@ -1386,48 +1441,68 @@ const onMiniBlur = (e) => {
 };
 
 const applyMiniFormat = (cmd) => {
-  if (!restoreMiniRange()) return;
+  const range = getMiniActiveRange();
+  if (!range) return;
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(range);
   document.execCommand(cmd, false, null);
   activeMiniField.value?.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
 const wrapMiniTag = (tag, className = null) => {
-  if (!restoreMiniRange()) return;
+  const range = getMiniActiveRange();
+  if (!range) return;
   const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-  const range = sel.getRangeAt(0);
+  if (!sel) return;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  if (sel.isCollapsed) return;
 
   // Toggle：若選取內容已在同一標籤內，則取消（unwrap）
   let ancestor = range.commonAncestorContainer;
-  if (ancestor.nodeType === Node.TEXT_NODE) ancestor = ancestor.parentElement;
+  // 注意：本檔已從 TipTap 匯入 Node（會遮蔽瀏覽器 Node 常數）
+  // 這裡必須使用 globalThis.Node 才是 DOM 的 TEXT_NODE
+  if (ancestor?.nodeType === globalThis.Node?.TEXT_NODE) ancestor = ancestor.parentElement;
+  if (!(ancestor instanceof Element)) ancestor = ancestor?.parentElement || null;
+  if (!(ancestor instanceof Element)) return;
   const selector = className ? `${tag}.${className}` : tag;
   const existing = ancestor.closest(selector);
 
   if (existing && activeMiniField.value?.contains(existing)) {
+    // Unwrap：把子節點提出，刪掉包裹元素
     const parent = existing.parentNode;
     while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
     parent.removeChild(existing);
   } else {
-    // 用 insertHTML 包裹（比 surroundContents 穩健，可跨節點邊界）
-    const frag = range.cloneContents();
-    const tmp = document.createElement("div");
-    tmp.appendChild(frag);
-    const tagOpen = className ? `<${tag} class="${className}">` : `<${tag}>`;
-    document.execCommand("insertHTML", false, `${tagOpen}${tmp.innerHTML}</${tag}>`);
+    // Wrap：用 Range API 取代已廢棄的 execCommand("insertHTML")
+    const frag = range.extractContents();
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    el.appendChild(frag);
+    range.insertNode(el);
+    // 游標移到插入元素之後
+    range.setStartAfter(el);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
   }
 
   activeMiniField.value?.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
 const wrapMiniLink = () => {
-  if (!savedMiniRange.value || !activeMiniField.value) return;
+  if (!activeMiniField.value) return;
   const url = prompt("連結 URL：");
   if (!url) return;
-  // prompt 會清掉 selection，需要先 restore
-  restoreMiniRange();
+  // prompt 會清掉 selection，需要回復可用 range
+  const range = getMiniActiveRange();
+  if (!range) return;
   const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-  const range = sel.getRangeAt(0);
+  if (!sel) return;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  if (sel.isCollapsed) return;
   try {
     const el = document.createElement("a");
     el.href = url;
@@ -1552,11 +1627,9 @@ const colorLabel = (color) => {
             📤 更新內文
           </button>
         </template>
-        <!-- 下載 Word 暫時停用（伺服器缺 python-docx）
         <button v-if="isEditMode" class="btn btn-download" @click="exportToWord" :disabled="loading">
           📥 下載 Word
         </button>
-        -->
         <button
           v-if="isEditMode && proofreadStatus === 'incomplete'"
           class="btn btn-draft-done"
@@ -1957,31 +2030,13 @@ const colorLabel = (color) => {
 
             <div v-for="(fn, index) in form.footnotes" :key="fn.id" class="footnote-item">
               <span class="fn-id">[{{ fn.id }}]</span>
-              <div
-                contenteditable="true"
+              <textarea
+                v-model="fn.text"
                 class="mini-editor-field"
-                @focus="activeMiniField = $event.target"
-                @blur="onMiniBlur"
-                @mouseup="saveMiniRange"
-                @keyup="saveMiniRange"
-                @input="fn.text = $event.target.innerHTML"
-                v-safe-html="fn.text"
-              ></div>
-              <div class="fn-format-area">
-                <button
-                  type="button"
-                  class="btn btn-sm fn-format-btn"
-                  @mousedown.prevent="toggleFnFormat(index)"
-                  title="格式工具"
-                >✏️▾</button>
-                <div v-show="fnFormatOpen === index" class="fn-format-popup">
-                  <button type="button" @mousedown.prevent="applyMiniFormat('bold')" title="粗體"><strong>B</strong></button>
-                  <button type="button" @mousedown.prevent="applyMiniFormat('italic')" title="斜體"><i>I</i></button>
-                  <button type="button" @mousedown.prevent="wrapMiniTag('span', 'kaiti')" title="標楷體">楷</button>
-                  <button type="button" @mousedown.prevent="wrapMiniLink" title="超連結">🔗</button>
-                  <button type="button" @mousedown.prevent="reparseFnHtml(fn)" title="解析已輸入的 HTML 標籤">♻</button>
-                </div>
-              </div>
+                :rows="Math.max(1, (fn.text || '').split('\n').length)"
+                spellcheck="false"
+                placeholder="可直接編輯註腳 HTML，例如：<span class=&quot;kaiti&quot;>...</span>"
+              ></textarea>
               <button class="btn btn-sm btn-insert-fn" @click="insertFootnoteAfter(index)" title="在此之後插入新腳注">＋</button>
               <button class="btn btn-sm btn-danger" @click="removeFootnote(index)">X</button>
             </div>
@@ -2114,6 +2169,13 @@ const colorLabel = (color) => {
   font-weight: bold;
   text-decoration: none;
   font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  box-sizing: border-box;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .btn-save { background: #28a745; color: white; }
@@ -2820,16 +2882,17 @@ const colorLabel = (color) => {
   padding: 6px 10px;
   border: 1px solid #ddd;
   border-radius: 4px;
-  min-height: 32px;
   line-height: 1.6;
   outline: none;
   background: #fff;
   word-break: break-word;
-  font-family: inherit;
-  font-size: inherit;
-  color: inherit;
+  /* 直接顯示 HTML 原始碼，便於人工檢查 */
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 0.9rem;
+  color: #444;
+  resize: vertical;
+  white-space: pre-wrap;
 }
-.mini-editor-field .kaiti { font-family: "DFKai-SB", "標楷體", serif; font-style: normal; }
 
 .mini-editor-field:focus {
   border-color: #6366f1;

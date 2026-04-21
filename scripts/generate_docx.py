@@ -406,7 +406,15 @@ class ProfessionalDocxGenerator:
         ef = OxmlElement('wp:effectExtent')
         for a in ('l','t','r','b'): ef.set(a,'0')
         anchor.append(ef)
-        wrap = OxmlElement('wp:wrapSquare'); wrap.set('wrapText','bothSides'); anchor.append(wrap)
+        # 置中圖片：改成上下環繞，確保圖文後方空行可見
+        # 左/右浮動：維持左右環繞
+        if float_dir == 'center':
+            wrap = OxmlElement('wp:wrapTopAndBottom')
+            anchor.append(wrap)
+        else:
+            wrap = OxmlElement('wp:wrapSquare')
+            wrap.set('wrapText', 'bothSides')
+            anchor.append(wrap)
         if docPr       is not None: anchor.append(docPr)
         if cNvGrfFrmPr is not None: anchor.append(cNvGrfFrmPr)
         if graphic     is not None: anchor.append(graphic)
@@ -498,26 +506,21 @@ class ProfessionalDocxGenerator:
             self._apply_font(run, 'Times New Roman', 'NSimSun', size=10, color=(0x80,0x80,0x80))
             return
 
-        if float_dir:
-            # 浮動圖（左/右）→ 用浮動表格呈現
-            self._add_figure_textbox(img_stream, width_cm, caption_lines, float_dir,
-                                     portrait_border=has_portrait_border)
-        else:
-            # 置中行內圖（img-bottom）→ 前後各空一行
-            self._add_blank_line()
-            p = self.doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.paragraph_format.space_before = Pt(0)
-            p.paragraph_format.space_after  = Pt(0)
-            run = p.add_run()
-            run.add_picture(img_stream, width=Cm(width_cm))
-            if caption_lines:
-                pc = self.doc.add_paragraph()
-                pc.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                pc.paragraph_format.space_before = Pt(0)
-                pc.paragraph_format.space_after  = Pt(0)
-                self._add_caption_runs(pc, caption_lines)
-            self._add_blank_line()   # 圖說之後空一行
+        # 圖文區塊前空一行
+        self._add_blank_line()
+
+        # 左/右/置中 全部統一為「圖片+圖說同一個浮動表格容器」
+        # 這樣在 Word 裡比較容易整塊選取、搬移與縮放。
+        self._add_figure_textbox(
+            img_stream,
+            width_cm,
+            caption_lines,
+            float_dir or 'center',
+            portrait_border=has_portrait_border,
+        )
+
+        # 圖文區塊後空一行
+        self._add_blank_line()
 
     def _add_figure_textbox(self, img_stream, width_cm, caption_lines, float_dir,
                             portrait_border=False):
@@ -542,7 +545,7 @@ class ProfessionalDocxGenerator:
         tblpPr.set(qn('w:bottomFromText'), '0')
         tblpPr.set(qn('w:vertAnchor'),  'text')
         tblpPr.set(qn('w:horzAnchor'), 'margin')
-        tblpPr.set(qn('w:tblpXSpec'), float_dir)   # 'right' or 'left'
+        tblpPr.set(qn('w:tblpXSpec'), float_dir)   # 'right' / 'left' / 'center'
         tblPr.insert(0, tblpPr)
 
         # 表格寬度（含 margin）
@@ -676,11 +679,13 @@ class ProfessionalDocxGenerator:
         self._apply_font(run, 'Times New Roman', '華康中黑體', size=16, bold=True)
 
     def add_decoration_line(self):
-        """裝飾線：單段落，上框 3px（粗）＋下框 1px（細），行高 1pt 讓兩線間距約 1px"""
+        """裝飾線：單段落，上框 3px（粗）＋下框 1px（細）
+        並在段後保留約 0.5 行距，讓下一行作者資訊緊接其後。"""
         p = self.doc.add_paragraph()
         pPr = p._element.get_or_add_pPr()
         sp = OxmlElement('w:spacing')
-        sp.set(qn('w:before'), '0'); sp.set(qn('w:after'), '0')
+        # after=120 twips (= 6pt，約半行)
+        sp.set(qn('w:before'), '0'); sp.set(qn('w:after'), '120')
         sp.set(qn('w:line'), '20');  sp.set(qn('w:lineRule'), 'exact')  # 1pt 行高
         pPr.append(sp)
         pBdr = OxmlElement('w:pBdr')
@@ -1870,9 +1875,6 @@ def generate_article_docx(article_data, output_path):
         generator.add_subtitle(article_data['subtitle'])
 
     generator.add_decoration_line()
-    blank = generator._add_blank_line()   # 空行（裝飾線與作者之間）
-    run = blank.add_run('\u00a0')
-    run.font.size = Pt(14)
 
     generator.add_author(
         article_data.get('author'),

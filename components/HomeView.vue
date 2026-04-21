@@ -328,9 +328,25 @@ const fetchIssues = async () => {
 const loadTargetIssue = async () => {
   if (issuesList.value.length === 0) return;
   let target = null;
+
+  // 1) 明確指定期數（/home/issue/:issueNumber）時，優先使用路由目標
   if (route.params.issueNumber) {
     target = issuesList.value.find((i) => i.id == route.params.issueNumber);
   }
+
+  // 2) 管理員首頁（未指定期數）：
+  //    優先顯示「最早尚未出版」的一期。
+  //    例如第 8、9 期都未出刊時，顯示第 8 期。
+  if (!target && isEditor.value) {
+    const drafts = [...issuesList.value]
+      .filter((i) => !i.is_published)
+      .sort((a, b) => Number(a.id) - Number(b.id));
+    if (drafts.length > 0) {
+      target = drafts[0];
+    }
+  }
+
+  // 3) 其餘情況維持原本：顯示列表第一筆（已依 id desc 排序）
   if (!target) target = issuesList.value[0];
   currentIssueData.value = target;
   if (target) {

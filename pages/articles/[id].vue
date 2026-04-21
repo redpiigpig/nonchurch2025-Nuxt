@@ -491,12 +491,28 @@ const htmlContent = computed(() => {
   return html;
 });
 
+const normalizeFootnoteHtml = (html = "") =>
+  String(html)
+    .replace(/&lt;b&gt;/g, "<strong>")
+    .replace(/&lt;\/b&gt;/g, "</strong>")
+    .replace(/&lt;strong&gt;/g, "<strong>")
+    .replace(/&lt;\/strong&gt;/g, "</strong>")
+    .replace(/&lt;i&gt;/g, "<i>")
+    .replace(/&lt;\/i&gt;/g, "</i>")
+    .replace(/&lt;em&gt;/g, '<span class="kaiti">')
+    .replace(/&lt;\/em&gt;/g, "</span>")
+    .replace(/&lt;span class=&quot;kaiti&quot;&gt;/g, '<span class="kaiti">')
+    .replace(/&lt;\/span&gt;/g, "</span>")
+    // Markdown legacy：**text** => 標楷體；*text* => 粗體
+    .replace(/\*\*([^*]+)\*\*/g, '<span class="kaiti">$1</span>')
+    .replace(/\*([^*]+)\*/g, "<strong>$1</strong>");
+
 const footnotesHtml = computed(() => {
   if (!article.value?.footnotes?.length) return "";
   const listItems = article.value.footnotes
     .map(
       (note) =>
-        `<li id="footnote-${note.id}"><div class="fn-body">${note.text}<a href="#footnote-ref-${note.id}" class="footnote-backref">↩</a></div></li>`,
+        `<li id="footnote-${note.id}"><div class="fn-body">${normalizeFootnoteHtml(note.text)}<a href="#footnote-ref-${note.id}" class="footnote-backref">↩</a></div></li>`,
     )
     .join("");
   return `<div class="footnotes"><hr /><ol>${listItems}</ol></div>`;
@@ -849,6 +865,7 @@ const keywordContent = computed(() => {
   align-items: baseline;
   counter-increment: footnote-counter;
   line-height: 1.6;
+  font-family: "Times New Roman", serif;
 }
 :deep(.footnotes li::before) {
   content: counter(footnote-counter);
@@ -866,6 +883,12 @@ const keywordContent = computed(() => {
   color: #444;
   text-align: justify;
   word-break: break-word;
+  font-family: "Times New Roman", serif;
+  font-size: 1rem;
+}
+:deep(.footnotes .kaiti) {
+  font-family: "DFKai-SB", "標楷體", "BiauKai", "Kaiti TC", "Songti TC", serif;
+  font-style: normal;
 }
 :deep(.footnotes .footnote-backref) {
   text-decoration: none;

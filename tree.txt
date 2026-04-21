@@ -133,7 +133,9 @@ Directory structure:
     │   └── magazines/
     │       └── Vol.1.pdf ~ Vol.6.pdf  (6 files)
     ├── scripts/
-    │   └── generate_docx.py
+    │   ├── generate_docx.py
+    │   ├── footnote_stats.mjs
+    │   └── normalize_footnotes.mjs
     ├── server/
     │   └── api/
     │       ├── classify-article.post.js
