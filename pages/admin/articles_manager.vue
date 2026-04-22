@@ -605,7 +605,12 @@ const downloadIssueWord = async () => {
     a.click();
     URL.revokeObjectURL(url);
   } catch (err) {
-    alert("下載本期 Word 失敗：" + (err.message || err));
+    const msg = err?.message || String(err);
+    if (msg.includes("Word export is disabled")) {
+      alert("此功能僅限本地環境下載（線上已停用 Word 匯出）");
+    } else {
+      alert("下載本期 Word 失敗：" + msg);
+    }
   } finally {
     downloadingIssueWord.value = false;
   }
@@ -621,6 +626,13 @@ const downloadWord = async (article) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(exportData),
     });
+    if (!response.ok) {
+      const errText = await response.text();
+      if (response.status === 503 && errText.includes("Word export is disabled")) {
+        throw new Error("此功能僅限本地環境下載（線上已停用 Word 匯出）");
+      }
+      throw new Error(`匯出服務錯誤（${response.status}）`);
+    }
     const result = await response.json();
     if (result.success) {
       const bytes = new Uint8Array(atob(result.file).split("").map((c) => c.charCodeAt(0)));

@@ -157,6 +157,13 @@ const exportToWord = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(articleData),
     });
+    if (!response.ok) {
+      const errText = await response.text();
+      if (response.status === 503 && errText.includes("Word export is disabled")) {
+        throw new Error("此功能僅限本地環境下載（線上已停用 Word 匯出）");
+      }
+      throw new Error(`匯出服務錯誤（${response.status}）`);
+    }
     const result = await response.json();
 
     if (result.success) {

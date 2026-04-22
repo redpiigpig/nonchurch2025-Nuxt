@@ -19,6 +19,15 @@ export default defineNuxtConfig({
     cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
     cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
     cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
+    wordExportMode:
+      process.env.WORD_EXPORT_MODE ||
+      (process.env.NODE_ENV === "production" ? "disabled" : "local_python"),
+    wordExportServiceUrl: process.env.WORD_EXPORT_SERVICE_URL,
+    wordExportServiceToken: process.env.WORD_EXPORT_SERVICE_TOKEN,
+    wordExportArticlePath:
+      process.env.WORD_EXPORT_ARTICLE_PATH || "/export/article",
+    wordExportIssuePath:
+      process.env.WORD_EXPORT_ISSUE_PATH || "/export/issue",
 
     public: {
       supabaseUrl: process.env.VITE_SUPABASE_URL,
