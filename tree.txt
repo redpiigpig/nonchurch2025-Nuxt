@@ -157,6 +157,8 @@ Directory structure:
     │   ├── form.md
     │   ├── word_to_sql.md
     │   └── tempArticles.js
+    ├── supabase/
+    │   └── critical_rls_fix.sql
     ├── templates/
     │   └── article-template.dotx
     └── utils/
