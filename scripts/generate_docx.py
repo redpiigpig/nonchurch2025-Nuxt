@@ -78,6 +78,7 @@
 """
 
 from docx import Document
+from docx.image.exceptions import UnrecognizedImageError
 from docx.shared import Pt, Cm, RGBColor, Emu
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.section import WD_SECTION_START
@@ -108,13 +109,17 @@ DOC_FLOAT_BODY_HALF_CM = DOC_BODY_WIDTH_CM / 2
 AUTHOR_INTRO_TABLE_BORDER_GRAY = "A6A6A6"
 AUTHOR_INTRO_PHOTO_BORDER_LIGHT_BLACK = "404040"
 
-
 class ProfessionalDocxGenerator:
 
     def __init__(self):
         self.doc = Document()
         # 由 generate_article_docx 設定：標題或 id 含「作者簡介」時為 True
         self.is_author_intro_article = False
+        self.is_toc_article = False
+        # 標題或 id 含「編輯室報告」：book-quote 前後空行、備註後不加空行、h2 主題行、主題圖方角雙框、主題圖前 List Bullet 等
+        self.is_editorial_report = False
+        # 僅主題圖之前的內文：● 置左、內文 1rem 縮排（add_content 置 True，遇到 theme-image 後 False）
+        self._editorial_pre_theme_image = False
         self._setup_page()
         self._setup_styles()
         self._inject_footnote_ref_style()
@@ -187,6 +192,76 @@ class ProfessionalDocxGenerator:
                     el.remove(child)
         except AttributeError:
             pass  # 文件本來就沒有 numbering part，不需要處理
+        self._restore_list_bullet_numbering()
+
+    def _restore_list_bullet_numbering(self):
+        """補回 numbering：List Bullet（Symbol）＋編輯室用 Word 功能區式大圓點（Wingdings，對齊 stores 比對版 numId=2）。"""
+        from docx.oxml.parser import parse_xml
+        try:
+            num_part = self.doc.part.numbering_part
+        except (AttributeError, ValueError):
+            return
+        if num_part is None:
+            return
+        root = num_part._element
+        # List Bullet：abstractNum 8 + numId 1（python-docx 預設稿）
+        if not any(
+            ab.get(qn('w:abstractNumId')) == '8'
+            for ab in root.findall(qn('w:abstractNum'))
+        ):
+            bullet_char = '\uf0b7'
+            frag = (
+                '<w:abstractNum xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+                'w:abstractNumId="8"><w:nsid w:val="FFFFFF89"/><w:multiLevelType w:val="singleLevel"/>'
+                '<w:tmpl w:val="29761A62"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/>'
+                '<w:pStyle w:val="ListBullet"/><w:lvlText w:val="' + bullet_char + '"/>'
+                '<w:lvlJc w:val="left"/><w:pPr><w:tabs><w:tab w:val="num" w:pos="360"/></w:tabs>'
+                '<w:ind w:left="360" w:hanging="360"/></w:pPr>'
+                '<w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol" w:hint="default"/></w:rPr>'
+                '</w:lvl></w:abstractNum>'
+            )
+            root.append(parse_xml(frag))
+        if not any(n.get(qn('w:numId')) == '1' for n in root.findall(qn('w:num'))):
+            root.append(parse_xml(
+                '<w:num xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:numId="1">'
+                '<w:abstractNumId w:val="8"/></w:num>'
+            ))
+        # 編輯室主題圖前：List Paragraph + numId 2（Wingdings  / U+F06C，縮排與比對版一致）
+        if not any(
+            ab.get(qn('w:abstractNumId')) == '9'
+            for ab in root.findall(qn('w:abstractNum'))
+        ):
+            wing = '\uf06c'
+            frag_w = (
+                '<w:abstractNum xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+                'w:abstractNumId="9"><w:nsid w:val="7A945381"/><w:multiLevelType w:val="singleLevel"/>'
+                '<w:tmpl w:val="FD9E3CC9"/>'
+                '<w:lvl w:ilvl="0" w:tplc="04090001"><w:start w:val="1"/><w:numFmt w:val="bullet"/>'
+                '<w:lvlText w:val="' + wing + '"/>'
+                '<w:lvlJc w:val="left"/><w:pPr><w:ind w:left="480" w:hanging="480"/></w:pPr>'
+                '<w:rPr><w:rFonts w:ascii="Wingdings" w:hAnsi="Wingdings" w:hint="default"/></w:rPr>'
+                '</w:lvl></w:abstractNum>'
+            )
+            root.append(parse_xml(frag_w))
+        if not any(n.get(qn('w:numId')) == '2' for n in root.findall(qn('w:num'))):
+            root.append(parse_xml(
+                '<w:num xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" w:numId="2">'
+                '<w:abstractNumId w:val="9"/></w:num>'
+            ))
+
+    def _set_paragraph_num(self, paragraph, num_id, ilvl='0'):
+        """段落套用自動編號（不依賴樣式內建 numPr）。"""
+        p_pr = paragraph._element.get_or_add_pPr()
+        for old in p_pr.findall(qn('w:numPr')):
+            p_pr.remove(old)
+        num_pr = OxmlElement('w:numPr')
+        ilvl_el = OxmlElement('w:ilvl')
+        ilvl_el.set(qn('w:val'), str(ilvl))
+        num_id_el = OxmlElement('w:numId')
+        num_id_el.set(qn('w:val'), str(num_id))
+        num_pr.append(ilvl_el)
+        num_pr.append(num_id_el)
+        p_pr.append(num_pr)
 
     def _add_blank_line(self):
         """插入一個空行，明確設定 1.5 倍行距（line=360 auto）"""
@@ -212,10 +287,18 @@ class ProfessionalDocxGenerator:
             run.font.superscript = True
         rPr = run._element.get_or_add_rPr()
         rf = rPr.get_or_add_rFonts()
+        # 佔位稿常帶 eastAsiaTheme，會蓋過 eastAsia（例如變成文鼎中行書）
+        for _k in list(rf.attrib):
+            if _k.endswith('asciiTheme') or _k.endswith('eastAsiaTheme'):
+                del rf.attrib[_k]
+            elif _k.endswith('hAnsiTheme') or _k.endswith('cstheme'):
+                del rf.attrib[_k]
         rf.set(qn('w:ascii'), ascii_font)
         rf.set(qn('w:hAnsi'), ascii_font)
         if east_font:
             rf.set(qn('w:eastAsia'), east_font)
+            rf.set(qn('w:cs'), east_font)
+            rf.set(qn('w:hint'), 'eastAsia')
         if color:
             run.font.color.rgb = RGBColor(*color)
         # 明確設定 w:szCs（複合腳本字型大小），確保中文字也套用正確字級
@@ -408,7 +491,16 @@ class ProfessionalDocxGenerator:
         A  = 'http://schemas.openxmlformats.org/drawingml/2006/main'
 
         run = paragraph.add_run()
-        run.add_picture(img_stream, width=Cm(width_cm))
+        norm = self._reencode_for_word_embedding(img_stream)
+        if norm is None:
+            run.add_text('[圖片無法嵌入]')
+            return
+        try:
+            run.add_picture(norm, width=Cm(width_cm))
+        except UnrecognizedImageError as e:
+            print(f'Warning: float image rejected by python-docx: {e}', file=sys.stderr)
+            run.add_text('[圖片無法嵌入]')
+            return
 
         drawing = run._r.find(qn('w:drawing'))
         if drawing is None:
@@ -464,19 +556,46 @@ class ProfessionalDocxGenerator:
     # ── 圖片段落 ────────────────────────────────────────────
 
     def _pil_to_doc_bytes(self, pil_img):
-        """依格式寫入 BytesIO；JPEG 前先轉 RGB（去透明）。"""
+        """一律寫成 RGB baseline JPEG。避免 CMYK／16-bit PNG／透明 PNG 等導致 python-docx 拒讀。"""
         clean = io.BytesIO()
-        fmt = (pil_img.format or 'JPEG').upper()
-        if fmt in ('JPEG', 'JPG'):
-            if pil_img.mode in ('RGBA', 'P'):
-                pil_img = pil_img.convert('RGB')
-            pil_img.save(clean, format='JPEG', quality=95)
-        else:
-            if pil_img.mode == 'P':
-                pil_img = pil_img.convert('RGBA')
-            pil_img.save(clean, format='PNG')
+        img = pil_img
+        if img.mode in ('RGBA', 'LA'):
+            if img.mode == 'LA':
+                img = img.convert('RGBA')
+            bg = PILImage.new('RGB', img.size, (255, 255, 255))
+            bg.paste(img, mask=img.split()[3])
+            img = bg
+        elif img.mode == 'P':
+            if 'transparency' in img.info:
+                img = img.convert('RGBA')
+                bg = PILImage.new('RGB', img.size, (255, 255, 255))
+                bg.paste(img, mask=img.split()[3])
+                img = bg
+            else:
+                img = img.convert('RGB')
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+        img.save(clean, format='JPEG', quality=92, subsampling=2)
         clean.seek(0)
         return clean
+
+    def _reencode_for_word_embedding(self, img_stream):
+        """將已下載的 BytesIO 再解譯並轉成 Word 可讀 JPEG；失敗回傳 None。"""
+        if img_stream is None:
+            return None
+        try:
+            raw = img_stream.getvalue()
+        except Exception:
+            return None
+        if not raw:
+            return None
+        try:
+            pil = PILImage.open(io.BytesIO(raw))
+            pil.load()
+        except Exception as e:
+            print(f'Warning: cannot decode image for Word: {e}', file=sys.stderr)
+            return None
+        return self._pil_to_doc_bytes(pil)
 
     def _download_image(self, src):
         """下載圖片、套用 EXIF 方向、回傳 BytesIO 或 None（Word 不讀 EXIF 方向，需先轉正像素）。"""
@@ -652,7 +771,16 @@ class ProfessionalDocxGenerator:
         part = p.part
         run = p.add_run()
 
-        r_id, image = part.get_or_add_image(img_stream)
+        norm = self._reencode_for_word_embedding(img_stream)
+        if norm is None:
+            run.add_text('[圖片無法嵌入]')
+            return
+        try:
+            r_id, image = part.get_or_add_image(norm)
+        except UnrecognizedImageError as e:
+            print(f'Warning: figure image rejected by python-docx: {e}', file=sys.stderr)
+            run.add_text('[圖片無法嵌入]')
+            return
         if portrait_border:
             img_cx, img_cy = image.scaled_dimensions(Cm(width_cm), Cm(width_cm))
         else:
@@ -1012,6 +1140,10 @@ class ProfessionalDocxGenerator:
     def add_content(self, content):
         if not content:
             return
+        if getattr(self, 'is_editorial_report', False):
+            self._editorial_pre_theme_image = True
+        else:
+            self._editorial_pre_theme_image = False
         content = re.sub(r'(\s*<br\s*/?>)+\s*$', '', content.strip())
         for seg_type, seg_html in self._split_into_segments(content):
             if seg_type == 'figure':
@@ -1048,7 +1180,13 @@ class ProfessionalDocxGenerator:
                 level = int(seg_type[1]) if len(seg_type) == 2 and seg_type[1].isdigit() else 3
                 inner = re.sub(r'^<h[1-3][^>]*>', '', seg_html, count=1, flags=re.IGNORECASE)
                 inner = re.sub(r'</h[1-3]>\s*$', '', inner, flags=re.IGNORECASE).strip()
-                if inner:
+                if not inner:
+                    pass
+                elif (seg_type == 'h2'
+                      and getattr(self, 'is_editorial_report', False)
+                      and self._is_editorial_theme_h2(seg_html, inner)):
+                    self._add_editorial_theme_h2_paragraph(inner)
+                else:
                     self._add_section_title(inner, level=level)
             else:  # text
                 normalized = re.sub(r'<br\s*/?>', '\n', seg_html)
@@ -1072,6 +1210,8 @@ class ProfessionalDocxGenerator:
             self._add_reference_box(html)
         elif 'theme-image' in outer_class:
             self._add_theme_image(html)
+            if getattr(self, 'is_editorial_report', False):
+                self._editorial_pre_theme_image = False
         elif 'info-card' in outer_class:
             self._add_info_card(html)
         elif 'author-profile' in outer_class:
@@ -1113,11 +1253,11 @@ class ProfessionalDocxGenerator:
         tag_m = re.match(r'<p\b([^>]*)>', html, re.IGNORECASE)
         if tag_m:
             style_m = re.search(r'style=["\']([^"\']*)["\']', tag_m.group(1), re.IGNORECASE)
-            if style_m and 'text-align' in style_m.group(1):
+            if style_m and 'text-align' in style_m.group(1).lower():
                 align_style = style_m.group(1).lower()
-                inner = re.sub(r'^<p[^>]*>', '', html, count=1, flags=re.IGNORECASE)
-                inner = re.sub(r'</p>\s*$', '', inner, flags=re.IGNORECASE).strip()
-                inner = re.sub(r'<[^>]+>', '', inner).strip()
+                inner_align = re.sub(r'^<p[^>]*>', '', html, count=1, flags=re.IGNORECASE)
+                inner_align = re.sub(r'</p>\s*$', '', inner_align, flags=re.IGNORECASE).strip()
+                inner = re.sub(r'<[^>]+>', '', inner_align).strip()
                 if inner and 'right' in align_style:
                     self._add_right_aligned(inner)
                     return
@@ -1138,7 +1278,8 @@ class ProfessionalDocxGenerator:
             part = part.strip()
             if not part:
                 continue
-            bullet_m = re.match(r'&#9679;(?:&nbsp;|\u00a0|\s)*', part, re.IGNORECASE)
+            bullet_m = re.match(
+                r'(?:&#9679;|&#8226;|\u25cf|\u2022)(?:&nbsp;|\u00a0|\s)*', part, re.IGNORECASE)
             if bullet_m:
                 self._add_bullet_line(part[bullet_m.end():])
                 continue
@@ -1160,13 +1301,13 @@ class ProfessionalDocxGenerator:
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after  = Pt(0)
             if toc_line:
-                # 目次行格式：序號+分類 12pt，文章主標題 13pt，副標題以後 12pt
+                # 目次行：序號、分類、【】、｜、作者、頁數皆 12pt；主標題見 <span class="toc-article-title">（13pt）
                 if '──' in part:
-                    # 副標題行（<br> 之後），全部 12pt
+                    self._add_inline(p, part, size=12)
+                elif re.search(r'\btoc-article-title\b', part):
                     self._add_inline(p, part, size=12)
                 else:
-                    # 主標題行：找最後一個 HTML 結束 > 的位置
-                    # 之前 = 序號 + 分類標籤（12pt），之後 = 純標題文字（13pt）
+                    # 舊稿無 toc-article-title 包裹時：仍以最後一個 > 後為標題字 13pt
                     last_gt = max((m.end() for m in re.finditer(r'>', part)), default=0)
                     if last_gt > 0:
                         self._add_inline(p, part[:last_gt], size=12)
@@ -1255,7 +1396,11 @@ class ProfessionalDocxGenerator:
                              east_font='文鼎粗鋼筆行楷',
                              ascii_font='Brush Script MT')
 
-        self._add_blank_line()  # 後置空行
+        if getattr(self, 'is_editorial_report', False):
+            self._add_blank_line()
+            self._add_blank_line()
+        else:
+            self._add_blank_line()  # 後置空行
 
     def _add_book_box(self, html):
         """書籍簡介框（.book-box）：2 欄無框線表格，文字（2/3）+ 封面圖（1/3）。"""
@@ -1363,7 +1508,16 @@ class ProfessionalDocxGenerator:
                 img_p.paragraph_format.space_before      = Pt(0)
                 img_p.paragraph_format.space_after       = Pt(0)
                 img_p.paragraph_format.first_line_indent = Pt(0)
-                img_p.add_run().add_picture(img_stream, width=Cm(img_cm))
+                img_run = img_p.add_run()
+                norm = self._reencode_for_word_embedding(img_stream)
+                if norm is None:
+                    img_run.add_text('[封面圖無法載入]')
+                else:
+                    try:
+                        img_run.add_picture(norm, width=Cm(img_cm))
+                    except UnrecognizedImageError as e:
+                        print(f'Warning: book-box cover rejected by python-docx: {e}', file=sys.stderr)
+                        img_run.add_text('[封面圖無法嵌入]')
 
         self._add_blank_line()
 
@@ -1473,13 +1627,22 @@ class ProfessionalDocxGenerator:
         part = paragraph.part
         inline_pic = None
         if img_stream:
-            inline_pic = part.new_pic_inline(img_stream, Emu(IMG_CX), Emu(IMG_CY))
-            pic_el = inline_pic.graphic.graphicData.pic
-            for ch in list(pic_el.spPr):
-                if ch.tag.endswith('prstGeom'):
-                    ch.set('prst', 'ellipse')
-                    break
-            anchor_doc_id = int(inline_pic.docPr.id) + 1
+            norm = self._reencode_for_word_embedding(img_stream)
+            try:
+                if norm is not None:
+                    inline_pic = part.new_pic_inline(norm, Emu(IMG_CX), Emu(IMG_CY))
+            except UnrecognizedImageError as e:
+                print(f'Warning: info-card image rejected by python-docx: {e}', file=sys.stderr)
+                inline_pic = None
+            if inline_pic is not None:
+                pic_el = inline_pic.graphic.graphicData.pic
+                for ch in list(pic_el.spPr):
+                    if ch.tag.endswith('prstGeom'):
+                        ch.set('prst', 'ellipse')
+                        break
+                anchor_doc_id = int(inline_pic.docPr.id) + 1
+            else:
+                anchor_doc_id = part.next_id
         else:
             anchor_doc_id = part.next_id
 
@@ -1785,7 +1948,20 @@ class ProfessionalDocxGenerator:
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.space_before = Pt(6)
         p.paragraph_format.space_after  = Pt(6)
-        p.add_run().add_picture(img_stream, width=Cm(12.0))
+        tr = p.add_run()
+        norm = self._reencode_for_word_embedding(img_stream)
+        if norm is None:
+            tr.add_text('[主題圖無法載入]')
+        else:
+            try:
+                tr.add_picture(norm, width=Cm(12.0))
+                if getattr(self, 'is_editorial_report', False):
+                    self._apply_editorial_theme_image_frame(tr)
+                else:
+                    self._apply_theme_image_frame(tr)
+            except UnrecognizedImageError as e:
+                print(f'Warning: theme image rejected by python-docx: {e}', file=sys.stderr)
+                tr.add_text('[主題圖無法嵌入]')
 
     def _add_author_profile(self, html):
         """作者簡介（.author-profile）：左圖右文表格排版，符合原版 PDF 格式。
@@ -1883,8 +2059,17 @@ class ProfessionalDocxGenerator:
             img_stream = self._download_and_crop_square(img_src)
             if img_stream:
                 img_run = lp.add_run()
-                img_run.add_picture(img_stream, width=Cm(5.0), height=Cm(5.0))
-                self._add_picture_border(img_run, border_pt=2.0, color=photo_border_color)
+                norm = self._reencode_for_word_embedding(img_stream)
+                if norm is None:
+                    img_run.add_text('[頭像無法載入]')
+                else:
+                    try:
+                        img_run.add_picture(norm, width=Cm(5.0), height=Cm(5.0))
+                    except UnrecognizedImageError as e:
+                        print(f'Warning: author photo rejected by python-docx: {e}', file=sys.stderr)
+                        img_run.add_text('[頭像無法嵌入]')
+                    else:
+                        self._add_picture_border(img_run, border_pt=2.0, color=photo_border_color)
             else:
                 lp.add_run(f'[圖片：{img_src}]')
 
@@ -1949,6 +2134,29 @@ class ProfessionalDocxGenerator:
             p.paragraph_format.space_after  = Pt(0)
             self._add_inline(p, line)
 
+    def _is_editorial_theme_h2(self, seg_html, inner_html):
+        """編輯器實際輸出如 <h2><span class="kaiti">本期主題：…</span></h2>（h2 上未必有 text-align）。"""
+        plain = _html_mod.unescape(re.sub(r'<[^>]+>', '', inner_html)).strip()
+        if not plain.startswith('本期主題'):
+            return False
+        low = seg_html.lower()
+        if ('kaiti' in low or 'class="kaiti"' in low or "class='kaiti'" in low
+                or '<em>' in low or '標楷' in seg_html or 'dfkai' in low):
+            return True
+        compact = re.sub(r'\s+', '', low)
+        return 'text-align:center' in compact
+
+    def _add_editorial_theme_h2_paragraph(self, inner_html):
+        """編輯室報告主題行：對應編輯器 h2 標楷置中 — 標楷體 16pt 置中粗體。"""
+        plain = _html_mod.unescape(re.sub(r'<[^>]+>', '', inner_html)).strip()
+        p = self.doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.first_line_indent = Pt(0)
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
+        run = p.add_run(plain)
+        self._apply_font(run, 'Times New Roman', '文鼎中行書', size=16, bold=True)
+
     def _add_table(self, html):
         """解析並插入 HTML 表格（<table class="data-table">）。"""
         rows_html = re.findall(r'<tr\b[^>]*>(.*?)</tr>', html,
@@ -1974,6 +2182,79 @@ class ProfessionalDocxGenerator:
                     self._apply_font(run, 'Times New Roman', 'NSimSun',
                                      size=11, bold=(ctag.lower() == 'th'))
         self._add_blank_line()
+
+    def _apply_theme_image_frame(self, run):
+        """主題圖片：圓角矩形 + compound 框線（呼應 article.css .theme-image 之 #444 雙層邊框感；
+        參考稿 stores/無境界者雜誌/…/01編輯室報告_三校.docx 若可取得，可再微調 w／cmpd／adj）。"""
+        from lxml import etree as lxml_etree
+        PIC_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture'
+        A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        drawing = run._r.find(qn('w:drawing'))
+        if drawing is None:
+            return
+        pic_el = drawing.find('.//' + f'{{{PIC_NS}}}pic')
+        if pic_el is None:
+            return
+        spPr_el = pic_el.find(f'{{{PIC_NS}}}spPr')
+        if spPr_el is None:
+            spPr_el = lxml_etree.SubElement(pic_el, f'{{{PIC_NS}}}spPr')
+
+        for geom_el in list(spPr_el.findall(f'{{{A_NS}}}prstGeom')):
+            spPr_el.remove(geom_el)
+        for ln_el in list(spPr_el.findall(f'{{{A_NS}}}ln')):
+            spPr_el.remove(ln_el)
+        for eff in list(spPr_el.findall(f'{{{A_NS}}}effectLst')):
+            spPr_el.remove(eff)
+
+        prst = lxml_etree.SubElement(spPr_el, f'{{{A_NS}}}prstGeom', attrib={'prst': 'roundRect'})
+        av = lxml_etree.SubElement(prst, f'{{{A_NS}}}avLst')
+        lxml_etree.SubElement(av, f'{{{A_NS}}}gd', attrib={'name': 'adj', 'fmla': 'val 16667'})
+
+        # 約 3.1pt compound、深灰 #444444、flat cap（網頁約 1.5px+外框 4.5px 之印刷對應）
+        ln_el = lxml_etree.SubElement(
+            spPr_el, f'{{{A_NS}}}ln',
+            attrib={'w': '40000', 'cap': 'flat', 'cmpd': 'thinThick', 'algn': 'ctr'})
+        sf_el = lxml_etree.SubElement(ln_el, f'{{{A_NS}}}solidFill')
+        lxml_etree.SubElement(sf_el, f'{{{A_NS}}}srgbClr', attrib={'val': '444444'})
+        lxml_etree.SubElement(ln_el, f'{{{A_NS}}}prstDash', attrib={'val': 'solid'})
+        lxml_etree.SubElement(ln_el, f'{{{A_NS}}}miter', attrib={'lim': '800000'})
+
+    def _apply_editorial_theme_image_frame(self, run):
+        """編輯室報告主題圖：直角、內約 1pt 細黑線 + compound 外粗黑線（無圓角；模擬 1pt／間距／3pt 雙框）。"""
+        from lxml import etree as lxml_etree
+        PIC_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture'
+        A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
+        drawing = run._r.find(qn('w:drawing'))
+        if drawing is None:
+            return
+        pic_el = drawing.find('.//' + f'{{{PIC_NS}}}pic')
+        if pic_el is None:
+            return
+        spPr_el = pic_el.find(f'{{{PIC_NS}}}spPr')
+        if spPr_el is None:
+            spPr_el = lxml_etree.SubElement(pic_el, f'{{{PIC_NS}}}spPr')
+
+        for geom_el in list(spPr_el.findall(f'{{{A_NS}}}prstGeom')):
+            spPr_el.remove(geom_el)
+        for ln_el in list(spPr_el.findall(f'{{{A_NS}}}ln')):
+            spPr_el.remove(ln_el)
+        for eff in list(spPr_el.findall(f'{{{A_NS}}}effectLst')):
+            spPr_el.remove(eff)
+
+        geom_el = lxml_etree.SubElement(
+            spPr_el, f'{{{A_NS}}}prstGeom', attrib={'prst': 'rect'})
+        lxml_etree.SubElement(geom_el, f'{{{A_NS}}}avLst')
+
+        # 1pt=12700 EMU；compound thickThin 總寬約 5pt 以逼近內 1pt + 間 + 外 3pt 之視覺
+        ln_el = lxml_etree.SubElement(
+            spPr_el, f'{{{A_NS}}}ln',
+            attrib={'w': '63500', 'cap': 'flat', 'cmpd': 'thickThin', 'algn': 'ctr'})
+        sf_el = lxml_etree.SubElement(ln_el, f'{{{A_NS}}}solidFill')
+        lxml_etree.SubElement(sf_el, f'{{{A_NS}}}srgbClr', attrib={'val': '000000'})
+        lxml_etree.SubElement(ln_el, f'{{{A_NS}}}prstDash', attrib={'val': 'solid'})
+        lxml_etree.SubElement(ln_el, f'{{{A_NS}}}miter', attrib={'lim': '800000'})
 
     def _drawingml_portrait_double_border_on_pic(self, pic_el):
         """在 pic:pic 的 spPr 上套用人物照雙線框（對照 stores/05聆聽被遺忘的苦難 三校.docx 浮動頭像）。"""
@@ -2064,13 +2345,21 @@ class ProfessionalDocxGenerator:
         return False
 
     def _add_bullet_line(self, text):
-        """項目列表行：小圓點 • + 左縮排兩個字（24pt）"""
+        """項目列表：●／&#9679; 開頭。編輯室報告且主題圖前用 Word「List Paragraph」+ Wingdings 大圓點（與比對版一致）；其餘為 • + 左縮排 24pt。"""
         text = _html_mod.unescape(text)
+        pre_theme = getattr(self, '_editorial_pre_theme_image', False)
+        if getattr(self, 'is_editorial_report', False) and pre_theme:
+            p = self.doc.add_paragraph(style='List Paragraph')
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after = Pt(0)
+            self._set_paragraph_num(p, 2, '0')
+            self._add_inline(p, text)
+            return
         p = self.doc.add_paragraph()
-        p.paragraph_format.left_indent       = Pt(24)
-        p.paragraph_format.first_line_indent = Pt(0)
         p.paragraph_format.space_before = Pt(0)
-        p.paragraph_format.space_after  = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
+        p.paragraph_format.left_indent = Pt(24)
+        p.paragraph_format.first_line_indent = Pt(0)
         bullet_run = p.add_run('• ')
         self._apply_font(bullet_run, 'Times New Roman', 'NSimSun', size=11)
         self._add_inline(p, text)
@@ -2080,8 +2369,8 @@ class ProfessionalDocxGenerator:
         if not line:
             return  # 略過空行，不插入空段落
 
-        # 偵測 &#9679;（●）開頭的項目列表 → 改為小圓點 + 縮排兩個字
-        bullet_m = re.match(r'&#9679;(?:&nbsp;|\u00a0|\s)*', line, re.IGNORECASE)
+        # 偵測 &#9679;/&#8226; 或 Unicode ●/• 開頭的項目列表
+        bullet_m = re.match(r'(?:&#9679;|&#8226;|\u25cf|\u2022)(?:&nbsp;|\u00a0|\s)*', line, re.IGNORECASE)
         if bullet_m:
             self._add_bullet_line(line[bullet_m.end():])
             return
@@ -2147,7 +2436,10 @@ class ProfessionalDocxGenerator:
 
         p = self.doc.add_paragraph()
         p.paragraph_format.first_line_indent = Pt(0)
-        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        if getattr(self, 'is_toc_article', False):
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        else:
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
         # 前後 9pt（≈0.75rem），單行行距
         pPr = p._element.get_or_add_pPr()
@@ -2166,6 +2458,8 @@ class ProfessionalDocxGenerator:
             re.IGNORECASE | re.DOTALL)
         # 對照 02本期作者簡介 三校：「☆本期特邀…」「◇本期專欄…」均為 14pt 粗體（不依 h2/h3 區分）
         if getattr(self, "is_author_intro_article", False):
+            title_size = 14
+        elif getattr(self, 'is_toc_article', False):
             title_size = 14
         else:
             title_size = 16 if level == 2 else 14
@@ -2330,6 +2624,24 @@ class ProfessionalDocxGenerator:
                     class_v = cm.group(1).lower()
                 if not inner:
                     pass
+                elif 'toc-article-title' in class_v:
+                    inner_plain = _html_mod.unescape(
+                        re.sub(r'<[^>]+>', '', inner)).strip()
+                    if inner_plain:
+                        run = paragraph.add_run(inner_plain)
+                        self._apply_font(run, ascii_font, east_font, size=13)
+                elif 'toc-cat' in class_v:
+                    inner_plain = _html_mod.unescape(
+                        re.sub(r'<[^>]+>', '', inner)).strip()
+                    if inner_plain:
+                        run = paragraph.add_run(inner_plain)
+                        color_m = re.search(r'color:\s*(#[0-9a-fA-F]{3,6}|\w+)', style_v)
+                        self._apply_font(run, ascii_font, east_font, size=10)
+                        if color_m:
+                            try:
+                                run.font.color.rgb = RGBColor(*self._hex_rgb(color_m.group(1)))
+                            except Exception:
+                                pass
                 elif 'kaiti' in class_v:
                     # <span class="kaiti"> → 標楷體
                     run = paragraph.add_run(inner)
@@ -2512,6 +2824,10 @@ def _apply_article_body(generator, article_data):
 
     is_toc = (article_data.get('article_type') == 'toc' or
               article_data.get('title') in ('目次', '目錄'))
+    generator.is_toc_article = is_toc
+    generator.is_editorial_report = (
+        '編輯室報告' in (_title or '') or '編輯室報告' in _aid
+    )
 
     category_colors = {
         '封面故事': '#7d6c29', '專題文章': '#C00000',
@@ -2539,13 +2855,18 @@ def _apply_article_body(generator, article_data):
 
     generator.add_decoration_line()
 
+    if is_toc:
+        generator._add_blank_line()
+
     generator.add_author(
         article_data.get('author'),
         article_data.get('author_title'),
         article_data.get('remark'),
     )
-    if not is_toc:
+    if not is_toc and not generator.is_editorial_report:
         generator._add_blank_line()   # 空行（作者與關鍵字之間）
+        generator._add_blank_line()
+    elif generator.is_editorial_report and article_data.get('keyword'):
         generator._add_blank_line()
 
     if article_data.get('keyword'):
