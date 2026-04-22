@@ -104,6 +104,14 @@ const CATEGORY_COLORS = {
   "實驗園地": "#db7093", "文獻與翻譯": "#548235",
 };
 
+/** 目次 HTML 內文轉義，避免標題等含 <>&" 破壞標籤結構 */
+const escapeHtml = (s) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
 // Generate HTML content for the toc article
 const generateHTML = () => {
   const parts = [];
@@ -121,12 +129,14 @@ const generateHTML = () => {
     const seqStr = String(a.tocSeq).padStart(2, "0");
     const color = a.category ? (CATEGORY_COLORS[a.category] || "#000000") : null;
     const catTag = a.category
-      ? `<span style="color:${color};font-size:10pt">【${a.category}】</span>`
+      ? `<span class="toc-cat" style="color:${color};font-size:10pt">【${escapeHtml(a.category)}】</span>`
       : "";
-    const subtitlePart = a.subtitle ? `<br>──${a.subtitle}` : "";
+    const subtitlePart = a.subtitle ? `<br>──${escapeHtml(a.subtitle)}` : "";
     const page = a.page_start != null ? a.page_start : "—";
-    const author = a.author ? `｜${a.author}` : "";
-    parts.push(`<p class="toc-line"><strong>${seqStr}</strong> ${catTag}${a.title}${subtitlePart}${author}｜pp. ${page}</p>`);
+    const author = a.author ? `｜${escapeHtml(a.author)}` : "";
+    parts.push(
+      `<p class="toc-line"><strong>${seqStr}</strong> ${catTag}<span class="toc-article-title">${escapeHtml(a.title)}</span>${subtitlePart}${author}｜pp. ${page}</p>`,
+    );
   }
   return parts.join("\n");
 };
@@ -393,7 +403,7 @@ const save = async () => {
   text-align: center;
   font-weight: bold;
   color: #333;
-  font-size: 1.1rem;
+  font-size: 14pt;
   margin-bottom: 0.2rem;
 }
 
@@ -408,7 +418,7 @@ const save = async () => {
   font-weight: bold;
   color: #2c3e50;
   font-family: monospace;
-  font-size: 1rem;
+  font-size: 12pt;
   flex-shrink: 0;
   min-width: 2em;
 }
@@ -423,20 +433,24 @@ const save = async () => {
 .toc-cat {
   color: #666;
   margin-right: 0.1em;
+  font-size: 10pt;
 }
 .toc-article-title {
   color: #111;
+  font-size: 13pt;
 }
 .toc-subtitle {
   color: #555;
-  font-size: 0.97em;
+  font-size: 12pt;
 }
 .toc-author {
   color: #444;
+  font-size: 12pt;
 }
 .toc-pp {
   color: #444;
   white-space: nowrap;
+  font-size: 12pt;
 }
 .page-input {
   width: 52px;

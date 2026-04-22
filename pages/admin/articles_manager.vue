@@ -487,6 +487,13 @@ const TOC_CATEGORY_COLORS = {
   "實驗園地": "#db7093", "文獻與翻譯": "#548235",
 };
 
+const escapeHtml = (s) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
 const generateTocHTML = (issueArticles) => {
   const sorted = [...issueArticles]
     .filter((a) => a.article_type !== "toc")
@@ -517,11 +524,15 @@ const generateTocHTML = (issueArticles) => {
     }
     const seqStr = String(a.tocSeq).padStart(2, "0");
     const color = a.category ? (TOC_CATEGORY_COLORS[a.category] || "#000000") : null;
-    const catTag = a.category ? `<span style="color:${color};font-size:10pt">【${a.category}】</span>` : "";
-    const subtitlePart = a.subtitle ? `<br>──${a.subtitle}` : "";
+    const catTag = a.category
+      ? `<span class="toc-cat" style="color:${color};font-size:10pt">【${escapeHtml(a.category)}】</span>`
+      : "";
+    const subtitlePart = a.subtitle ? `<br>──${escapeHtml(a.subtitle)}` : "";
     const page = a.page_start != null ? a.page_start : "—";
-    const author = a.author ? `｜${a.author}` : "";
-    parts.push(`<p class="toc-line"><strong>${seqStr}</strong> ${catTag}${a.title}${subtitlePart}${author}｜pp. ${page}</p>`);
+    const author = a.author ? `｜${escapeHtml(a.author)}` : "";
+    parts.push(
+      `<p class="toc-line"><strong>${seqStr}</strong> ${catTag}<span class="toc-article-title">${escapeHtml(a.title)}</span>${subtitlePart}${author}｜pp. ${page}</p>`,
+    );
   }
   return parts.join("\n");
 };
