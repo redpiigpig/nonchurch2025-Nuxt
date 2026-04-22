@@ -361,11 +361,22 @@ const specialComponentsMap = {
   ),
 };
 
+/** 與 special map 比對時忽略空白，避免後台改 id（例如 7-6In… 與 7-6 In…）後對不到有聲書元件 */
+const normalizeIdForSpecialMatch = (s) =>
+  String(s || "").replace(/\s+/g, "").replace(/\u3000/g, "");
+
 const currentSpecialComponent = computed(() => {
   if (!article.value || article.value.type !== "special") return null;
-  const matchKey = Object.keys(specialComponentsMap).find((key) =>
-    article.value.id.includes(key),
-  );
+  const rawId = article.value.id || "";
+  const idNorm = normalizeIdForSpecialMatch(rawId);
+  const matchKey = Object.keys(specialComponentsMap).find((key) => {
+    const keyNorm = normalizeIdForSpecialMatch(key);
+    return (
+      rawId.includes(key) ||
+      keyNorm.includes(idNorm) ||
+      idNorm.includes(keyNorm)
+    );
+  });
   return matchKey ? specialComponentsMap[matchKey] : null;
 });
 

@@ -140,6 +140,7 @@ Directory structure:
     │   └── api/
     │       ├── classify-article.post.js
     │       ├── delete-article.post.js
+    │       ├── export-issue-word.post.js
     │       ├── export-word.post.js
     │       ├── media.js
     │       ├── merge-pdfs.post.js

@@ -80,6 +80,7 @@
 from docx import Document
 from docx.shared import Pt, Cm, RGBColor, Emu
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+from docx.enum.section import WD_SECTION_START
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 import sys
@@ -2375,12 +2376,15 @@ class ProfessionalDocxGenerator:
 
     # ── 頁首頁尾 ────────────────────────────────────────────
 
-    def add_header_footer(self, issue_number, issue_title, article_id, article_title):
-        section = self.doc.sections[0]
-
-        # 啟用奇偶頁不同
+    def add_header_footer(self, section, issue_number, issue_title, article_id, article_title):
+        """指定節的頁首頁尾（整期合併時每篇文章一節，須傳入對應 section）。"""
         sectPr = section._sectPr
-        sectPr.insert(0, OxmlElement('w:evenAndOddHeaders'))
+        # 啟用奇偶頁不同（同一節不重複插入）
+        has_even_odd = any(
+            child.tag == qn('w:evenAndOddHeaders') for child in sectPr
+        )
+        if not has_even_odd:
+            sectPr.insert(0, OxmlElement('w:evenAndOddHeaders'))
 
         dark = self._hex_rgb('#262626')
 
@@ -2494,8 +2498,9 @@ class ProfessionalDocxGenerator:
 # 主程式
 # ════════════════════════════════════════
 
-def generate_article_docx(article_data, output_path):
-    generator = ProfessionalDocxGenerator()
+def _apply_article_body(generator, article_data):
+    """將單篇文章主文（分類～內文）寫入既有 generator，不存檔、不加頁首頁尾。
+    回傳是否為目次稿。"""
     generator.set_footnotes(article_data.get('footnotes', []))
     generator.set_media_assets(article_data.get('media_assets', []))
 
@@ -2551,11 +2556,19 @@ def generate_article_docx(article_data, output_path):
     if article_data.get('content'):
         generator.add_content(article_data['content'])
 
+    return is_toc
+
+
+def generate_article_docx(article_data, output_path):
+    generator = ProfessionalDocxGenerator()
+    is_toc = _apply_article_body(generator, article_data)
+
     if is_toc:
         generator.save(output_path)
         return
 
     generator.add_header_footer(
+        generator.doc.sections[0],
         article_data.get('issue', 7),
         article_data.get('issue_title', '火燒島上的《耶穌傳》'),
         article_data.get('id', '04'),
@@ -2565,13 +2578,72 @@ def generate_article_docx(article_data, output_path):
     generator.save(output_path)
 
 
+def _unlink_section_hdr_ftr(section):
+    """新節預設與上一節頁首頁尾連結，須取消後才能寫入該篇專用內容。"""
+    for name in ('header', 'footer', 'even_page_header', 'even_page_footer'):
+        try:
+            part = getattr(section, name, None)
+            if part is None:
+                continue
+            if hasattr(part, 'is_linked_to_previous'):
+                part.is_linked_to_previous = False
+        except Exception:
+            pass
+
+
+def _sect_pr_add_footnote_restart(sect_pr):
+    """於節屬性加入腳註每節重新編號（與單篇獨立顯示一致）。"""
+    tag = qn('w:footnotePr')
+    for old in list(sect_pr.findall(tag)):
+        sect_pr.remove(old)
+    fn_pr = OxmlElement('w:footnotePr')
+    num_start = OxmlElement('w:numStart')
+    num_start.set(qn('w:val'), '1')
+    fn_pr.append(num_start)
+    num_restart = OxmlElement('w:numRestart')
+    num_restart.set(qn('w:val'), 'eachSect')
+    fn_pr.append(num_restart)
+    sect_pr.append(fn_pr)
+
+
+def generate_issue_docx(articles_list, output_path):
+    """整期合併：每篇文章獨立一節（分節符＋新頁），各自頁首奇數頁標題／腳註編號；第 1 節僅預留首頁。"""
+    if not articles_list:
+        raise ValueError('articles_list 不可為空')
+
+    gen = ProfessionalDocxGenerator()
+    gen.doc.settings.odd_and_even_pages_header_footer = True
+
+    # 第一節：僅預留首頁（目次／第一篇自下一節起）
+    p0 = gen.doc.add_paragraph()
+    p0.add_run('\u00a0')
+    _sect_pr_add_footnote_restart(gen.doc.sections[0]._sectPr)
+
+    for article_data in articles_list:
+        gen.doc.add_section(WD_SECTION_START.NEW_PAGE)
+        sec = gen.doc.sections[-1]
+        _unlink_section_hdr_ftr(sec)
+        _sect_pr_add_footnote_restart(sec._sectPr)
+        _apply_article_body(gen, article_data)
+        gen.add_header_footer(
+            sec,
+            article_data.get('issue', 7),
+            article_data.get('issue_title', '') or '火燒島上的《耶穌傳》',
+            article_data.get('id', ''),
+            article_data.get('title', '無標題'),
+        )
+
+    gen.save(output_path)
+
+
 # ════════════════════════════════════════
 # 命令列執行
 # ════════════════════════════════════════
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        print('使用方式：python generate_docx.py <article.json> <output.docx>')
+        print('使用方式：python generate_docx.py <article.json|issue.json> <output.docx>')
+        print('  issue.json 格式：{"articles":[ {...}, ... ]}')
         sys.exit(1)
 
     input_json  = sys.argv[1]
@@ -2579,8 +2651,11 @@ if __name__ == '__main__':
 
     try:
         with open(input_json, 'r', encoding='utf-8') as f:
-            article_data = json.load(f)
-        generate_article_docx(article_data, output_docx)
+            payload = json.load(f)
+        if isinstance(payload.get('articles'), list):
+            generate_issue_docx(payload['articles'], output_docx)
+        else:
+            generate_article_docx(payload, output_docx)
 
     except FileNotFoundError:
         print(f'❌ 找不到檔案：{input_json}'); sys.exit(1)

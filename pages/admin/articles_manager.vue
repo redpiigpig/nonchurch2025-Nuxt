@@ -219,6 +219,17 @@ const orderedArticles = computed(() => {
   return result;
 });
 
+const isTocArticleRow = (a) =>
+  a.article_type === "toc" || a.title === "目次" || a.title === "目錄";
+
+/** 合併整期 Word：目次置前（若有），其餘依文章管理畫面順序 */
+const mergeOrderForWordExport = computed(() => {
+  const list = orderedArticles.value;
+  const toc = list.find(isTocArticleRow);
+  if (!toc) return [...list];
+  return [toc, ...list.filter((x) => x.id !== toc.id)];
+});
+
 const totalArticles = computed(() =>
   SECTION_ORDER.reduce(
     (n, s) => n + (groupedArticles.value[s]?.length || 0),
@@ -463,6 +474,7 @@ const goToEditor = (article) => {
 
 // ── 下載 Word ──
 const downloadingWord = ref(null);
+const downloadingIssueWord = ref(false);
 const TOC_SECTION_ORDER = ["主題介紹", "特稿專區", "主題廣場", "多元講堂", "編輯資訊"];
 const TOC_SECTIONS_WITH_SEPARATOR = new Set(["特稿專區", "主題廣場", "多元講堂", "編輯資訊"]);
 const TOC_SECTIONS_WITH_LABEL = new Set(["特稿專區", "主題廣場", "多元講堂"]);
@@ -514,44 +526,84 @@ const generateTocHTML = (issueArticles) => {
   return parts.join("\n");
 };
 
+/** 單篇 Word 匯出用 payload（與列下載、本期合併共用） */
+const buildExportPayloadForArticle = async (article) => {
+  if (article.article_type === "toc") {
+    const { data: issueArts, error: iaErr } = await supabase
+      .from("articles")
+      .select("id, title, subtitle, author, author_display, category, section, sort_order, page_start, article_type")
+      .eq("issue", article.issue);
+    if (iaErr) throw iaErr;
+    return {
+      id: article.id,
+      article_type: "toc",
+      title: "目次",
+      subtitle: "", category: "", author: "", author_title: "",
+      remark: "", keyword: "", footnotes: [],
+      issue: article.issue, issue_title: "", page_start: null,
+      content: generateTocHTML(issueArts || []),
+    };
+  }
+  const { data, error } = await supabase
+    .from("articles")
+    .select("id, title, subtitle, category, author, author_title, remark, keyword, content, footnotes, issue, issue_title, page_start, media_assets(image_url, sort_order)")
+    .eq("id", article.id)
+    .single();
+  if (error) throw error;
+  const assets = data.media_assets || [];
+  const resolvedContent = (data.content || "").replace(
+    /\[\[圖片(\d+)\]\]/g,
+    (match, orderStr) => {
+      const found = assets.find((m) => m.sort_order === parseInt(orderStr));
+      return found ? found.image_url : match;
+    },
+  );
+  return { ...data, content: resolvedContent };
+};
+
+const downloadIssueWord = async () => {
+  if (!selectedIssueId.value) {
+    alert("請先選擇期數");
+    return;
+  }
+  const seq = mergeOrderForWordExport.value;
+  if (!seq.length) {
+    alert("本期沒有文章");
+    return;
+  }
+  downloadingIssueWord.value = true;
+  try {
+    const payloads = [];
+    for (const article of seq) {
+      payloads.push(await buildExportPayloadForArticle(article));
+    }
+    const issueMeta = issuesOptions.value.find((i) => i.id === selectedIssueId.value);
+    const safeTitle = (issueMeta?.title || "").replace(/[\\/:*?"<>|]/g, "_");
+    const filename = `Vol.${selectedIssueId.value}-${safeTitle || "本期"}.docx`;
+    const result = await $fetch("/api/export-issue-word", {
+      method: "POST",
+      body: { articles: payloads, filename },
+    });
+    if (!result.success) throw new Error(result.error || "匯出失敗");
+    const bytes = new Uint8Array(atob(result.file).split("").map((c) => c.charCodeAt(0)));
+    const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = result.filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert("下載本期 Word 失敗：" + (err.message || err));
+  } finally {
+    downloadingIssueWord.value = false;
+  }
+};
+
 const downloadWord = async (article) => {
   downloadingWord.value = article.id;
   try {
-    let exportData;
-
-    if (article.article_type === "toc") {
-      // 目次：即時從同期文章生成最新 HTML
-      const { data: issueArts, error: iaErr } = await supabase
-        .from("articles")
-        .select("id, title, subtitle, author, author_display, category, section, sort_order, page_start, article_type")
-        .eq("issue", article.issue);
-      if (iaErr) throw iaErr;
-      exportData = {
-        id: article.id,
-        article_type: "toc",
-        title: "目次",
-        subtitle: "", category: "", author: "", author_title: "",
-        remark: "", keyword: "", footnotes: [],
-        issue: article.issue, issue_title: "", page_start: null,
-        content: generateTocHTML(issueArts || []),
-      };
-    } else {
-      const { data, error } = await supabase
-        .from("articles")
-        .select("id, title, subtitle, category, author, author_title, remark, keyword, content, footnotes, issue, issue_title, page_start, media_assets(image_url, sort_order)")
-        .eq("id", article.id)
-        .single();
-      if (error) throw error;
-      const assets = data.media_assets || [];
-      const resolvedContent = (data.content || "").replace(
-        /\[\[圖片(\d+)\]\]/g,
-        (match, orderStr) => {
-          const found = assets.find((m) => m.sort_order === parseInt(orderStr));
-          return found ? found.image_url : match;
-        },
-      );
-      exportData = { ...data, content: resolvedContent };
-    }
+    const exportData = await buildExportPayloadForArticle(article);
 
     const response = await fetch("/api/export-word", {
       method: "POST",
@@ -881,10 +933,10 @@ const convertToArticle = async (sub) => {
     </div>
 
     <div class="toolbar-container">
-      <div class="toolbar-left">
-        <label>選擇期數：</label>
+      <div class="toolbar-row">
+        <label class="toolbar-issue-label">選擇期數：</label>
         <div class="select-wrapper">
-          <select v-model="selectedIssueId">
+          <select v-model="selectedIssueId" class="toolbar-issue-select">
             <option
               v-for="issue in issuesOptions"
               :key="issue.id"
@@ -895,17 +947,31 @@ const convertToArticle = async (sub) => {
           </select>
         </div>
         <span class="count-badge">共 {{ totalArticles }} 篇文章</span>
-        <button class="btn-new" @click="showAddModal = true">
-          ＋ 新增文章
-        </button>
-        <button class="btn-save-all" @click="saveAll" :disabled="savingAll">
-          {{ savingAll ? "儲存中..." : "💾 全部儲存" }}
-        </button>
-      </div>
-      <div class="toolbar-right">
-        <button class="btn-merge-pdf" @click="openMergeModal" title="將此期所有文章 PDF 合併成完整期刊">
-          🔗 合併成期刊 PDF
-        </button>
+        <div class="toolbar-actions">
+          <button class="btn-new" type="button" @click="showAddModal = true">
+            ＋ 新增文章
+          </button>
+          <button class="btn-save-all" type="button" @click="saveAll" :disabled="savingAll">
+            {{ savingAll ? "儲存中..." : "💾 全部儲存" }}
+          </button>
+          <button
+            type="button"
+            class="btn-issue-word"
+            title="合併本期為單一 Word（第 1 頁預留、目次起第 2 頁；頁碼連號；腳注每篇獨立）"
+            :disabled="downloadingIssueWord || !selectedIssueId || totalArticles === 0"
+            @click="downloadIssueWord"
+          >
+            {{ downloadingIssueWord ? "匯出中…" : "📄 下載本期 Word" }}
+          </button>
+          <button
+            type="button"
+            class="btn-merge-pdf"
+            @click="openMergeModal"
+            title="將此期所有文章 PDF 合併成完整期刊"
+          >
+            🔗 合併成期刊 PDF
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1377,50 +1443,69 @@ const convertToArticle = async (sub) => {
   margin: 0;
 }
 
-/* ── 工具列 ── */
+/* ── 工具列（單排：期數 → 篇數 → 新增／儲存／Word／合併 PDF）── */
 .toolbar-container {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
   margin-bottom: 24px;
   background: #f8f9fa;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-radius: 8px;
   border: 1px solid #eee;
   position: sticky;
   top: 0;
   z-index: 10;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
-.toolbar-left {
+.toolbar-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
-  flex: 1;
+  width: 100%;
+  min-width: 0;
 }
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.toolbar-issue-label {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 0.95rem;
+  color: #444;
 }
-
+/* 期數下拉：吃掉中間剩餘寬度，避免右側留白；仍設合理下限 */
+.select-wrapper {
+  flex: 1 1 0;
+  min-width: 260px;
+  max-width: none;
+}
+.select-wrapper .toolbar-issue-select,
 .select-wrapper select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   padding: 8px 12px;
-  font-size: 1rem;
+  font-size: 0.95rem;
   border: 1px solid #ccc;
   border-radius: 4px;
-  min-width: 240px;
   cursor: pointer;
   background: white;
 }
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .count-badge {
+  flex-shrink: 0;
   background: #e9ecef;
-  padding: 5px 10px;
+  padding: 5px 8px;
   border-radius: 12px;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   color: #555;
   font-weight: bold;
+  white-space: nowrap;
 }
 .btn-new {
   padding: 8px 16px;
@@ -1455,6 +1540,24 @@ const convertToArticle = async (sub) => {
   cursor: not-allowed;
 }
 
+.btn-issue-word {
+  padding: 8px 14px;
+  background: #6f42c1;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-issue-word:hover:not(:disabled) {
+  background: #5a32a3;
+}
+.btn-issue-word:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 .loading {
   text-align: center;
@@ -2056,14 +2159,18 @@ tr.meta-row td {
 .btn-convert:disabled { opacity: 0.5; cursor: default; }
 
 @media (max-width: 768px) {
-  .toolbar-container {
-    flex-direction: column;
-    align-items: stretch;
+  .toolbar-row {
+    flex-wrap: wrap;
+    row-gap: 10px;
   }
-  .toolbar-left,
-  .toolbar-right {
-    flex-direction: column;
-    width: 100%;
+  .select-wrapper {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .toolbar-actions {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 </style>
