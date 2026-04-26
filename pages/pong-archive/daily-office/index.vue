@@ -38,6 +38,7 @@
           <div class="do-wheel-label">
             <span class="do-wheel-cycle">{{ yi.cycle }}年</span>
             <span class="do-wheel-en">Year {{ yi.yearEn }}</span>
+            <span class="do-wheel-gospel">{{ yi.gospel }}</span>
           </div>
 
           <div class="do-wheel-container">
@@ -61,8 +62,7 @@
               />
               <!-- 中心圓 -->
               <circle cx="0" cy="0" r="0.38" fill="#F9F8F6" />
-              <text x="0" y="-0.04" text-anchor="middle" class="do-center-text-main">{{ yi.cycle }}年</text>
-              <text x="0" y="0.1" text-anchor="middle" class="do-center-text-sub">{{ yi.gospel }}</text>
+              <text x="0" y="0.05" text-anchor="middle" class="do-center-text-main">{{ yi.cycle }}年</text>
             </svg>
 
             <!-- Tooltip -->
@@ -260,7 +260,7 @@ function onSliceClick(slot, yearEn) {
   letter-spacing: 0.1em;
 }
 .do-wheel-en { font-size: 0.68rem; font-weight: 300; color: #A09280; letter-spacing: 0.16em; text-transform: uppercase; }
-.do-wheel-gospel { font-size: 0.75rem; font-weight: 300; color: #7A7268; letter-spacing: 0.06em; margin-top: 2px; }
+.do-wheel-gospel { font-family: 'Noto Serif TC', serif; font-size: 1.1rem; font-weight: 500; color: #3A3025; letter-spacing: 0.1em; }
 
 .do-wheel-container {
   position: relative;
@@ -283,11 +283,6 @@ function onSliceClick(slot, yearEn) {
   font-weight: 500;
   fill: #3A3025;
   letter-spacing: 0.01em;
-}
-.do-center-text-sub {
-  font-size: 0.1px;
-  font-weight: 300;
-  fill: #7A7268;
 }
 
 /* ── Tooltip ─────────────────────────────────────────────── */
