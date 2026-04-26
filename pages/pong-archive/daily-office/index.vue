@@ -34,11 +34,11 @@
     <!-- ── 三個圓餅圖 ──────────────────────────────────────── -->
     <section class="do-wheels-section">
       <div class="do-wheels-grid">
-        <div v-for="cy in chartYears" :key="cy.churchYear" class="do-wheel-wrap">
+        <div v-for="yi in YEAR_INFO" :key="yi.yearEn" class="do-wheel-wrap">
           <div class="do-wheel-label">
-            <span class="do-wheel-cycle">{{ cy.cycle }}年</span>
-            <span class="do-wheel-en">Year {{ cy.cycleEn }}</span>
-            <span class="do-wheel-gospel">{{ cy.gospel }}</span>
+            <span class="do-wheel-cycle">{{ yi.cycle }}年</span>
+            <span class="do-wheel-en">Year {{ yi.yearEn }}</span>
+            <span class="do-wheel-gospel">{{ yi.gospel }}</span>
           </div>
 
           <div class="do-wheel-container">
@@ -47,35 +47,31 @@
               class="do-wheel-svg"
               @mouseleave="tooltip = null"
             >
-              <g v-for="(slot, i) in cy.slots" :key="i">
-                <path
-                  :d="slot.path"
-                  :fill="slot.color"
-                  :opacity="slot.optional ? 0.22 : 1"
-                  :stroke="slot.optional ? '#ccc' : '#F9F8F6'"
-                  stroke-width="0.006"
-                  class="do-slice"
-                  :class="{ 'do-slice--active': !slot.optional }"
-                  @mouseenter="onSliceHover($event, slot, cy)"
-                  @click="onSliceClick(slot, cy)"
-                  :style="slot.optional ? {} : { cursor: 'pointer' }"
-                />
-              </g>
+              <path
+                v-for="(slot, i) in baseSlices"
+                :key="i"
+                :d="slot.path"
+                :fill="slot.color"
+                stroke="#F9F8F6"
+                stroke-width="0.006"
+                class="do-slice do-slice--active"
+                style="cursor: pointer"
+                @mouseenter="onSliceHover($event, slot, yi.yearEn)"
+                @click="onSliceClick(slot, yi.yearEn)"
+              />
               <!-- 中心圓 -->
               <circle cx="0" cy="0" r="0.38" fill="#F9F8F6" />
-              <text x="0" y="-0.04" text-anchor="middle" class="do-center-text-main">{{ cy.cycle }}年</text>
-              <text x="0" y="0.1" text-anchor="middle" class="do-center-text-sub">{{ cy.gospel }}</text>
+              <text x="0" y="-0.04" text-anchor="middle" class="do-center-text-main">{{ yi.cycle }}年</text>
+              <text x="0" y="0.1" text-anchor="middle" class="do-center-text-sub">{{ yi.gospel }}</text>
             </svg>
 
             <!-- Tooltip -->
             <div
-              v-if="tooltip && tooltip.churchYear === cy.churchYear"
+              v-if="tooltip && tooltip.yearEn === yi.yearEn"
               class="do-tooltip"
               :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }"
             >
               <span class="do-tooltip-label">{{ tooltip.label }}</span>
-              <span v-if="tooltip.dateRange" class="do-tooltip-date">{{ tooltip.dateRange }}</span>
-              <span v-if="tooltip.optional" class="do-tooltip-na">本年不適用</span>
             </div>
           </div>
         </div>
@@ -98,13 +94,12 @@
 <script setup>
 import { ref, computed } from 'vue'
 import {
-  getChurchYearSundays,
   getLectionaryYear,
   getLectionaryYearEn,
   getCurrentChurchYear,
   findTodaySlot,
+  getFixedLectionarySlots,
   SEASON_COLORS,
-  fmt,
 } from '~/composables/useChurchCalendar.js'
 
 definePageMeta({ layout: 'pong-archive' })
@@ -121,73 +116,45 @@ const todayColor = computed(() =>
 const weekdays = ['週日', '週一', '週二', '週三', '週四', '週五', '週六']
 const todayDateLabel = `${today.getFullYear()} 年 ${today.getMonth() + 1} 月 ${today.getDate()} 日　${weekdays[today.getDay()]}`
 
-// ── 圓餅圖資料 ────────────────────────────────────────────
-// 顯示目前所在教會年的甲乙丙（當前、前一、後一）
-const gospels = { 甲: '馬太年', 乙: '馬可年', 丙: '路加年' }
+// ── 固定 57 週圓餅圖（三個圓餅結構相同，只有年份標籤不同） ──
+const rawSlots = getFixedLectionarySlots()
+const TOTAL = rawSlots.length // 57
+const anglePerSlice = (2 * Math.PI) / TOTAL
+const startAngle = -Math.PI / 2
+const r = 0.95
 
-function buildChartYear(churchYear) {
-  const cycle = getLectionaryYear(churchYear)
-  const cycleEn = getLectionaryYearEn(churchYear)
-  const rawSlots = getChurchYearSundays(churchYear)
-  const total = rawSlots.length
-  const anglePerSlice = (2 * Math.PI) / total
-  const startAngle = -Math.PI / 2 // 從頂部開始
-
-  const slots = rawSlots.map((slot, i) => {
-    const a1 = startAngle + i * anglePerSlice
-    const a2 = a1 + anglePerSlice
-    const r = 0.95
-    const x1 = Math.cos(a1) * r, y1 = Math.sin(a1) * r
-    const x2 = Math.cos(a2) * r, y2 = Math.sin(a2) * r
-    const path = `M 0 0 L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`
-    const color = slot.optional
-      ? '#D8D3C8'
-      : (SEASON_COLORS[slot.season]?.bg || '#888')
-
-    // 日期範圍文字
-    let dateRange = null
-    if (slot.sunday) {
-      dateRange = fmt(slot.sunday)
-    }
-
-    return { ...slot, path, color, dateRange, churchYear }
-  })
-
-  return { churchYear, cycle, cycleEn, gospel: gospels[cycle], slots }
-}
-
-// 找出甲乙丙三年（以目前教會年為中心，找 -2 到 +2 範圍內的甲乙丙各一）
-function findThreeCycleYears(baseChurchYear) {
-  const result = {}
-  for (let offset = -3; offset <= 3; offset++) {
-    const cy = baseChurchYear + offset
-    const c = getLectionaryYear(cy)
-    if (!result[c]) result[c] = cy
+const baseSlices = rawSlots.map((slot, i) => {
+  const a1 = startAngle + i * anglePerSlice
+  const a2 = a1 + anglePerSlice
+  const x1 = Math.cos(a1) * r, y1 = Math.sin(a1) * r
+  const x2 = Math.cos(a2) * r, y2 = Math.sin(a2) * r
+  return {
+    ...slot,
+    path: `M 0 0 L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`,
+    color: SEASON_COLORS[slot.season]?.bg || '#888',
   }
-  return ['甲', '乙', '丙'].map(c => buildChartYear(result[c]))
-}
+})
 
-const chartYears = findThreeCycleYears(todayChurchYear)
+const YEAR_INFO = [
+  { yearEn: 'A', cycle: '甲', gospel: '馬太年' },
+  { yearEn: 'B', cycle: '乙', gospel: '馬可年' },
+  { yearEn: 'C', cycle: '丙', gospel: '路加年' },
+]
 
 // ── Tooltip ───────────────────────────────────────────────
 const tooltip = ref(null)
 
-function onSliceHover(event, slot, cy) {
-  const rect = event.currentTarget.closest('.do-wheel-container').getBoundingClientRect()
+function onSliceHover(event, slot, yearEn) {
   const svgRect = event.currentTarget.closest('svg').getBoundingClientRect()
   tooltip.value = {
-    churchYear: cy.churchYear,
+    yearEn,
     label: slot.label,
-    dateRange: slot.dateRange,
-    optional: slot.optional,
     x: event.clientX - svgRect.left + 12,
     y: event.clientY - svgRect.top - 8,
   }
 }
 
-function onSliceClick(slot, cy) {
-  if (slot.optional) return
-  const yearEn = getLectionaryYearEn(cy.churchYear)
+function onSliceClick(slot, yearEn) {
   navigateTo(`/pong-archive/daily-office/${yearEn}/${slot.season}/${slot.week}`)
 }
 </script>
@@ -341,8 +308,6 @@ function onSliceClick(slot, cy) {
   backdrop-filter: blur(4px);
 }
 .do-tooltip-label { font-weight: 500; letter-spacing: 0.06em; }
-.do-tooltip-date { font-weight: 300; color: rgba(255,255,255,0.65); font-size: 0.68rem; }
-.do-tooltip-na { font-weight: 300; color: rgba(255,200,150,0.85); font-size: 0.68rem; }
 
 /* ── Legend ─────────────────────────────────────────────── */
 .do-legend {

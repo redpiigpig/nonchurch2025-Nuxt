@@ -209,6 +209,21 @@ export function findTodaySlot(date = new Date()) {
   return { churchYear, slot: null }
 }
 
+// 固定 57 週結構（通用，不綁定任何年份日期）
+export function getFixedLectionarySlots() {
+  const slots = []
+  const add = (season, count, labelFn) => {
+    for (let w = 1; w <= count; w++) slots.push({ season, week: w, label: labelFn(w) })
+  }
+  add('advent',    4,  w => `將臨期第${w}週`)
+  add('christmas', 2,  w => w === 1 ? '聖誕期第1週' : '聖誕期第2週')
+  add('epiphany',  9,  w => w === 1 ? '顯現期第1週（耶穌受洗）' : w === 9 ? '顯現期第9週（登山變相）' : `顯現期第${w}週`)
+  add('lent',      6,  w => w === 6 ? '大齋期第6週（棕枝主日）' : `大齋期第${w}週`)
+  add('easter',    7,  w => w === 1 ? '復活期第1週（復活節）' : w === 7 ? '復活期第7週（聖靈降臨節）' : `復活期第${w}週`)
+  add('pentecost', 29, w => w === 1 ? '聖靈降臨後第1週（三一主日）' : `聖靈降臨後第${w}週`)
+  return slots // 4+2+9+6+7+29 = 57
+}
+
 export const SEASON_COLORS = {
   advent:    { bg: '#4A3580', light: '#6B52B0', text: '#fff', name: '將臨期' },
   christmas: { bg: '#8B6914', light: '#C4971E', text: '#fff', name: '聖誕期' },
