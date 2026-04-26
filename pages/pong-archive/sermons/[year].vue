@@ -36,20 +36,28 @@
             <span v-else class="sd-location">{{ sermon.location || '—' }}</span>
           </div>
 
+          <!-- 一般禮拜 YouTube 按鈕：置中於 header -->
+          <div v-if="!isEditing && !isMemorial && sermon.youtube_url" class="sd-yt-header-wrap">
+            <a :href="sermon.youtube_url" target="_blank" rel="noopener noreferrer" class="sd-yt-btn">
+              <svg class="sd-yt-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M23.8 7.2s-.2-1.7-.9-2.4c-.9-.9-1.9-.9-2.4-1C17.8 3.6 12 3.6 12 3.6s-5.8 0-8.5.2c-.5.1-1.5.1-2.4 1-.7.7-.9 2.4-.9 2.4S0 9.1 0 11v1.8c0 1.9.2 3.8.2 3.8s.2 1.7.9 2.4c.9.9 2.1.8 2.6.9C5.2 20 12 20 12 20s5.8 0 8.5-.2c.5-.1 1.5-.1 2.4-1 .7-.7.9-2.4.9-2.4s.2-1.9.2-3.8V11c0-1.9-.2-3.8-.2-3.8zM9.7 15.5V8.4l6.6 3.6-6.6 3.5z"/>
+              </svg>
+              觀看完整禮拜錄影
+            </a>
+          </div>
+
         </div>
 
         <div v-if="isEditing" class="sd-edit-hint">✦ 編輯模式</div>
       </div>
     </header>
 
-    <!-- ── YouTube ────────────────────────────────────────────── -->
+    <!-- ── YouTube（追思禮拜 iframe / 編輯模式輸入）──────────── -->
     <section
-      v-if="sermon.youtube_url || isEditing"
-      class="sd-section"
-      :class="isMemorial ? 'sd-section--video' : 'sd-section--yt-link'"
+      v-if="(isMemorial && sermon.youtube_url) || isEditing"
+      class="sd-section sd-section--video"
     >
       <div class="sd-section-inner">
-        <!-- 追思禮拜：全寬 iframe -->
         <div v-if="!isEditing && isMemorial && youtubeEmbed" class="sd-video-wrap">
           <iframe
             :src="youtubeEmbed"
@@ -60,20 +68,6 @@
             class="sd-video-iframe"
           ></iframe>
         </div>
-        <!-- 一般禮拜：按鈕連結 -->
-        <a
-          v-else-if="!isEditing && sermon.youtube_url"
-          :href="sermon.youtube_url"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="sd-yt-btn"
-        >
-          <svg class="sd-yt-icon" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M23.8 7.2s-.2-1.7-.9-2.4c-.9-.9-1.9-.9-2.4-1C17.8 3.6 12 3.6 12 3.6s-5.8 0-8.5.2c-.5.1-1.5.1-2.4 1-.7.7-.9 2.4-.9 2.4S0 9.1 0 11v1.8c0 1.9.2 3.8.2 3.8s.2 1.7.9 2.4c.9.9 2.1.8 2.6.9C5.2 20 12 20 12 20s5.8 0 8.5-.2c.5-.1 1.5-.1 2.4-1 .7-.7.9-2.4.9-2.4s.2-1.9.2-3.8V11c0-1.9-.2-3.8-.2-3.8zM9.7 15.5V8.4l6.6 3.6-6.6 3.5z"/>
-          </svg>
-          觀看完整禮拜錄影
-        </a>
-        <!-- 編輯模式 -->
         <input
           v-if="isEditing"
           v-model="local.youtube_url"
@@ -453,12 +447,16 @@ const seasonColor = computed(() => {
 .sd-title-wrap { margin-bottom: 20px; }
 .sd-title-wrap .sd-title { margin-bottom: 0; }
 
-/* ── YouTube embed (追思禮拜) ───────────────────────────────── */
+/* ── YouTube button in header (一般禮拜) ───────────────────── */
+.sd-yt-header-wrap {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+/* ── YouTube embed section (追思禮拜) ──────────────────────── */
 .sd-section--video { background-color: #F9F8F6; padding: 48px 40px; border-bottom: 1px solid #E8E4DC; }
 .sd-section--video .sd-section-inner { max-width: 720px; margin: 0 auto; }
 
-/* ── YouTube button link (一般禮拜) ────────────────────────── */
-.sd-section--yt-link { background-color: #F4F1EC; padding: 20px 40px; border-bottom: 1px solid #E8E4DC; }
 .sd-yt-btn {
   display: inline-flex;
   align-items: center;
