@@ -10,9 +10,9 @@
     <header class="sd-header">
       <div class="sd-header-inner">
         <div class="sd-meta-line">
-          <span class="sd-season">{{ sermon.liturgical_season }}</span>
-          <span class="sd-dot">·</span>
-          <span class="sd-date">{{ formatDate(sermon.sermon_date) }}</span>
+          <span class="sd-season" :style="{ color: seasonColor }">{{ sermon.liturgical_season }}</span>
+          <span class="sd-dot" :style="{ color: seasonColor }">·</span>
+          <span class="sd-date" :style="{ color: seasonColor }">{{ formatDate(sermon.sermon_date) }}</span>
         </div>
 
         <textarea
@@ -257,6 +257,26 @@ function formatDate(d) {
   const dt = new Date(d)
   return `${dt.getFullYear()} 年 ${dt.getMonth() + 1} 月 ${dt.getDate()} 日`
 }
+
+const SEASON_COLORS = {
+  advent:    '#5B3F8A',
+  christmas: '#A07828',
+  epiphany:  '#2A6E3A',
+  lent:      '#7B2D6E',
+  easter:    '#A07828',
+  pentecost: '#2A6E3A',
+}
+
+const seasonColor = computed(() => {
+  const s = sermon.value?.liturgical_season || ''
+  if (/將臨/.test(s))                              return SEASON_COLORS.advent
+  if (/聖誕/.test(s))                              return SEASON_COLORS.christmas
+  if (/顯現|主顯|耶穌受洗/.test(s))               return SEASON_COLORS.epiphany
+  if (/大齋|受難|棕枝|聖灰/.test(s))              return SEASON_COLORS.lent
+  if (/復活|聖靈降臨節/.test(s))                  return SEASON_COLORS.easter
+  if (/聖靈降臨後|三一|常年/.test(s))             return SEASON_COLORS.pentecost
+  return '#8A7E6E'
+})
 </script>
 
 <style scoped>
@@ -292,9 +312,9 @@ function formatDate(d) {
   gap: 10px;
   margin-bottom: 20px;
 }
-.sd-season { font-size: 0.75rem; font-weight: 300; color: #8A7E6E; letter-spacing: 0.12em; }
-.sd-dot { color: #C4B89A; font-size: 0.7rem; }
-.sd-date { font-size: 0.75rem; font-weight: 300; color: #8A7E6E; letter-spacing: 0.08em; }
+.sd-season { font-size: 0.75rem; font-weight: 500; letter-spacing: 0.12em; }
+.sd-dot    { font-size: 0.7rem; opacity: 0.6; }
+.sd-date   { font-size: 0.75rem; font-weight: 300; letter-spacing: 0.08em; opacity: 0.9; }
 
 .sd-title {
   font-family: 'Noto Serif TC', serif;
