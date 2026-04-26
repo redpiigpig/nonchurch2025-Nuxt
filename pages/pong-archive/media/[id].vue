@@ -219,7 +219,7 @@ const supabase = createClient(
 const { data: item } = await useAsyncData(`pong-media-${route.params.id}`, async () => {
   const { data, error } = await supabase
     .from('pong_media').select('*')
-    .eq('id', route.params.id).eq('is_published', true).single()
+    .eq('broadcast_date', route.params.id).eq('is_published', true).single()
   return error ? null : data
 })
 
@@ -228,7 +228,7 @@ const local = reactive({})
 watch(item, (v) => { if (v) Object.assign(local, v) }, { immediate: true })
 watch(isEditing, async (on) => {
   if (!on) return
-  const { data } = await supabase.from('pong_media').select('*').eq('id', route.params.id).single()
+  const { data } = await supabase.from('pong_media').select('*').eq('broadcast_date', route.params.id).single()
   if (data) Object.assign(local, data)
 })
 
@@ -240,7 +240,7 @@ watch(isEditing, async (on) => {
 const youtubeId = computed(() => isEditing.value ? local.youtube_id : item.value?.youtube_id)
 
 function save(field, value) {
-  saveField('pong_media', route.params.id, field, value)
+  saveField('pong_media', item.value?.id, field, value)
 }
 
 function autoResize(el) {

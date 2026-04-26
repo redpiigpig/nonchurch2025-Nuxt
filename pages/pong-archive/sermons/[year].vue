@@ -236,7 +236,7 @@ watch(isEditing, async (on) => {
 })
 
 function save(field, value) {
-  saveField('pong_sermons', route.params.year, field, value)
+  saveField('pong_sermons', sermon.value?.id, field, value)
 }
 
 function autoResize(el) {
@@ -279,7 +279,7 @@ const worshipSongsText = computed(() => (local.worship_songs || []).join('\n'))
 function onSongsInput(e) {
   const arr = e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
   local.worship_songs = arr
-  saveField('pong_sermons', route.params.year, 'worship_songs', arr)
+  saveField('pong_sermons', sermon.value?.id, 'worship_songs', arr)
 }
 
 // ── Content paragraphs ───────────────────────────────────────

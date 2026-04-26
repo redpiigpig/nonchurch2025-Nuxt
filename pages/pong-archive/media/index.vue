@@ -22,7 +22,7 @@
         <NuxtLink
           v-for="item in interviews"
           :key="item.id"
-          :to="`/pong-archive/media/${item.id}`"
+          :to="`/pong-archive/media/${item.broadcast_date}`"
           class="mi-card"
         >
           <div class="mi-thumb">
@@ -74,7 +74,7 @@
         <NuxtLink
           v-for="item in talks"
           :key="item.id"
-          :to="`/pong-archive/media/${item.id}`"
+          :to="`/pong-archive/media/${item.broadcast_date}`"
           class="mi-card"
         >
           <div class="mi-thumb">
