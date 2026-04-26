@@ -17,8 +17,10 @@
           :key="y.year"
           :to="`/pong-archive/sermons/year/${y.year}`"
           class="sl-year-card"
+          :class="{ 'sl-year-card--empty': !countMap[y.year] }"
         >
           <span class="sl-year-label">{{ y.year }}–{{ y.year + 1 }}</span>
+          <span v-if="countMap[y.year]" class="sl-year-count">{{ countMap[y.year] }} 篇</span>
         </NuxtLink>
       </div>
     </section>
@@ -26,9 +28,33 @@
 </template>
 
 <script setup>
+import { createClient } from '@supabase/supabase-js'
+
 definePageMeta({ layout: 'pong-archive' })
 
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_KEY
+)
+
 const years = Array.from({ length: 26 }, (_, i) => ({ year: 2000 + i }))
+
+const { data: counts } = await useAsyncData('pong-sermon-counts', async () => {
+  const { data, error } = await supabase
+    .from('pong_sermons')
+    .select('church_year')
+    .eq('is_published', true)
+  if (error) return []
+  return data || []
+})
+
+const countMap = computed(() => {
+  const map = {}
+  for (const row of (counts.value || [])) {
+    map[row.church_year] = (map[row.church_year] || 0) + 1
+  }
+  return map
+})
 </script>
 
 <style scoped>
@@ -95,6 +121,7 @@ const years = Array.from({ length: 26 }, (_, i) => ({ year: 2000 + i }))
 }
 .sl-year-card {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 12px 6px;
@@ -104,10 +131,14 @@ const years = Array.from({ length: 26 }, (_, i) => ({ year: 2000 + i }))
   text-decoration: none;
   color: inherit;
   transition: background-color 0.2s, border-color 0.2s;
+  gap: 4px;
 }
 .sl-year-card:hover {
   background-color: #EAE4D8;
   border-color: #C4B89A;
+}
+.sl-year-card--empty {
+  opacity: 0.45;
 }
 .sl-year-label {
   font-family: 'Noto Serif TC', serif;
@@ -116,6 +147,12 @@ const years = Array.from({ length: 26 }, (_, i) => ({ year: 2000 + i }))
   color: #5A5048;
   letter-spacing: 0.03em;
   white-space: nowrap;
+}
+.sl-year-count {
+  font-size: 0.65rem;
+  font-weight: 300;
+  color: #9A9080;
+  letter-spacing: 0.06em;
 }
 
 @media (max-width: 640px) {
