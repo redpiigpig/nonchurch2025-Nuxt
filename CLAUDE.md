@@ -73,6 +73,29 @@
 - commit 訊息需清楚描述修正目的（例如：修復 Word 匯出、修正 401、調整腳注規則）
 - 若 push 失敗，需在回報中明確說明原因（權限、網路、遠端衝突）與下一步處理方式
 
+### 主動操作 Supabase 資料庫（含 DDL）
+- 需要查詢、建表、修改 schema 時，**直接讀取 `.env` 取得連線資訊**，不要問使用者
+- 連線方式：Node.js `pg` 模組 + `.env` 中的 `SUPABASE_DB_*` 變數：
+  ```js
+  const { Client } = require('pg');
+  const client = new Client({
+    host:     process.env.SUPABASE_DB_HOST,
+    port:     5432,
+    user:     process.env.SUPABASE_DB_USER,
+    password: process.env.SUPABASE_DB_PASSWORD,
+    database: process.env.SUPABASE_DB_NAME,
+    ssl:      { rejectUnauthorized: false }
+  });
+  ```
+- 執行完畢後驗證結果（SELECT 確認筆數或欄位）
+- **嚴禁** DROP TABLE / TRUNCATE / DELETE 大範圍資料，執行前必須與使用者確認
+
+### 主動操作 Cloudinary 媒體庫
+- 需要查詢圖片、上傳、重新命名時，**直接讀取 `.env`** 取得 `CLOUDINARY_*` 變數
+- 使用 `cloudinary` npm 套件或 `/api/media` 後端 API
+- 上傳前確認資料夾命名慣例（見下方「Cloudinary 資料夾命名慣例」）
+- 刪除操作前必須與使用者確認，不可靜默刪除
+
 ### 檔案儲存：一律用 Cloudinary，不用 Supabase Storage
 - 使用者使用 Supabase **免費版**，Storage 空間受限
 - 所有媒體檔案（圖片、PDF、Word、音訊）**必須上傳 Cloudinary**

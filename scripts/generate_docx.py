@@ -755,7 +755,7 @@ class ProfessionalDocxGenerator:
         portrait_border=False,
         wrap_through=False,
     ):
-        """圖＋圖說：Word `wordprocessingGroup`（wpg:wgp），與參考稿 stores/08跨越宗教藩籬的情誼 三校.docx 相同類型。
+        """圖＋圖說：Word `wordprocessingGroup`（wpg:wgp），與參考稿 stores/無境界者雜誌/04-第四期/4-8跨越宗教藩籬的情誼.docx 相同類型。
         整塊為單一浮動物件，在 Word 裡可一起縮放、搬移；圖說為透明底文字方塊（srgbClr + alpha 0）。
         wrap_through=True 時使用 wp:wrapThrough（穿透繞排）；False 且左右浮動時使用 wp:wrapSquare（矩形文繞圖）；置中大圖為上下環繞。"""
         from docx.oxml.parser import parse_xml
@@ -1610,7 +1610,7 @@ class ProfessionalDocxGenerator:
         paragraph._p.append(hyperlink)
 
     def _insert_info_card_wps_roundrect(self, paragraph, img_stream, title, link_items):
-        """資訊卡：wps 圓角矩形外框 + 文字方塊內容（對照 stores/11作為無教會主義的一種實踐？ 重校.docx 實測 OOXML）。"""
+        """資訊卡：wps 圓角矩形外框 + 文字方塊內容（對照 stores/無境界者雜誌/01-第一期/1-11作為無教會主義的一種實踐？.docx 實測 OOXML）。"""
         from docx.opc.constants import RELATIONSHIP_TYPE as RT
         from docx.oxml.parser import parse_xml
 
@@ -2185,7 +2185,7 @@ class ProfessionalDocxGenerator:
 
     def _apply_theme_image_frame(self, run):
         """主題圖片：圓角矩形 + compound 框線（呼應 article.css .theme-image 之 #444 雙層邊框感；
-        參考稿 stores/無境界者雜誌/…/01編輯室報告_三校.docx 若可取得，可再微調 w／cmpd／adj）。"""
+        參考稿 stores/無境界者雜誌/07-第七期/7-1編輯室報告.docx 若可取得，可再微調 w／cmpd／adj）。"""
         from lxml import etree as lxml_etree
         PIC_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture'
         A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
@@ -2257,7 +2257,7 @@ class ProfessionalDocxGenerator:
         lxml_etree.SubElement(ln_el, f'{{{A_NS}}}miter', attrib={'lim': '800000'})
 
     def _drawingml_portrait_double_border_on_pic(self, pic_el):
-        """在 pic:pic 的 spPr 上套用人物照雙線框（對照 stores/05聆聽被遺忘的苦難 三校.docx 浮動頭像）。"""
+        """在 pic:pic 的 spPr 上套用人物照雙線框（對照 stores/無境界者雜誌/07-第七期/7-5聆聽被遺忘的苦難.docx 浮動頭像）。"""
         from lxml import etree as lxml_etree
         PIC_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture'
         A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'

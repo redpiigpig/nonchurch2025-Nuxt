@@ -152,6 +152,122 @@
 #   anon        → INSERT only（公開投稿）
 #   authenticated → SELECT / UPDATE / DELETE
 
+## 龐君華會督數位典藏（pong_archive，新增於 2026-04-26）
+# 所有 pong_* 表與主站完全分離，不互相 JOIN
+# RLS：anon → SELECT (is_published=true)；authenticated → 完整存取
+
+## Table: pong_media（訪談與演講）
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | serial PK | |
+| title | text | 標題 |
+| title_en | text | |
+| source | text | 來源機構（例：救恩之聲） |
+| source_en | text | |
+| program_name | text | 節目名稱 |
+| program_en | text | |
+| interviewer | text | 主持人 |
+| media_type | text | 'interview'/'talk'/'sermon_audio'/'documentary' |
+| platform | text | 'youtube'/'podcast'/'broadcast'/'other' |
+| youtube_id | text | YouTube 影片 ID |
+| youtube_start | integer | 開始秒數 |
+| audio_url | text | 非 YouTube 音檔 URL |
+| url | text | 原始連結 |
+| broadcast_date | date | 播出日期 |
+| duration_sec | integer | 時長（秒） |
+| transcript | text | 逐字稿 |
+| description | text | 簡介 |
+| thumbnail_url | text | 縮圖 |
+| tags | text[] | 標籤 |
+| is_published | boolean | |
+| sort_order | integer | |
+| created_at / updated_at | timestamptz | |
+
+## Table: pong_sermons（講道集）
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | serial PK | |
+| title / title_en | text | |
+| scripture_ref | text | 主題經文 |
+| church_year | smallint | Advent 起始年（2000–2025） |
+| liturgical_season | text | 'advent'/'christmas'/'epiphany'/'lent'/'easter'/'pentecost' |
+| sermon_date | date | |
+| occasion | text | 場合 |
+| location | text | |
+| media_id | integer FK→pong_media | |
+| content | text | 講道全文 |
+| footnotes | jsonb | [{id,text}] |
+| has_recording | boolean | |
+| is_published / sort_order | | |
+
+## Table: pong_writings（著作與專文）
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | serial PK | |
+| title / title_en | text | |
+| category | text | 'book'/'book_chapter'/'essay'/'column'/'devotional'/'other' |
+| publication / publication_en | text | 發表刊物 |
+| published_date | date | |
+| date_approximate | boolean | |
+| content | text | |
+| footnotes | jsonb | |
+| source_url | text | |
+| cloudinary_urls | text[] | 掃描圖 |
+| tags / is_published / sort_order | | |
+
+## Table: pong_manuscripts（手稿與書信）
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | serial PK | |
+| title | text | |
+| ms_type | text | 'handwritten'/'letter'/'annotation'/'note'/'other' |
+| correspondent | text | 書信對象 |
+| ms_date | date | |
+| date_approximate | boolean | |
+| description | text | |
+| transcript | text | 文字轉錄 |
+| cloudinary_urls | text[] | 掃描圖（依頁序） |
+| tags / is_published / sort_order | | |
+
+## Table: pong_daily_office（三讀三禱）
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | serial PK | |
+| entry_date | date UNIQUE | 每天一筆 |
+| reading_1/2/3 | text | 讀經正文 |
+| ref_1/2/3 | text | 讀經出處 |
+| prayer_1/2/3 | text | 禱文 |
+| notes | text | 個人反省 |
+| is_published | boolean | |
+
+## Table: pong_photos（照片錦集）
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | serial PK | |
+| caption / caption_en | text | 圖說 |
+| photo_date | date | |
+| date_approximate | boolean | |
+| occasion / location | text | |
+| cloudinary_url | text NOT NULL | |
+| cloudinary_id | text | public_id（刪除/改名用） |
+| album_tag | text | 相簿分類 |
+| tags / sort_order / is_published | | |
+
+## Table: pong_remembrance（回憶與緬懷）
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | serial PK | |
+| title | text NOT NULL | |
+| author | text | |
+| author_relationship | text | 與龐會督的關係 |
+| content_type | text | 'memoir'/'eulogy'/'research'/'tribute' |
+| published_date | date | |
+| publication | text | |
+| content | text | |
+| footnotes | jsonb | |
+| media_id | integer FK→pong_media | |
+| is_published / sort_order | | |
+
 # ════════════════════════════════════════════════════════════════════════════════
 # Cloudinary 資料夾結構
 # ════════════════════════════════════════════════════════════════════════════════

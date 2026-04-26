@@ -36,14 +36,16 @@ Directory structure:
     │       └── IconTooling.vue
     ├── composables/
     │   ├── useEditorMode.js
-    │   └── useLanguage.js
+    │   ├── useLanguage.js
+    │   └── usePongSession.js
     ├── data/
     │   ├── authors.js
     │   ├── issues.js
     │   └── submissionThemes.js
     ├── layouts/
     │   ├── admin.vue
-    │   └── default.vue
+    │   ├── default.vue
+    │   └── pong-archive.vue
     ├── middleware/
     │   └── auth.js
     ├── pages/
@@ -101,9 +103,19 @@ Directory structure:
     │   ├── authors/
     │   │   ├── [name].vue
     │   │   └── index.vue
-    │   └── home/
-    │       └── issue/
-    │           └── [issueNumber].vue
+    │   ├── home/
+    │   │   └── issue/
+    │   │       └── [issueNumber].vue
+    │   └── pong-archive/
+    │       ├── index.vue
+    │       ├── login.vue
+    │       ├── register.vue
+    │       ├── media/
+    │       │   ├── index.vue
+    │       │   └── [id].vue
+    │       └── sermons/
+    │           ├── index.vue
+    │           └── [year].vue
     ├── public/
     │   ├── favicon.ico
     │   ├── robots.txt
@@ -140,6 +152,11 @@ Directory structure:
     │   └── api/
     │       ├── classify-article.post.js
     │       ├── delete-article.post.js
+    │       ├── pong-auth/
+    │       │   ├── login.post.js
+    │       │   ├── register.post.js
+    │       │   ├── editors.get.js
+    │       │   └── approve.post.js
     │       ├── export-issue-word.post.js
     │       ├── export-word.post.js
     │       ├── media.js
@@ -157,8 +174,13 @@ Directory structure:
     │   ├── form.md
     │   ├── word_to_sql.md
     │   └── tempArticles.js
+    ├── composables/
+    │   ├── useEditorMode.js
+    │   ├── useLanguage.js
+    │   └── usePongEditor.js
     ├── supabase/
-    │   └── critical_rls_fix.sql
+    │   ├── critical_rls_fix.sql
+    │   └── pong_archive_tables.sql
     ├── templates/
     │   └── article-template.dotx
     └── utils/
