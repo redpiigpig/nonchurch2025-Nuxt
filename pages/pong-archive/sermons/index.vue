@@ -16,7 +16,7 @@
       <div v-else-if="sermons.length === 0" class="sl-empty">尚無講道記錄</div>
       <ul v-else class="sl-list">
         <li v-for="s in sermons" :key="s.id" class="sl-item">
-          <NuxtLink :to="`/pong-archive/sermons/${s.id}`" class="sl-link">
+          <div class="sl-entry">
             <div class="sl-meta-row">
               <span class="sl-date">{{ fmtDate(s.sermon_date) }}</span>
               <span v-if="s.liturgical_season" class="sl-sep">·</span>
@@ -29,7 +29,7 @@
               </svg>
               {{ s.location }}
             </p>
-          </NuxtLink>
+          </div>
         </li>
       </ul>
     </section>
@@ -182,16 +182,10 @@ onMounted(fetchSermons)
   border-top: 1px solid #E8E4DC;
 }
 
-.sl-link {
+.sl-entry {
   display: block;
   text-align: center;
   padding: 28px 16px;
-  text-decoration: none;
-  color: inherit;
-  transition: background-color 0.2s;
-}
-.sl-link:hover {
-  background-color: #F2EFE9;
 }
 
 .sl-meta-row {
@@ -230,10 +224,6 @@ onMounted(fetchSermons)
   letter-spacing: 0.1em;
   margin: 0 0 8px;
   line-height: 1.5;
-  transition: color 0.2s;
-}
-.sl-link:hover .sl-sermon-title {
-  color: #5B3F2A;
 }
 
 .sl-location {
