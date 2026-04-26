@@ -161,7 +161,9 @@
         />
         <div v-else class="sd-content-body">
           <template v-for="(item, i) in contentParagraphs" :key="i">
-            <p v-if="item.type === 'speaker'" class="sd-content-speaker">{{ item.text }}</p>
+            <p v-if="item.type === 'section'" class="sd-content-section">{{ item.text }}</p>
+            <p v-else-if="item.type === 'stage'"   class="sd-content-stage">{{ item.text }}</p>
+            <p v-else-if="item.type === 'speaker'" class="sd-content-speaker">{{ item.text }}</p>
             <p v-else class="sd-content-para">{{ item.text }}</p>
           </template>
         </div>
@@ -262,20 +264,22 @@ function onSongsInput(e) {
 }
 
 // ── Content paragraphs ───────────────────────────────────────
-// Lines matching "名字：" at the start are speaker tags → bold, no indent
-const SPEAKER_RE = /^(.{2,8}[牧師會督長老執事主任]：)(.*)/
+// Any line starting with 1-12 chars then ： is treated as a speaker label
+const SPEAKER_RE = /^(.{1,12})：(.*)/
 
-function normalizeSpeakerName(label) {
-  return label.replace(/^李牧師：/, '李信政牧師：')
+function normalizeSpeakerName(name) {
+  return name.replace(/^李牧師$/, '李信政牧師')
 }
 
 const contentParagraphs = computed(() => {
   const t = sermon.value?.content
   if (!t) return []
   return t.split(/\n+/).filter(Boolean).flatMap(line => {
+    if (/^【.+】/.test(line)) return [{ type: 'section', text: line }]
+    if (/^[（(]/.test(line))  return [{ type: 'stage',   text: line }]
     const m = line.match(SPEAKER_RE)
     if (m) {
-      const results = [{ type: 'speaker', text: normalizeSpeakerName(m[1]) }]
+      const results = [{ type: 'speaker', text: normalizeSpeakerName(m[1]) + '：' }]
       if (m[2].trim()) results.push({ type: 'para', text: m[2].trim() })
       return results
     }
@@ -530,8 +534,32 @@ const seasonColor = computed(() => {
   color: #2C2C2C;
   line-height: 2.1;
   letter-spacing: 0.06em;
+  text-indent: 0;
+  margin: 0.4em 0 0;
+}
+.sd-content-section {
+  font-family: 'Noto Serif TC', serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #8A7E6E;
+  letter-spacing: 0.18em;
+  text-indent: 0;
+  text-align: center;
+  margin: 0.8em 0 0.2em;
+  padding: 0.5em 0;
+  border-top: 1px solid #DDD8CF;
+  border-bottom: 1px solid #DDD8CF;
+}
+.sd-content-stage {
+  font-family: 'Noto Serif TC', serif;
+  font-size: 0.9rem;
+  font-weight: 300;
+  color: #A09280;
+  letter-spacing: 0.06em;
+  text-indent: 0;
+  text-align: center;
   margin: 0;
-  margin-top: 0.4em;
+  font-style: normal;
 }
 .sd-content-textarea { min-height: 50vh; }
 
