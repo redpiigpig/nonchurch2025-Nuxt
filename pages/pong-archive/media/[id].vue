@@ -100,7 +100,7 @@
       <div class="md-player-inner">
         <div class="md-player-wrap">
           <iframe
-            :src="`https://www.youtube.com/embed/${youtubeId}`"
+            :src="youtubeEmbedSrc"
             title="YouTube video player"
             frameborder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -238,6 +238,12 @@ watch(isEditing, async (on) => {
 })
 
 const youtubeId = computed(() => isEditing.value ? local.youtube_id : item.value?.youtube_id)
+const youtubeEmbedSrc = computed(() => {
+  const id = youtubeId.value
+  if (!id) return null
+  const start = item.value?.youtube_start
+  return `https://www.youtube.com/embed/${id}${start ? `?start=${start}` : ''}`
+})
 
 function save(field, value) {
   saveField('pong_media', item.value?.id, field, value)
