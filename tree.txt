@@ -184,6 +184,7 @@ Directory structure:
     │       └── unsubscribe.post.js
     ├── stores/
     │   ├── form.md
+    │   ├── robot_a_status.md
     │   ├── word_to_sql.md
     │   └── tempArticles.js
     ├── composables/

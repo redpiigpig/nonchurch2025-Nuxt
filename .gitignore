@@ -21,6 +21,10 @@ logs
 # 本地完整雜誌稿／圖檔（體積大，不進 Git；`git add .` 會自動略過）
 stores/無境界者雜誌/
 
+# stores 工作文件（本地參考文件、機器人狀態、教會資料）
+stores/*.md
+stores/三讀三禱/
+
 # Office / system temp files
 ~$*.docx
 
