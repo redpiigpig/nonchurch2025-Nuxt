@@ -29,27 +29,52 @@
         </div>
 
         <div class="sy-weeks">
-          <template v-for="entry in group.entries" :key="entry.dateStr + entry.specialName">
+          <template v-for="entry in group.entries" :key="entry.dateStr">
 
             <!-- 特殊日期行 -->
-            <div
+            <component
+              :is="sermonFor(entry.date) ? 'NuxtLink' : 'div'"
               v-if="entry.isSpecial"
+              :to="sermonFor(entry.date) ? `/pong-archive/sermons/${sermonFor(entry.date).id}` : undefined"
               class="sy-week-row sy-week-row--special"
-              :class="{ 'sy-week-row--funeral': entry.isFuneral }"
+              :class="{
+                'sy-week-row--funeral': entry.isFuneral,
+                'sy-week-row--linked': !!sermonFor(entry.date),
+                'sy-week-row--has-sermon': !!sermonFor(entry.date),
+              }"
             >
               <span class="sy-bar" :style="{ backgroundColor: entry.specialColor }"></span>
-              <span class="sy-week-label">{{ entry.specialName }}<span class="sy-week-en">{{ entry.specialEn }}</span></span>
+              <span class="sy-week-label">
+                {{ entry.specialName }}
+                <span class="sy-week-en">{{ entry.specialEn }}</span>
+              </span>
               <span class="sy-week-date">{{ entry.dateStr }}</span>
-              <span class="sy-week-empty">{{ entry.statusLabel }}</span>
-            </div>
+              <span v-if="sermonFor(entry.date)" class="sy-sermon-title">
+                {{ sermonFor(entry.date).title }}
+              </span>
+            </component>
 
             <!-- 主日行 -->
-            <div v-else class="sy-week-row">
+            <component
+              :is="sermonFor(entry.date) ? 'NuxtLink' : 'div'"
+              v-else
+              :to="sermonFor(entry.date) ? `/pong-archive/sermons/${sermonFor(entry.date).id}` : undefined"
+              class="sy-week-row"
+              :class="{
+                'sy-week-row--linked': !!sermonFor(entry.date),
+                'sy-week-row--has-sermon': !!sermonFor(entry.date),
+              }"
+            >
               <span class="sy-bar" :style="{ backgroundColor: entry.barColor || group.color }"></span>
-              <span class="sy-week-label">{{ entry.weekLabel }}<span v-if="entry.weekEn" class="sy-week-en">{{ entry.weekEn }}</span></span>
+              <span class="sy-week-label">
+                {{ entry.weekLabel }}
+                <span v-if="entry.weekEn" class="sy-week-en">{{ entry.weekEn }}</span>
+              </span>
               <span class="sy-week-date">{{ entry.dateStr }}</span>
-              <span class="sy-week-empty">尚無記錄</span>
-            </div>
+              <span v-if="sermonFor(entry.date)" class="sy-sermon-title">
+                {{ sermonFor(entry.date).title }}
+              </span>
+            </component>
 
           </template>
         </div>
@@ -59,8 +84,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { createClient } from '@supabase/supabase-js'
 
 definePageMeta({ layout: 'pong-archive' })
 
@@ -68,12 +94,41 @@ const route = useRoute()
 const year = parseInt(route.params.year)
 const isValidYear = year >= 2000 && year <= 2025
 
-// 典藏截止：告別式當日 2026年1月31日（六）
-// 主日迴圈在 1月25日（日）終止，告別式特殊列顯示在 1月31日
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_KEY,
+)
+
+// ── Sermon data ───────────────────────────────────────────
+const sermons = ref([])
+
+const sermonMap = computed(() => {
+  const map = {}
+  for (const s of sermons.value) {
+    if (s.sermon_date) map[s.sermon_date] = s
+  }
+  return map
+})
+
+function sermonFor(date) {
+  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  return sermonMap.value[key] || null
+}
+
+onMounted(async () => {
+  if (!isValidYear) return
+  const { data } = await supabase
+    .from('pong_sermons')
+    .select('id, title, sermon_date')
+    .eq('church_year', year)
+    .eq('is_published', true)
+  sermons.value = data || []
+})
+
+// ── 典藏截止：2026年1月31日（六）────────────────────────────
 const ARCHIVE_CUTOFF = new Date(2026, 0, 31)
 
 // ── 曆算工具函式 ──────────────────────────────────────────
-
 function getAdvent1(y) {
   const nov30 = new Date(y, 10, 30)
   const dow = nov30.getDay()
@@ -125,7 +180,6 @@ const CH = ['○','一','二','三','四','五','六','七','八','九','十',
 function cn(n) { return CH[n] ?? String(n) }
 
 // ── 節期設定 ──────────────────────────────────────────────
-
 const SEASONS = {
   advent:    { name: '將臨期',   en: 'Advent',         color: '#5B3F8A' },
   christmas: { name: '聖誕期',   en: 'Christmastide',  color: '#A07828' },
@@ -136,13 +190,13 @@ const SEASONS = {
 }
 
 function sundayEn(sk, n, isDec25, isPentecost, isChristKing) {
-  if (sk === 'christmas' && isDec25)   return 'Christmas Day'
-  if (sk === 'epiphany'  && n === 1)   return 'Baptism of the Lord'
-  if (sk === 'lent'      && n === 6)   return 'Palm Sunday'
-  if (sk === 'easter'    && n === 1)   return 'Easter Sunday'
+  if (sk === 'christmas' && isDec25)     return 'Christmas Day'
+  if (sk === 'epiphany'  && n === 1)     return 'Baptism of the Lord'
+  if (sk === 'lent'      && n === 6)     return 'Palm Sunday'
+  if (sk === 'easter'    && n === 1)     return 'Easter Sunday'
   if (sk === 'easter'    && isPentecost) return 'Pentecost Sunday'
-  if (sk === 'pentecost' && n === 1)   return 'Trinity Sunday'
-  if (isChristKing)                    return 'Christ the King'
+  if (sk === 'pentecost' && n === 1)     return 'Trinity Sunday'
+  if (isChristKing)                      return 'Christ the King'
   return ''
 }
 
@@ -164,23 +218,21 @@ function sundayLabel(sk, n, isDec25, isPentecost, isChristKing) {
   }
 }
 
-// ── 建立教會年完整列表（主日 + 特殊日）──────────────────────
-
+// ── 建立教會年完整列表 ────────────────────────────────────
 function buildChurchYear(y) {
   const ny          = y + 1
   const christmas   = new Date(y,  11, 25)
   const epiphanyDay = new Date(ny,  0,  6)
   const easter      = getEaster(ny)
-  const ashWed      = addDays(easter, -46)   // 聖灰星期三（always 星期三）
-  const lent1       = addDays(ashWed,  4)    // 大齋期第一主日
-  const pentecost   = addDays(easter, 49)    // 聖靈降臨節
-  const goodFriday  = addDays(easter, -2)    // 受難日（always 星期五）
+  const ashWed      = addDays(easter, -46)
+  const lent1       = addDays(ashWed,  4)
+  const pentecost   = addDays(easter, 49)
+  const goodFriday  = addDays(easter, -2)
 
   const advent1Next = getAdvent1(y + 1)
   const naturalEnd  = addDays(advent1Next, -1)
   const end         = naturalEnd < ARCHIVE_CUTOFF ? naturalEnd : ARCHIVE_CUTOFF
 
-  // ── 主日條目 ──────────────────────────────────────────
   const entries = []
   const skCounts = {}
   let cur = new Date(getAdvent1(y))
@@ -202,30 +254,26 @@ function buildChurchYear(y) {
     const isPent       = dateEqual(cur, pentecost)
     const isChristKing = sk === 'pentecost' && dateEqual(addDays(cur, 7), advent1Next)
 
-    // 特殊主日禮儀顏色覆蓋
     let barColor = null
-    if (sk === 'epiphany'  && n === 1)  barColor = '#A07828'  // 主受洗主日：金
-    if (sk === 'lent'      && n === 6)  barColor = '#B22020'  // 棕枝主日：紅
-    if (sk === 'pentecost' && n === 1)  barColor = '#A07828'  // 三一主日：金
-    if (isChristKing)                   barColor = '#A07828'  // 基督普世君王日：金
+    if (sk === 'epiphany'  && n === 1) barColor = '#A07828'
+    if (sk === 'lent'      && n === 6) barColor = '#B22020'
+    if (sk === 'pentecost' && n === 1) barColor = '#A07828'
+    if (isChristKing)                  barColor = '#A07828'
 
     entries.push({
-      date:        new Date(cur),
-      dateStr:     fmtDate(cur),
-      isSpecial:   false,
-      seasonKey:   sk,
-      weekLabel:   sundayLabel(sk, n, isDec25, isPent, isChristKing),
-      weekEn:      sundayEn(sk, n, isDec25, isPent, isChristKing),
+      date:      new Date(cur),
+      dateStr:   fmtDate(cur) + DOW_ZH[0],   // 主日固定加（日）
+      isSpecial: false,
+      seasonKey: sk,
+      weekLabel: sundayLabel(sk, n, isDec25, isPent, isChristKing),
+      weekEn:    sundayEn(sk, n, isDec25, isPent, isChristKing),
       barColor,
-      statusLabel: '尚無記錄',
     })
     cur = addDays(cur, 7)
   }
 
-  // ── 特殊日條目 ─────────────────────────────────────────
   const specials = []
 
-  // 平安夜（12月24日，只在非主日時加入）
   const christmasEve = new Date(y, 11, 24)
   if (christmasEve.getDay() !== 0 && christmasEve <= end) {
     specials.push({
@@ -236,11 +284,9 @@ function buildChurchYear(y) {
       specialName: '平安夜禮拜',
       specialEn:   'Christmas Eve',
       specialColor:'#A07828',
-      statusLabel: '尚無記錄',
     })
   }
 
-  // 聖灰星期三（大齋期首日）
   if (ashWed <= end) {
     specials.push({
       date:        ashWed,
@@ -250,11 +296,9 @@ function buildChurchYear(y) {
       specialName: '聖灰日',
       specialEn:   'Ash Wednesday',
       specialColor:'#6B4A90',
-      statusLabel: '尚無記錄',
     })
   }
 
-  // 受難日
   if (goodFriday <= end) {
     specials.push({
       date:        goodFriday,
@@ -264,14 +308,11 @@ function buildChurchYear(y) {
       specialName: '受難日禮拜',
       specialEn:   'Good Friday',
       specialColor:'#8B1818',
-      statusLabel: '尚無記錄',
     })
   }
 
-  // 龐君華會督就任禮拜（2019年5月25日，六，中華基督教衛理公會會督）
-  // 教會年 2018-2019，節期：復活期
   if (y === 2018) {
-    const installation = new Date(2019, 4, 25) // May 25, 2019
+    const installation = new Date(2019, 4, 25)
     if (installation <= end) {
       specials.push({
         date:        installation,
@@ -281,12 +322,10 @@ function buildChurchYear(y) {
         specialName: '龐君華會督就任禮拜',
         specialEn:   'Installation Service',
         specialColor:'#B22020',
-        statusLabel: '尚無記錄',
       })
     }
   }
 
-  // 告別式（僅 2025–2026 教會年）
   if (y === 2025) {
     const funeral = new Date(2026, 0, 31)
     specials.push({
@@ -298,17 +337,13 @@ function buildChurchYear(y) {
       specialName: '龐君華會督告別式',
       specialEn:   'Funeral Service',
       specialColor:'#3A3530',
-      statusLabel: '',
     })
   }
 
-  // 合併排序
-  const all = [...entries, ...specials].sort((a, b) => a.date - b.date)
-  return all
+  return [...entries, ...specials].sort((a, b) => a.date - b.date)
 }
 
 // ── Computed ──────────────────────────────────────────────
-
 const allEntries = computed(() => isValidYear ? buildChurchYear(year) : [])
 
 const groupedWeeks = computed(() => {
@@ -458,41 +493,52 @@ const churchYearRange = computed(() => {
 }
 
 /* ── Weeks wrapper ─────────────────────────────────────── */
-.sy-weeks {
-  background-color: #FAFAF8;
-}
+.sy-weeks { background-color: #FAFAF8; }
 
-/* ── 共用列格線（主日 + 特殊日統一 4 欄）──────────────── */
-/* bar(4px) | 中文+英文(1fr) | 日期(auto) | 記錄(auto) */
+/* ── Row: 3 columns → bar | label | date ───────────────── */
+/* When has-sermon: adds a 2nd row below for centered title */
 .sy-week-row,
 .sy-week-row--special {
   display: grid;
-  grid-template-columns: 4px 1fr auto auto;
+  grid-template-columns: 4px 1fr auto;
+  grid-template-rows: auto;
   align-items: center;
   gap: 0 16px;
-  padding: 0 20px 0 0;
+  padding-right: 20px;
   border-bottom: 1px solid #EDEAE4;
   min-height: 48px;
+  text-decoration: none;
+  color: inherit;
   transition: background-color 0.15s;
 }
 .sy-week-row:last-child,
 .sy-week-row--special:last-child { border-bottom: none; }
-.sy-week-row:hover        { background-color: #F2EFE9; }
-.sy-week-row--special:hover { background-color: #EDE8E0; }
+
+.sy-week-row--has-sermon {
+  grid-template-rows: auto auto;
+}
+
+.sy-week-row--linked { cursor: pointer; }
+.sy-week-row--linked:hover { background-color: #EDE8DF; }
+.sy-week-row:not(.sy-week-row--linked):hover { background-color: #F2EFE9; }
 
 .sy-week-row--special {
   min-height: 40px;
   background-color: #F4F1EC;
 }
+.sy-week-row--special.sy-week-row--linked:hover { background-color: #E8E0D5; }
 
+/* ── Grid children ─────────────────────────────────────── */
 .sy-bar {
+  grid-column: 1;
+  grid-row: 1 / 3;
   align-self: stretch;
   width: 4px;
-  flex-shrink: 0;
 }
 
-/* 中文名稱（主日週標 + 特殊日中文名共用） */
 .sy-week-label {
+  grid-column: 2;
+  grid-row: 1;
   font-family: 'Noto Serif TC', serif;
   font-size: 0.9rem;
   color: #2C2C2C;
@@ -500,7 +546,6 @@ const churchYearRange = computed(() => {
   padding: 13px 0 13px 14px;
 }
 
-/* 英文標籤：接在中文後，2rem 間距 */
 .sy-week-en {
   margin-left: 2rem;
   font-size: 0.68rem;
@@ -511,17 +556,30 @@ const churchYearRange = computed(() => {
 }
 
 .sy-week-date {
+  grid-column: 3;
+  grid-row: 1;
   font-size: 0.78rem;
   color: #7A7268;
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
-.sy-week-empty {
-  font-size: 0.7rem;
-  color: #C0B8B0;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  text-align: right;
+
+/* Sermon title: row 2, spans across label+date columns, centered */
+.sy-sermon-title {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  font-family: 'Noto Serif TC', serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #5B3F2A;
+  letter-spacing: 0.08em;
+  text-align: center;
+  padding: 0 14px 12px 14px;
+  line-height: 1.5;
+}
+.sy-week-row--linked:hover .sy-sermon-title {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ── 告別式行 ──────────────────────────────────────────── */
@@ -529,27 +587,12 @@ const churchYearRange = computed(() => {
   background-color: #EFEBE4;
   border-top: 2px solid #8A8278;
 }
-.sy-week-row--funeral .sy-special-name {
-  color: #2C2824;
-  font-weight: 500;
-}
-.sy-week-row--funeral .sy-week-date {
-  color: #5A5450;
-}
-.sy-week-row--funeral .sy-special-en {
-  color: #7A7268;
-}
+.sy-week-row--funeral .sy-week-date { color: #5A5450; }
 
 /* ── Responsive ────────────────────────────────────────── */
 @media (max-width: 640px) {
   .sy-topbar { padding: 16px 20px; }
-  .sy-body { padding: 24px 16px; }
-
-  .sy-week-row,
-  .sy-week-row--special {
-    grid-template-columns: 4px 1fr auto;
-  }
-  .sy-week-en   { display: none; }
-  .sy-week-empty { display: none; }
+  .sy-body   { padding: 24px 16px; }
+  .sy-week-en { display: none; }
 }
 </style>
