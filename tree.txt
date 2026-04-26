@@ -153,6 +153,7 @@ Directory structure:
     │       └── Vol.1.pdf ~ Vol.6.pdf  (6 files)
     ├── scripts/
     │   ├── generate_docx.py
+    │   ├── pong_sermon_pipeline.py
     │   ├── footnote_stats.mjs
     │   └── normalize_footnotes.mjs
     ├── server/

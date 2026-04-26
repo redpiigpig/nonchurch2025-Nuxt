@@ -10,7 +10,15 @@
         <p class="wk-eyebrow">{{ yearLabel }}　·　{{ seasonColor.name }}</p>
         <h1 class="wk-title-main">{{ titleMain }}</h1>
         <p v-if="titleTheme" class="wk-title-theme">{{ titleTheme }}</p>
-        <div class="wk-year-picker">
+        <div
+          class="wk-year-picker"
+          @mousedown="onDragStart"
+          @mouseup="onDragEnd"
+          @mouseleave="onDragCancel"
+          @touchstart.passive="onDragStart"
+          @touchend="onDragEnd"
+          @wheel.prevent="onWheel"
+        >
           <button
             v-for="y in nearbyYears"
             :key="y"
@@ -40,6 +48,38 @@
         </div>
       </section>
 
+      <!-- Lectionary overview table -->
+      <section v-if="lectionaryTable.length" class="wk-lectionary">
+        <div class="wk-lectionary-inner">
+          <h3 class="wk-lec-heading">{{ YEAR_CHINESE[yearParam] }}{{ SEASON_CHINESE[season] }}的主日經課表</h3>
+          <p class="wk-lec-source">以下根據《修訂版通用經課》The Revised Common Lectionary</p>
+          <table class="wk-lec-table">
+            <thead>
+              <tr>
+                <th>{{ SEASON_CHINESE[season] }}</th>
+                <th>舊約</th>
+                <th>詩篇</th>
+                <th>書信</th>
+                <th>福音</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in lectionaryTable"
+                :key="row.week"
+                :class="{ 'wk-lec-current': row.week === week }"
+              >
+                <td>{{ row.label }}</td>
+                <td>{{ row.ot }}</td>
+                <td v-html="row.ps.replace(/\n/g, '<br>')"></td>
+                <td>{{ row.ep }}</td>
+                <td>{{ row.gos }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- Theme essay -->
       <section v-if="weekData.theme_essay" class="wk-essay">
         <div class="wk-essay-inner">
@@ -57,10 +97,14 @@
               v-for="d in days"
               :key="d.day_of_week"
               class="wk-day-tab"
-              :class="{ 'wk-day-tab--active': activeDay === d.day_of_week }"
+              :class="{
+                'wk-day-tab--active': activeDay === d.day_of_week,
+                'wk-day-tab--locked': lockedDays.has(d.day_of_week),
+              }"
+              :disabled="lockedDays.has(d.day_of_week)"
               @click="activeDay = d.day_of_week"
             >
-              {{ d.day_label || DAY_LABELS[d.day_of_week] }}
+              {{ DAY_LABELS[d.day_of_week] }}<span v-if="dayDateMap[d.day_of_week]" class="wk-day-date">（{{ dayDateMap[d.day_of_week] }}）</span>
             </button>
           </div>
 
@@ -118,7 +162,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { createClient } from '@supabase/supabase-js'
 import {
   getChurchYearSundays,
@@ -133,30 +177,81 @@ const yearParam = route.params.year
 const season = route.params.season
 const week = parseInt(route.params.week)
 
-const YEAR_LABELS = { A: '甲年（Year A）', B: '乙年（Year B）', C: '丙年（Year C）' }
+const YEAR_LABELS  = { A: '甲年（Year A）', B: '乙年（Year B）', C: '丙年（Year C）' }
+const YEAR_CHINESE = { A: '甲年', B: '乙年', C: '丙年' }
+const SEASON_CHINESE = {
+  advent: '將臨節期', christmas: '聖誕節期', epiphany: '主顯節期',
+  lent: '四旬節期', easter: '復活節期', pentecost: '聖靈降臨節期',
+}
 const DAY_LABELS = ['主日', '週一', '週二', '週三', '週四', '週五', '週六']
 const CYCLE_OFFSET = { A: 0, B: 1, C: 2 }
+
+// ── Revised Common Lectionary 主日經課（依年份/節期）──────────────
+const RCL = {
+  A: {
+    advent: [
+      { week: 1, label: '第一週（主日）', ot: '賽 2:1-5',   ps: '詩 122',               ep: '羅 13:11-14', gos: '太 24:36-44' },
+      { week: 2, label: '第二週（主日）', ot: '賽 11:1-10', ps: '詩 72:1-7, 18-19',      ep: '羅 15:4-13',  gos: '太 3:1-12'   },
+      { week: 3, label: '第三週（主日）', ot: '賽 35:1-10', ps: '詩 146:5-10\n或路 1:47-55', ep: '雅 5:7-10',  gos: '太 11:2-11'  },
+      { week: 4, label: '第四週（主日）', ot: '賽 7:10-16', ps: '詩 80:1-7, 17-19',      ep: '羅 1:1-7',    gos: '太 1:18-25'  },
+    ],
+  },
+  B: {},
+  C: {},
+}
+
+const lectionaryTable = computed(() => RCL[yearParam]?.[season] ?? [])
 
 const yearLabel = YEAR_LABELS[yearParam] || yearParam
 const seasonColor = SEASON_COLORS[season] || SEASON_COLORS.pentecost
 
-// ── Year selector ─────────────────────────────────────────────
+// ── Year selector（無限滑動，純算術）──────────────────────────
 const cycleTarget = (CYCLE_OFFSET[yearParam] ?? 0)
-const allMatchingYears = Array.from({ length: 22 }, (_, i) => 2019 + i)
-  .filter(y => ((y - 2022) % 3 + 3) % 3 === cycleTarget)
 
+// 找最接近今天但未超過的同週期年份
 const todayChurchYear = getCurrentChurchYear()
-const defaultYear = allMatchingYears.reduce((best, y) =>
-  Math.abs(y - todayChurchYear) <= Math.abs(best - todayChurchYear) ? y : best
-, allMatchingYears[0])
-
-const nearbyYears = (() => {
-  const idx = allMatchingYears.indexOf(defaultYear)
-  const start = Math.max(0, idx - 1)
-  return allMatchingYears.slice(start, Math.min(allMatchingYears.length, start + 4))
+const defaultYear = (() => {
+  // 同週期：(y - 2022) % 3 === cycleTarget（mod 3 修正負數）
+  const rem = ((todayChurchYear - 2022) % 3 + 3) % 3
+  return rem === cycleTarget ? todayChurchYear : todayChurchYear - ((rem - cycleTarget + 3) % 3)
 })()
 
+// 中心年份 ref，左右拖曳時 ±3
+const centerYear = ref(defaultYear)
+// 5 顆 pill：center-6, center-3, center, center+3, center+6
+const nearbyYears = computed(() => [-6, -3, 0, 3, 6].map(d => centerYear.value + d))
+
 const selectedChurchYear = ref(defaultYear)
+
+// 拖曳
+const dragStartX = ref(null)
+function onDragStart(e) {
+  dragStartX.value = e.touches ? e.touches[0].clientX : e.clientX
+}
+function onDragEnd(e) {
+  if (dragStartX.value === null) return
+  const endX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX
+  const delta = dragStartX.value - endX
+  if (delta > 40) centerYear.value += 3
+  else if (delta < -40) centerYear.value -= 3
+  dragStartX.value = null
+}
+function onDragCancel() { dragStartX.value = null }
+
+// 滑鼠滾輪
+function onWheel(e) {
+  e.preventDefault()
+  if (e.deltaX > 20 || e.deltaY > 20) centerYear.value += 3
+  else if (e.deltaX < -20 || e.deltaY < -20) centerYear.value -= 3
+}
+
+// 鍵盤左右方向鍵
+function onKeydown(e) {
+  if (e.key === 'ArrowRight') { e.preventDefault(); centerYear.value += 3 }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); centerYear.value -= 3 }
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const dateRangeLabel = computed(() => {
   const slots = getChurchYearSundays(selectedChurchYear.value)
@@ -207,6 +302,44 @@ const openReadings = ref({})
 function toggleReading(i) { openReadings.value[i] = !openReadings.value[i] }
 watch(activeDay, () => { openReadings.value = { 0: true } }, { immediate: true })
 
+// ── Day date map（跟著 selectedChurchYear 更新）─────────────────
+const dayDateMap = computed(() => {
+  const slots = getChurchYearSundays(selectedChurchYear.value)
+  const idx = slots.findIndex(s => s.season === season && s.week === week)
+  if (idx < 0 || !slots[idx]?.sunday) return {}
+  const sunday = slots[idx].sunday
+  const map = {}
+  for (let d = 0; d <= 6; d++) {
+    const date = new Date(sunday.getTime() + d * 86400000)
+    map[d] = `${date.getMonth() + 1}/${String(date.getDate()).padStart(2, '0')}`
+  }
+  return map
+})
+
+// ── Advent Week 4：12/24（含）之後的日子進入聖誕期，不可點擊 ──
+const lockedDays = computed(() => {
+  if (season !== 'advent' || week !== 4) return new Set()
+  const locked = new Set()
+  const slots = getChurchYearSundays(selectedChurchYear.value)
+  const idx = slots.findIndex(s => s.season === 'advent' && s.week === 4)
+  if (idx < 0 || !slots[idx]?.sunday) return locked
+  const sunday = slots[idx].sunday
+  for (let d = 0; d <= 6; d++) {
+    const date = new Date(sunday.getTime() + d * 86400000)
+    if (date.getMonth() === 11 && date.getDate() >= 24) locked.add(d)
+  }
+  return locked
+})
+
+// 換年份時若目前選中的日子被鎖，退回最後一個未鎖的日子
+watch(lockedDays, (locked) => {
+  if (locked.has(activeDay.value)) {
+    let fallback = activeDay.value - 1
+    while (fallback >= 0 && locked.has(fallback)) fallback--
+    activeDay.value = Math.max(0, fallback)
+  }
+})
+
 // ── Title ─────────────────────────────────────────────────────
 const titleMain = computed(() => {
   const t = weekData.value?.title || ''
@@ -219,7 +352,7 @@ const titleTheme = computed(() => {
   return idx >= 0 ? t.substring(idx) : ''
 })
 const essayTitleHtml = computed(() =>
-  (weekData.value?.theme_essay_title || '').replace(/\n/g, '<br>')
+  (weekData.value?.theme_essay_title || '').replace(/\n/g, '')
 )
 
 // ── Rendering helpers ─────────────────────────────────────────
@@ -282,7 +415,8 @@ function renderKeyVerse(text) {
 .wk-title-theme { font-family: 'Noto Serif TC', serif; font-size: 1.05rem; font-weight: 400; color: rgba(255,255,255,0.88); letter-spacing: 0.1em; margin: 0 0 22px; }
 
 /* ── Year picker ──────────────────────────────────────────── */
-.wk-year-picker { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; }
+.wk-year-picker { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; cursor: grab; user-select: none; }
+.wk-year-picker:active { cursor: grabbing; }
 .wk-year-btn {
   padding: 4px 14px;
   border: 1px solid rgba(255,255,255,0.35);
@@ -314,6 +448,56 @@ function renderKeyVerse(text) {
 .wk-intro-body :deep(.wk-signature) { text-indent: 0; text-align: right; margin-top: 2em; margin-bottom: 0; color: #5A5040; line-height: 1.9; }
 
 /* ── Theme essay ──────────────────────────────────────────── */
+/* ── Lectionary overview ──────────────────────────────────── */
+.wk-lectionary { border-bottom: 1px solid #E8E4DC; padding: 40px 0; }
+.wk-lectionary-inner { max-width: 860px; margin: 0 auto; padding: 0 32px; }
+.wk-lec-heading {
+  font-family: 'Noto Serif TC', serif;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #5A5048;
+  letter-spacing: 0.08em;
+  text-align: center;
+  margin: 0 0 8px;
+}
+.wk-lec-source {
+  font-size: 0.78rem;
+  color: #9A9080;
+  letter-spacing: 0.04em;
+  text-align: center;
+  margin: 0 0 20px;
+}
+.wk-lec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  color: #3A3025;
+  line-height: 1.6;
+}
+.wk-lec-table th {
+  font-family: 'Noto Serif TC', serif;
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: #7A7268;
+  letter-spacing: 0.06em;
+  padding: 6px 10px;
+  border-bottom: 2px solid #DDD8CF;
+  text-align: left;
+  white-space: nowrap;
+}
+.wk-lec-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #EAE6DF;
+  vertical-align: top;
+}
+.wk-lec-table tr:last-child td { border-bottom: none; }
+.wk-lec-current td {
+  background-color: rgba(180, 155, 100, 0.1);
+  font-weight: 500;
+  color: #2C2C2C;
+}
+.wk-lec-table td:first-child { white-space: nowrap; color: #7A7268; font-size: 0.78rem; }
+
 .wk-essay { background-color: #F2EFE9; border-bottom: 1px solid #E8E4DC; }
 .wk-essay-inner { max-width: 720px; margin: 0 auto; padding: 48px 40px; }
 .wk-essay-title { font-family: 'Noto Serif TC', serif; font-size: 1.15rem; font-weight: 500; color: #2C2C2C; letter-spacing: 0.06em; line-height: 1.8; margin: 0 0 24px; }
@@ -322,14 +506,17 @@ function renderKeyVerse(text) {
 
 /* ── Day section ──────────────────────────────────────────── */
 .wk-days-section { padding: 40px 0 64px; }
-.wk-days-inner { max-width: 760px; margin: 0 auto; padding: 0 24px; }
-.wk-day-tabs { display: flex; gap: 4px; margin-bottom: 32px; border-bottom: 1px solid #E8E4DC; flex-wrap: wrap; }
+.wk-days-inner { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+.wk-day-tabs { display: flex; gap: 0; margin-bottom: 32px; border-bottom: 1px solid #E8E4DC; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.wk-day-tabs::-webkit-scrollbar { display: none; }
+.wk-day-date { font-size: 0.78em; opacity: 0.75; }
 .wk-day-tab {
-  padding: 10px 14px;
+  flex: 1;
+  padding: 10px 4px;
   font-size: 0.78rem;
   font-weight: 300;
   color: #A09280;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -338,9 +525,12 @@ function renderKeyVerse(text) {
   margin-bottom: -1px;
   font-family: 'Noto Sans TC', sans-serif;
   white-space: nowrap;
+  text-align: center;
 }
 .wk-day-tab:hover { color: #3A3025; }
 .wk-day-tab--active { color: #3A3025; font-weight: 500; border-bottom-color: #3A3025; }
+.wk-day-tab--locked, .wk-day-tab:disabled { opacity: 0.28; cursor: not-allowed; }
+.wk-day-tab--locked:hover { color: #A09280; }
 
 /* ── Reading accordion ────────────────────────────────────── */
 .wk-reading { border: 1px solid #E8E4DC; border-radius: 4px; margin-bottom: 8px; overflow: hidden; }
@@ -415,7 +605,10 @@ function renderKeyVerse(text) {
   .wk-header { padding: 36px 20px 32px; }
   .wk-title-main { font-size: 1.4rem; }
   .wk-intro-inner, .wk-essay-inner, .wk-appendices-inner { padding: 36px 20px; }
-  .wk-days-inner { padding: 0 16px; }
-  .wk-day-tab { padding: 8px 10px; font-size: 0.72rem; }
+  .wk-days-inner { padding: 0 12px; }
+  .wk-day-tab { padding: 8px 2px; font-size: 0.65rem; letter-spacing: 0; }
+  .wk-day-date { display: none; }
+  .wk-lec-table { font-size: 0.72rem; }
+  .wk-lec-table th, .wk-lec-table td { padding: 6px 6px; }
 }
 </style>
