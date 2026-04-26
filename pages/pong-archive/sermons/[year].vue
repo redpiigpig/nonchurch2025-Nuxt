@@ -67,24 +67,24 @@
     </section>
 
     <!-- ── Service Team ────────────────────────────────────── -->
-    <section class="sd-section sd-section--team">
+    <section v-if="isEditing || sermon.preacher || sermon.worship_leader || sermon.worship_team" class="sd-section sd-section--team">
       <div class="sd-section-inner">
         <h2 class="sd-section-title">服事團隊</h2>
         <div class="sd-team-grid">
-          <div class="sd-team-item">
+          <div v-if="isEditing || sermon.preacher" class="sd-team-item">
             <span class="sd-team-label">證道</span>
             <input v-if="isEditing" v-model="local.preacher" class="sd-team-value sd-input" placeholder="證道者" @input="save('preacher', local.preacher)" />
-            <span v-else class="sd-team-value">{{ sermon.preacher || '—' }}</span>
+            <span v-else class="sd-team-value">{{ sermon.preacher }}</span>
           </div>
-          <div class="sd-team-item">
+          <div v-if="isEditing || sermon.worship_leader" class="sd-team-item">
             <span class="sd-team-label">司會</span>
             <input v-if="isEditing" v-model="local.worship_leader" class="sd-team-value sd-input" placeholder="司會" @input="save('worship_leader', local.worship_leader)" />
-            <span v-else class="sd-team-value">{{ sermon.worship_leader || '—' }}</span>
+            <span v-else class="sd-team-value">{{ sermon.worship_leader }}</span>
           </div>
-          <div class="sd-team-item">
+          <div v-if="isEditing || sermon.worship_team" class="sd-team-item">
             <span class="sd-team-label">敬拜</span>
             <input v-if="isEditing" v-model="local.worship_team" class="sd-team-value sd-input" placeholder="敬拜團隊" @input="save('worship_team', local.worship_team)" />
-            <span v-else class="sd-team-value">{{ sermon.worship_team || '—' }}</span>
+            <span v-else class="sd-team-value">{{ sermon.worship_team }}</span>
           </div>
         </div>
       </div>
