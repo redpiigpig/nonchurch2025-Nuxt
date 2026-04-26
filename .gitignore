@@ -29,6 +29,7 @@ stores/*
 __pycache__/
 *.pyc
 temp/
+supabase/.temp/
 
 # Local env files
 .env
