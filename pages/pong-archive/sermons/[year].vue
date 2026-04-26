@@ -63,6 +63,29 @@
       </div>
     </section>
 
+    <!-- ── YouTube Link ──────────────────────────────────────── -->
+    <section v-if="sermon.youtube_url || isEditing" class="sd-section sd-section--youtube">
+      <div class="sd-section-inner">
+        <h2 class="sd-section-title">影音記錄</h2>
+        <div v-if="!isEditing">
+          <a :href="sermon.youtube_url" target="_blank" rel="noopener noreferrer" class="sd-yt-link">
+            <svg class="sd-yt-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            </svg>
+            <span class="sd-yt-label">觀看完整禮拜記錄</span>
+          </a>
+        </div>
+        <input
+          v-else
+          v-model="local.youtube_url"
+          class="sd-team-value sd-input"
+          placeholder="YouTube 連結（https://...）"
+          style="width: 100%; max-width: 480px;"
+          @input="save('youtube_url', local.youtube_url)"
+        />
+      </div>
+    </section>
+
     <!-- ── Scripture Readings ──────────────────────────────── -->
     <section class="sd-section sd-section--scripture">
       <div class="sd-section-inner">
@@ -238,13 +261,17 @@ function onSongsInput(e) {
 // Lines matching "名字：" at the start are speaker tags → bold, no indent
 const SPEAKER_RE = /^(.{2,8}[牧師會督長老執事主任]：)(.*)/
 
+function normalizeSpeakerName(label) {
+  return label.replace(/^李牧師：/, '李信政牧師：')
+}
+
 const contentParagraphs = computed(() => {
   const t = sermon.value?.content
   if (!t) return []
   return t.split(/\n+/).filter(Boolean).flatMap(line => {
     const m = line.match(SPEAKER_RE)
     if (m) {
-      const results = [{ type: 'speaker', text: m[1] }]
+      const results = [{ type: 'speaker', text: normalizeSpeakerName(m[1]) }]
       if (m[2].trim()) results.push({ type: 'para', text: m[2].trim() })
       return results
     }
@@ -383,6 +410,22 @@ const seasonColor = computed(() => {
 .sd-team-item { display: flex; flex-direction: column; gap: 4px; }
 .sd-team-label { font-size: 0.62rem; font-weight: 300; color: #A09280; letter-spacing: 0.12em; text-transform: uppercase; }
 .sd-team-value { font-size: 0.92rem; font-weight: 400; color: #2C2C2C; letter-spacing: 0.04em; }
+
+/* ── YouTube ──────────────────────────────────────────────── */
+.sd-yt-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background-color: #FF0000;
+  color: #fff;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background-color 0.2s, opacity 0.2s;
+}
+.sd-yt-link:hover { background-color: #CC0000; }
+.sd-yt-icon { width: 20px; height: 20px; flex-shrink: 0; }
+.sd-yt-label { font-size: 0.88rem; font-weight: 400; letter-spacing: 0.06em; }
 
 /* ── Scripture ────────────────────────────────────────────── */
 .sd-scripture-list { display: flex; flex-direction: column; gap: 0; border: 1px solid #DDD8CF; border-radius: 4px; overflow: hidden; }
