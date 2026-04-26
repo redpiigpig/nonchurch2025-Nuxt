@@ -32,49 +32,40 @@
           <template v-for="entry in group.entries" :key="entry.dateStr">
 
             <!-- 特殊日期行 -->
-            <component
-              :is="sermonFor(entry.date) ? 'NuxtLink' : 'div'"
+            <div
               v-if="entry.isSpecial"
-              :to="sermonFor(entry.date) ? `/pong-archive/sermons/${sermonFor(entry.date).id}` : undefined"
               class="sy-week-row sy-week-row--special"
-              :class="{
-                'sy-week-row--funeral': entry.isFuneral,
-                'sy-week-row--linked': !!sermonFor(entry.date),
-                'sy-week-row--has-sermon': !!sermonFor(entry.date),
-              }"
+              :class="{ 'sy-week-row--funeral': entry.isFuneral }"
             >
               <span class="sy-bar" :style="{ backgroundColor: entry.specialColor }"></span>
               <span class="sy-week-label">
                 {{ entry.specialName }}
                 <span class="sy-week-en">{{ entry.specialEn }}</span>
               </span>
+              <NuxtLink
+                v-if="sermonFor(entry.date)"
+                :to="`/pong-archive/sermons/${sermonFor(entry.date).id}`"
+                class="sy-sermon-title"
+              >{{ sermonFor(entry.date).title }}</NuxtLink>
+              <span v-else class="sy-sermon-title"></span>
               <span class="sy-week-date">{{ entry.dateStr }}</span>
-              <span v-if="sermonFor(entry.date)" class="sy-sermon-title">
-                {{ sermonFor(entry.date).title }}
-              </span>
-            </component>
+            </div>
 
             <!-- 主日行 -->
-            <component
-              :is="sermonFor(entry.date) ? 'NuxtLink' : 'div'"
-              v-else
-              :to="sermonFor(entry.date) ? `/pong-archive/sermons/${sermonFor(entry.date).id}` : undefined"
-              class="sy-week-row"
-              :class="{
-                'sy-week-row--linked': !!sermonFor(entry.date),
-                'sy-week-row--has-sermon': !!sermonFor(entry.date),
-              }"
-            >
+            <div v-else class="sy-week-row">
               <span class="sy-bar" :style="{ backgroundColor: entry.barColor || group.color }"></span>
               <span class="sy-week-label">
                 {{ entry.weekLabel }}
                 <span v-if="entry.weekEn" class="sy-week-en">{{ entry.weekEn }}</span>
               </span>
+              <NuxtLink
+                v-if="sermonFor(entry.date)"
+                :to="`/pong-archive/sermons/${sermonFor(entry.date).id}`"
+                class="sy-sermon-title"
+              >{{ sermonFor(entry.date).title }}</NuxtLink>
+              <span v-else class="sy-sermon-title"></span>
               <span class="sy-week-date">{{ entry.dateStr }}</span>
-              <span v-if="sermonFor(entry.date)" class="sy-sermon-title">
-                {{ sermonFor(entry.date).title }}
-              </span>
-            </component>
+            </div>
 
           </template>
         </div>
@@ -495,18 +486,16 @@ const churchYearRange = computed(() => {
 /* ── Weeks wrapper ─────────────────────────────────────── */
 .sy-weeks { background-color: #FAFAF8; }
 
-/* ── Row: 3 columns → bar | label | date ───────────────── */
-/* When has-sermon: adds a 2nd row below for centered title */
+/* ── Row: 4 columns → bar | label | title(center) | date ── */
 .sy-week-row,
 .sy-week-row--special {
   display: grid;
-  grid-template-columns: 4px 1fr auto;
-  grid-template-rows: auto;
+  grid-template-columns: 4px auto 1fr auto;
   align-items: center;
   gap: 0 16px;
   padding-right: 20px;
   border-bottom: 1px solid #EDEAE4;
-  min-height: 48px;
+  height: 48px;
   text-decoration: none;
   color: inherit;
   transition: background-color 0.15s;
@@ -514,40 +503,31 @@ const churchYearRange = computed(() => {
 .sy-week-row:last-child,
 .sy-week-row--special:last-child { border-bottom: none; }
 
-.sy-week-row--has-sermon {
-  grid-template-rows: auto auto;
-}
-
-.sy-week-row--linked { cursor: pointer; }
-.sy-week-row--linked:hover { background-color: #EDE8DF; }
-.sy-week-row:not(.sy-week-row--linked):hover { background-color: #F2EFE9; }
+.sy-week-row:hover { background-color: #F2EFE9; }
 
 .sy-week-row--special {
-  min-height: 40px;
+  height: 40px;
   background-color: #F4F1EC;
 }
-.sy-week-row--special.sy-week-row--linked:hover { background-color: #E8E0D5; }
+.sy-week-row--special:hover { background-color: #EDE8E0; }
 
 /* ── Grid children ─────────────────────────────────────── */
 .sy-bar {
-  grid-column: 1;
-  grid-row: 1 / 3;
   align-self: stretch;
   width: 4px;
 }
 
 .sy-week-label {
-  grid-column: 2;
-  grid-row: 1;
   font-family: 'Noto Serif TC', serif;
   font-size: 0.9rem;
   color: #2C2C2C;
   letter-spacing: 0.06em;
-  padding: 13px 0 13px 14px;
+  padding-left: 14px;
+  white-space: nowrap;
 }
 
 .sy-week-en {
-  margin-left: 2rem;
+  margin-left: 1.5rem;
   font-size: 0.68rem;
   color: #9A9080;
   letter-spacing: 0.1em;
@@ -555,31 +535,29 @@ const churchYearRange = computed(() => {
   white-space: nowrap;
 }
 
-.sy-week-date {
-  grid-column: 3;
-  grid-row: 1;
-  font-size: 0.78rem;
-  color: #7A7268;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-/* Sermon title: row 2, spans across label+date columns, centered */
+/* Sermon title: center column, link when has sermon */
 .sy-sermon-title {
-  grid-column: 2 / 4;
-  grid-row: 2;
   font-family: 'Noto Serif TC', serif;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: #5B3F2A;
   letter-spacing: 0.08em;
   text-align: center;
-  padding: 0 14px 12px 14px;
-  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
 }
-.sy-week-row--linked:hover .sy-sermon-title {
+a.sy-sermon-title:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.sy-week-date {
+  font-size: 0.78rem;
+  color: #7A7268;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 /* ── 告別式行 ──────────────────────────────────────────── */
