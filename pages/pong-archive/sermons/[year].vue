@@ -15,15 +15,6 @@
           <span class="sd-date" :style="{ color: seasonColor }">{{ formatDate(sermon.sermon_date) }}</span>
         </div>
 
-        <div class="sd-sub-line">
-          <svg class="sd-loc-icon" viewBox="0 0 14 14" fill="none">
-            <path d="M7 1C4.79 1 3 2.79 3 5c0 3.25 4 8 4 8s4-4.75 4-8c0-2.21-1.79-4-4-4z" stroke="currentColor" stroke-width="1.2" fill="none"/>
-            <circle cx="7" cy="5" r="1.5" stroke="currentColor" stroke-width="1.2"/>
-          </svg>
-          <input v-if="isEditing" v-model="local.location" class="sd-location sd-input" placeholder="地點" @input="save('location', local.location)" />
-          <span v-else class="sd-location">{{ sermon.location || '—' }}</span>
-        </div>
-
         <div class="sd-title-wrap">
           <textarea
             v-if="isEditing"
@@ -35,6 +26,16 @@
             ref="titleRef"
           />
           <h1 v-else class="sd-title">{{ sermon.title }}</h1>
+
+          <div class="sd-sub-line">
+            <svg class="sd-loc-icon" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1C4.79 1 3 2.79 3 5c0 3.25 4 8 4 8s4-4.75 4-8c0-2.21-1.79-4-4-4z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+              <circle cx="7" cy="5" r="1.5" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+            <input v-if="isEditing" v-model="local.location" class="sd-location sd-input" placeholder="地點" @input="save('location', local.location)" />
+            <span v-else class="sd-location">{{ sermon.location || '—' }}</span>
+          </div>
+
           <a
             v-if="sermon.youtube_url && !isEditing"
             :href="sermon.youtube_url"
