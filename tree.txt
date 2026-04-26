@@ -113,11 +113,16 @@ Directory structure:
     │       ├── media/
     │       │   ├── index.vue
     │       │   └── [id].vue
-    │       └── sermons/
+    │       ├── sermons/
+    │       │   ├── index.vue
+    │       │   ├── [year].vue
+    │       │   └── year/
+    │       │       └── [year].vue
+    │       └── daily-office/
     │           ├── index.vue
-    │           ├── [year].vue
-    │           └── year/
-    │               └── [year].vue
+    │           └── [year]/
+    │               └── [season]/
+    │                   └── [week].vue
     ├── public/
     │   ├── favicon.ico
     │   ├── robots.txt
@@ -177,6 +182,7 @@ Directory structure:
     │   ├── word_to_sql.md
     │   └── tempArticles.js
     ├── composables/
+    │   ├── useChurchCalendar.js
     │   ├── useEditorMode.js
     │   ├── useLanguage.js
     │   └── usePongEditor.js

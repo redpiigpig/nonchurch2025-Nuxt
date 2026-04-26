@@ -23,7 +23,7 @@
         <div class="do-today-label">{{ todaySlot?.label || '計算中…' }}</div>
         <NuxtLink
           v-if="todaySlot"
-          :to="`/pong-archive/daily-office/${todaySlot.season}/${todaySlot.week}`"
+          :to="`/pong-archive/daily-office/${todayCycleEn}/${todaySlot.season}/${todaySlot.week}`"
           class="do-today-btn"
         >
           今日經課 →
@@ -57,7 +57,7 @@
                   class="do-slice"
                   :class="{ 'do-slice--active': !slot.optional }"
                   @mouseenter="onSliceHover($event, slot, cy)"
-                  @click="onSliceClick(slot)"
+                  @click="onSliceClick(slot, cy)"
                   :style="slot.optional ? {} : { cursor: 'pointer' }"
                 />
               </g>
@@ -185,9 +185,10 @@ function onSliceHover(event, slot, cy) {
   }
 }
 
-function onSliceClick(slot) {
+function onSliceClick(slot, cy) {
   if (slot.optional) return
-  navigateTo(`/pong-archive/daily-office/${slot.season}/${slot.week}`)
+  const yearEn = getLectionaryYearEn(cy.churchYear)
+  navigateTo(`/pong-archive/daily-office/${yearEn}/${slot.season}/${slot.week}`)
 }
 </script>
 
