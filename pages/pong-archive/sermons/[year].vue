@@ -1,555 +1,441 @@
 <template>
-  <div class="sy-page">
-    <div class="sy-topbar">
-      <NuxtLink to="/pong-archive/sermons" class="sy-back">← 講道集</NuxtLink>
+  <div v-if="sermon" class="sd-page" :class="{ 'sd-page--editing': isEditing }">
+
+    <!-- ── Topbar ──────────────────────────────────────────── -->
+    <div class="sd-topbar">
+      <NuxtLink to="/pong-archive/sermons" class="sd-back">← 講道集</NuxtLink>
     </div>
 
-    <header class="sy-header">
-      <p class="sy-eyebrow">Church Year</p>
-      <h1 class="sy-title">{{ year }}–{{ year + 1 }} 教會年</h1>
-      <p class="sy-range">{{ churchYearRange }}</p>
-    </header>
-
-    <div v-if="!isValidYear" class="sy-error">
-      年份超出典藏範圍（2000–2001 至 2025–2026）
-    </div>
-
-    <section v-else class="sy-body">
-      <div
-        v-for="group in groupedWeeks"
-        :key="group.seasonKey + group.index"
-        class="sy-season-group"
-      >
-        <div class="sy-season-header" :style="{ backgroundColor: group.color }">
-          <div class="sy-season-name-wrap">
-            <span class="sy-season-name">{{ group.seasonName }}</span>
-            <span class="sy-season-en">{{ group.seasonEn }}</span>
-          </div>
-          <span class="sy-season-count">{{ group.sundayCount }} 主日</span>
+    <!-- ── Header ──────────────────────────────────────────── -->
+    <header class="sd-header">
+      <div class="sd-header-inner">
+        <div class="sd-meta-line">
+          <span class="sd-season">{{ sermon.liturgical_season }}</span>
+          <span class="sd-dot">·</span>
+          <span class="sd-date">{{ formatDate(sermon.sermon_date) }}</span>
         </div>
 
-        <div class="sy-weeks">
-          <template v-for="entry in group.entries" :key="entry.dateStr + entry.specialName">
+        <textarea
+          v-if="isEditing"
+          v-model="local.title"
+          class="sd-title sd-textarea"
+          rows="1"
+          placeholder="講道標題"
+          @input="e => { autoResize(e.target); save('title', local.title) }"
+          ref="titleRef"
+        />
+        <h1 v-else class="sd-title">{{ sermon.title }}</h1>
 
-            <!-- 特殊日期行 -->
-            <div
-              v-if="entry.isSpecial"
-              class="sy-week-row sy-week-row--special"
-              :class="{ 'sy-week-row--funeral': entry.isFuneral }"
-            >
-              <span class="sy-bar" :style="{ backgroundColor: entry.specialColor }"></span>
-              <span class="sy-week-label">{{ entry.specialName }}<span class="sy-week-en">{{ entry.specialEn }}</span></span>
-              <span class="sy-week-date">{{ entry.dateStr }}</span>
-              <span class="sy-week-empty">{{ entry.statusLabel }}</span>
-            </div>
+        <div class="sd-sub-line">
+          <svg class="sd-loc-icon" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1C4.79 1 3 2.79 3 5c0 3.25 4 8 4 8s4-4.75 4-8c0-2.21-1.79-4-4-4z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <circle cx="7" cy="5" r="1.5" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+          <input v-if="isEditing" v-model="local.location" class="sd-location sd-input" placeholder="地點" @input="save('location', local.location)" />
+          <span v-else class="sd-location">{{ sermon.location || '—' }}</span>
+        </div>
 
-            <!-- 主日行 -->
-            <div v-else class="sy-week-row">
-              <span class="sy-bar" :style="{ backgroundColor: entry.barColor || group.color }"></span>
-              <span class="sy-week-label">{{ entry.weekLabel }}<span v-if="entry.weekEn" class="sy-week-en">{{ entry.weekEn }}</span></span>
-              <span class="sy-week-date">{{ entry.dateStr }}</span>
-              <span class="sy-week-empty">尚無記錄</span>
-            </div>
+        <div v-if="isEditing" class="sd-edit-hint">✦ 編輯模式</div>
+      </div>
+    </header>
 
-          </template>
+    <!-- ── Service Team ────────────────────────────────────── -->
+    <section class="sd-section sd-section--team">
+      <div class="sd-section-inner">
+        <h2 class="sd-section-title">服事團隊</h2>
+        <div class="sd-team-grid">
+          <div class="sd-team-item">
+            <span class="sd-team-label">證道</span>
+            <input v-if="isEditing" v-model="local.preacher" class="sd-team-value sd-input" placeholder="證道者" @input="save('preacher', local.preacher)" />
+            <span v-else class="sd-team-value">{{ sermon.preacher || '—' }}</span>
+          </div>
+          <div class="sd-team-item">
+            <span class="sd-team-label">司會</span>
+            <input v-if="isEditing" v-model="local.worship_leader" class="sd-team-value sd-input" placeholder="司會" @input="save('worship_leader', local.worship_leader)" />
+            <span v-else class="sd-team-value">{{ sermon.worship_leader || '—' }}</span>
+          </div>
+          <div class="sd-team-item">
+            <span class="sd-team-label">敬拜</span>
+            <input v-if="isEditing" v-model="local.worship_team" class="sd-team-value sd-input" placeholder="敬拜團隊" @input="save('worship_team', local.worship_team)" />
+            <span v-else class="sd-team-value">{{ sermon.worship_team || '—' }}</span>
+          </div>
         </div>
       </div>
     </section>
+
+    <!-- ── Scripture Readings ──────────────────────────────── -->
+    <section class="sd-section sd-section--scripture">
+      <div class="sd-section-inner">
+        <h2 class="sd-section-title">經課</h2>
+        <div class="sd-scripture-list">
+          <div
+            v-for="(reading, i) in scriptureReadings"
+            :key="i"
+            class="sd-reading"
+            :class="{ 'sd-reading--open': openReadings.has(i) }"
+          >
+            <button class="sd-reading-hd" @click="toggleReading(i)">
+              <div class="sd-reading-ref">
+                <span class="sd-reading-label">{{ reading.display_label }}</span>
+                <span class="sd-reading-book">{{ reading.book }} {{ reading.reference }}</span>
+              </div>
+              <span class="sd-reading-chevron">▾</span>
+            </button>
+            <Transition name="sd-reading-expand">
+              <div v-if="openReadings.has(i)" class="sd-reading-body">
+                <p
+                  v-for="(line, j) in parseVerses(reading.text)"
+                  :key="j"
+                  class="sd-verse"
+                >
+                  <span class="sd-verse-num">{{ line.num }}</span>
+                  <span class="sd-verse-text">{{ line.text }}</span>
+                </p>
+                <p class="sd-bible-version">和合本修訂版 2010（RCUVSS）</p>
+              </div>
+            </Transition>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Worship Songs ───────────────────────────────────── -->
+    <section class="sd-section sd-section--songs">
+      <div class="sd-section-inner">
+        <h2 class="sd-section-title">禮拜詩歌</h2>
+        <div v-if="!isEditing">
+          <ul v-if="worshipSongs.length" class="sd-songs-list">
+            <li v-for="(song, i) in worshipSongs" :key="i" class="sd-song">{{ song }}</li>
+          </ul>
+          <p v-else class="sd-songs-empty">—</p>
+        </div>
+        <textarea
+          v-else
+          :value="worshipSongsText"
+          class="sd-songs-textarea sd-textarea-plain"
+          rows="4"
+          placeholder="每行一首詩歌名稱"
+          @input="onSongsInput"
+        />
+      </div>
+    </section>
+
+    <!-- ── Sermon Content ──────────────────────────────────── -->
+    <section class="sd-section sd-section--content">
+      <div class="sd-section-inner">
+        <h2 class="sd-section-title">講道內容</h2>
+        <textarea
+          v-if="isEditing"
+          v-model="local.content"
+          class="sd-content-textarea sd-textarea-plain"
+          rows="30"
+          placeholder="講道逐字稿或摘要…"
+          @input="save('content', local.content)"
+        />
+        <div v-else class="sd-content-body">
+          <p v-for="(para, i) in contentParagraphs" :key="i" class="sd-content-para">{{ para }}</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div v-else class="sd-notfound">
+    <p>找不到此篇講道記錄。</p>
+    <NuxtLink to="/pong-archive/sermons">← 返回講道集</NuxtLink>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
+import { createClient } from '@supabase/supabase-js'
+import { usePongEditor } from '~/composables/usePongEditor'
 
 definePageMeta({ layout: 'pong-archive' })
 
 const route = useRoute()
-const year = parseInt(route.params.year)
-const isValidYear = year >= 2000 && year <= 2025
+const { isEditing, saveField } = usePongEditor()
 
-// 典藏截止：告別式當日 2026年1月31日（六）
-// 主日迴圈在 1月25日（日）終止，告別式特殊列顯示在 1月31日
-const ARCHIVE_CUTOFF = new Date(2026, 0, 31)
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_KEY,
+)
 
-// ── 曆算工具函式 ──────────────────────────────────────────
-
-function getAdvent1(y) {
-  const nov30 = new Date(y, 10, 30)
-  const dow = nov30.getDay()
-  const offset = dow === 0 ? 0 : dow <= 3 ? -dow : 7 - dow
-  const d = new Date(nov30)
-  d.setDate(nov30.getDate() + offset)
-  return d
-}
-
-function getEaster(y) {
-  const a = y % 19
-  const b = Math.floor(y / 100)
-  const c = y % 100
-  const d = Math.floor(b / 4)
-  const e = b % 4
-  const f = Math.floor((b + 8) / 25)
-  const g = Math.floor((b - f + 1) / 3)
-  const h = (19 * a + b - d - g + 15) % 30
-  const i = Math.floor(c / 4)
-  const k = c % 4
-  const l = (32 + 2 * e + 2 * i - h - k) % 7
-  const m = Math.floor((a + 11 * h + 22 * l) / 451)
-  const month = Math.floor((h + l - 7 * m + 114) / 31)
-  const day = ((h + l - 7 * m + 114) % 31) + 1
-  return new Date(y, month - 1, day)
-}
-
-function addDays(date, days) {
-  const d = new Date(date)
-  d.setDate(d.getDate() + days)
-  return d
-}
-
-function dateEqual(a, b) {
-  return a.getFullYear() === b.getFullYear()
-    && a.getMonth() === b.getMonth()
-    && a.getDate() === b.getDate()
-}
-
-function fmtDate(d) {
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
-}
-
-const DOW_ZH = ['（日）', '（一）', '（二）', '（三）', '（四）', '（五）', '（六）']
-
-const CH = ['○','一','二','三','四','五','六','七','八','九','十',
-  '十一','十二','十三','十四','十五','十六','十七','十八','十九','二十',
-  '二十一','二十二','二十三','二十四','二十五','二十六','二十七','二十八']
-function cn(n) { return CH[n] ?? String(n) }
-
-// ── 節期設定 ──────────────────────────────────────────────
-
-const SEASONS = {
-  advent:    { name: '將臨期',   en: 'Advent',         color: '#5B3F8A' },
-  christmas: { name: '聖誕期',   en: 'Christmastide',  color: '#A07828' },
-  epiphany:  { name: '顯現期',   en: 'Epiphanytide',   color: '#2A6E3A' },
-  lent:      { name: '大齋期',   en: 'Lent',           color: '#7B2D6E' },
-  easter:    { name: '復活期',   en: 'Eastertide',     color: '#A07828' },
-  pentecost: { name: '聖靈降臨期', en: 'Ordinary Time', color: '#2A6E3A' },
-}
-
-function sundayEn(sk, n, isDec25, isPentecost, isChristKing) {
-  if (sk === 'christmas' && isDec25)   return 'Christmas Day'
-  if (sk === 'epiphany'  && n === 1)   return 'Baptism of the Lord'
-  if (sk === 'lent'      && n === 6)   return 'Palm Sunday'
-  if (sk === 'easter'    && n === 1)   return 'Easter Sunday'
-  if (sk === 'easter'    && isPentecost) return 'Pentecost Sunday'
-  if (sk === 'pentecost' && n === 1)   return 'Trinity Sunday'
-  if (isChristKing)                    return 'Christ the King'
-  return ''
-}
-
-function sundayLabel(sk, n, isDec25, isPentecost, isChristKing) {
-  switch (sk) {
-    case 'advent':    return `將臨期第${cn(n)}主日`
-    case 'christmas': return isDec25 ? '聖誕節主日' : `聖誕期第${cn(n)}主日`
-    case 'epiphany':  return n === 1 ? '耶穌受洗主日' : `顯現期第${cn(n)}主日`
-    case 'lent':      return n === 6 ? '棕枝主日' : `大齋期第${cn(n)}主日`
-    case 'easter':
-      if (n === 1) return '復活節主日'
-      if (isPentecost) return '聖靈降臨節'
-      return `復活期第${cn(n)}主日`
-    case 'pentecost':
-      if (n === 1) return '三一主日'
-      if (isChristKing) return '基督普世君王日'
-      return `聖靈降臨後第${cn(n - 1)}主日`
-    default: return ''
-  }
-}
-
-// ── 建立教會年完整列表（主日 + 特殊日）──────────────────────
-
-function buildChurchYear(y) {
-  const ny          = y + 1
-  const christmas   = new Date(y,  11, 25)
-  const epiphanyDay = new Date(ny,  0,  6)
-  const easter      = getEaster(ny)
-  const ashWed      = addDays(easter, -46)   // 聖灰星期三（always 星期三）
-  const lent1       = addDays(ashWed,  4)    // 大齋期第一主日
-  const pentecost   = addDays(easter, 49)    // 聖靈降臨節
-  const goodFriday  = addDays(easter, -2)    // 受難日（always 星期五）
-
-  const advent1Next = getAdvent1(y + 1)
-  const naturalEnd  = addDays(advent1Next, -1)
-  const end         = naturalEnd < ARCHIVE_CUTOFF ? naturalEnd : ARCHIVE_CUTOFF
-
-  // ── 主日條目 ──────────────────────────────────────────
-  const entries = []
-  const skCounts = {}
-  let cur = new Date(getAdvent1(y))
-
-  while (cur <= end) {
-    const t = cur.getTime()
-    let sk
-    if      (t < christmas.getTime())   sk = 'advent'
-    else if (t < epiphanyDay.getTime()) sk = 'christmas'
-    else if (t < lent1.getTime())       sk = 'epiphany'
-    else if (t < easter.getTime())      sk = 'lent'
-    else if (t <= pentecost.getTime())  sk = 'easter'
-    else                                 sk = 'pentecost'
-
-    skCounts[sk] = (skCounts[sk] ?? 0) + 1
-    const n = skCounts[sk]
-
-    const isDec25      = cur.getMonth() === 11 && cur.getDate() === 25
-    const isPent       = dateEqual(cur, pentecost)
-    const isChristKing = sk === 'pentecost' && dateEqual(addDays(cur, 7), advent1Next)
-
-    // 特殊主日禮儀顏色覆蓋
-    let barColor = null
-    if (sk === 'epiphany'  && n === 1)  barColor = '#A07828'  // 主受洗主日：金
-    if (sk === 'lent'      && n === 6)  barColor = '#B22020'  // 棕枝主日：紅
-    if (sk === 'pentecost' && n === 1)  barColor = '#A07828'  // 三一主日：金
-    if (isChristKing)                   barColor = '#A07828'  // 基督普世君王日：金
-
-    entries.push({
-      date:        new Date(cur),
-      dateStr:     fmtDate(cur),
-      isSpecial:   false,
-      seasonKey:   sk,
-      weekLabel:   sundayLabel(sk, n, isDec25, isPent, isChristKing),
-      weekEn:      sundayEn(sk, n, isDec25, isPent, isChristKing),
-      barColor,
-      statusLabel: '尚無記錄',
-    })
-    cur = addDays(cur, 7)
-  }
-
-  // ── 特殊日條目 ─────────────────────────────────────────
-  const specials = []
-
-  // 平安夜（12月24日，只在非主日時加入）
-  const christmasEve = new Date(y, 11, 24)
-  if (christmasEve.getDay() !== 0 && christmasEve <= end) {
-    specials.push({
-      date:        christmasEve,
-      dateStr:     fmtDate(christmasEve) + DOW_ZH[christmasEve.getDay()],
-      isSpecial:   true,
-      seasonKey:   'christmas',
-      specialName: '平安夜禮拜',
-      specialEn:   'Christmas Eve',
-      specialColor:'#A07828',
-      statusLabel: '尚無記錄',
-    })
-  }
-
-  // 聖灰星期三（大齋期首日）
-  if (ashWed <= end) {
-    specials.push({
-      date:        ashWed,
-      dateStr:     fmtDate(ashWed) + DOW_ZH[ashWed.getDay()],
-      isSpecial:   true,
-      seasonKey:   'lent',
-      specialName: '聖灰日',
-      specialEn:   'Ash Wednesday',
-      specialColor:'#6B4A90',
-      statusLabel: '尚無記錄',
-    })
-  }
-
-  // 受難日
-  if (goodFriday <= end) {
-    specials.push({
-      date:        goodFriday,
-      dateStr:     fmtDate(goodFriday) + DOW_ZH[goodFriday.getDay()],
-      isSpecial:   true,
-      seasonKey:   'lent',
-      specialName: '受難日禮拜',
-      specialEn:   'Good Friday',
-      specialColor:'#8B1818',
-      statusLabel: '尚無記錄',
-    })
-  }
-
-  // 龐君華會督就任禮拜（2019年5月25日，六，中華基督教衛理公會會督）
-  // 教會年 2018-2019，節期：復活期
-  if (y === 2018) {
-    const installation = new Date(2019, 4, 25) // May 25, 2019
-    if (installation <= end) {
-      specials.push({
-        date:        installation,
-        dateStr:     fmtDate(installation) + DOW_ZH[installation.getDay()],
-        isSpecial:   true,
-        seasonKey:   'easter',
-        specialName: '龐君華會督就任禮拜',
-        specialEn:   'Installation Service',
-        specialColor:'#B22020',
-        statusLabel: '尚無記錄',
-      })
-    }
-  }
-
-  // 告別式（僅 2025–2026 教會年）
-  if (y === 2025) {
-    const funeral = new Date(2026, 0, 31)
-    specials.push({
-      date:        funeral,
-      dateStr:     fmtDate(funeral) + DOW_ZH[funeral.getDay()],
-      isSpecial:   true,
-      isFuneral:   true,
-      seasonKey:   'epiphany',
-      specialName: '龐君華會督告別式',
-      specialEn:   'Funeral Service',
-      specialColor:'#3A3530',
-      statusLabel: '',
-    })
-  }
-
-  // 合併排序
-  const all = [...entries, ...specials].sort((a, b) => a.date - b.date)
-  return all
-}
-
-// ── Computed ──────────────────────────────────────────────
-
-const allEntries = computed(() => isValidYear ? buildChurchYear(year) : [])
-
-const groupedWeeks = computed(() => {
-  const groups = []
-  let curKey = null
-  let curGroup = null
-  let groupIndex = 0
-
-  for (const entry of allEntries.value) {
-    if (entry.seasonKey !== curKey) {
-      curKey = entry.seasonKey
-      const s = SEASONS[curKey]
-      curGroup = {
-        index:       groupIndex++,
-        seasonKey:   curKey,
-        seasonName:  s.name,
-        seasonEn:    s.en,
-        color:       s.color,
-        sundayCount: 0,
-        entries:     [],
-      }
-      groups.push(curGroup)
-    }
-    curGroup.entries.push(entry)
-    if (!entry.isSpecial) curGroup.sundayCount++
-  }
-  return groups
+const { data: sermon } = await useAsyncData(`pong-sermon-${route.params.year}`, async () => {
+  const { data, error } = await supabase
+    .from('pong_sermons')
+    .select('*')
+    .eq('id', route.params.year)
+    .eq('is_published', true)
+    .single()
+  return error ? null : data
 })
 
-const churchYearRange = computed(() => {
-  if (!isValidYear) return ''
-  const start      = getAdvent1(year)
-  const naturalEnd = addDays(getAdvent1(year + 1), -1)
-  const end        = naturalEnd < ARCHIVE_CUTOFF ? naturalEnd : ARCHIVE_CUTOFF
-  return `${fmtDate(start)} — ${fmtDate(end)}`
+const local = reactive({})
+watch(sermon, (v) => { if (v) Object.assign(local, v) }, { immediate: true })
+watch(isEditing, async (on) => {
+  if (!on) return
+  const { data } = await supabase.from('pong_sermons').select('*').eq('id', route.params.year).single()
+  if (data) Object.assign(local, data)
 })
+
+const titleRef = ref(null)
+watch(isEditing, async (on) => {
+  if (on) { await nextTick(); if (titleRef.value) autoResize(titleRef.value) }
+})
+
+function save(field, value) {
+  saveField('pong_sermons', route.params.year, field, value)
+}
+
+function autoResize(el) {
+  el.style.height = 'auto'
+  el.style.height = el.scrollHeight + 'px'
+}
+
+// ── Scripture readings ───────────────────────────────────────
+const scriptureReadings = computed(() => {
+  const r = sermon.value?.scripture_readings
+  if (!r) return []
+  return Array.isArray(r) ? r : []
+})
+
+const openReadings = ref(new Set())
+function toggleReading(i) {
+  const s = new Set(openReadings.value)
+  if (s.has(i)) s.delete(i)
+  else s.add(i)
+  openReadings.value = s
+}
+
+function parseVerses(text) {
+  if (!text) return []
+  return text.split('\n').filter(Boolean).map(line => {
+    const m = line.match(/^(\d+)\s+(.*)$/)
+    return m ? { num: m[1], text: m[2] } : { num: '', text: line }
+  })
+}
+
+// ── Worship songs ────────────────────────────────────────────
+const worshipSongs = computed(() => {
+  const s = sermon.value?.worship_songs
+  if (!s) return []
+  return Array.isArray(s) ? s.filter(Boolean) : []
+})
+
+const worshipSongsText = computed(() => (local.worship_songs || []).join('\n'))
+
+function onSongsInput(e) {
+  const arr = e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+  local.worship_songs = arr
+  saveField('pong_sermons', route.params.year, 'worship_songs', arr)
+}
+
+// ── Content paragraphs ───────────────────────────────────────
+const contentParagraphs = computed(() => {
+  const t = sermon.value?.content
+  if (!t) return []
+  return t.split(/\n{2,}|\n/).filter(Boolean)
+})
+
+function formatDate(d) {
+  if (!d) return '—'
+  const dt = new Date(d)
+  return `${dt.getFullYear()} 年 ${dt.getMonth() + 1} 月 ${dt.getDate()} 日`
+}
 </script>
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500&family=Noto+Serif+TC:wght@400;500;600&display=swap');
 
-.sy-page {
+.sd-page {
   background-color: #F9F8F6;
   min-height: 100vh;
   font-family: 'Noto Sans TC', sans-serif;
   color: #2C2C2C;
 }
 
-/* ── Top bar ───────────────────────────────────────────── */
-.sy-topbar {
-  padding: 20px 48px;
-  border-bottom: 1px solid #DDD8CF;
-}
-.sy-back {
-  font-size: 0.8rem;
-  color: #8A8278;
-  text-decoration: none;
-  letter-spacing: 0.06em;
-  transition: color 0.2s;
-}
-.sy-back:hover { color: #3A3025; }
+/* ── Topbar ─────────────────────────────────────────────── */
+.sd-topbar { padding: 20px 48px; border-bottom: 1px solid #DDD8CF; }
+.sd-back { font-size: 0.8rem; color: #8A8278; text-decoration: none; letter-spacing: 0.06em; transition: color 0.2s; }
+.sd-back:hover { color: #3A3025; }
 
-/* ── Header ────────────────────────────────────────────── */
-.sy-header {
+/* ── Header ─────────────────────────────────────────────── */
+.sd-header {
+  background-color: #F4F1EC;
+  border-bottom: 1px solid #E0DAD0;
+  padding: 56px 40px 48px;
   text-align: center;
-  padding: 56px 40px 40px;
-  border-bottom: 1px solid #E8E4DC;
+  transition: background-color 0.3s;
 }
-.sy-eyebrow {
-  font-size: 0.72rem;
-  font-weight: 300;
-  color: #A09280;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  margin: 0 0 10px;
+.sd-page--editing .sd-header { background-color: #EDE8DF; }
+.sd-header-inner { max-width: 720px; margin: 0 auto; }
+
+.sd-meta-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
 }
-.sy-title {
+.sd-season { font-size: 0.75rem; font-weight: 300; color: #8A7E6E; letter-spacing: 0.12em; }
+.sd-dot { color: #C4B89A; font-size: 0.7rem; }
+.sd-date { font-size: 0.75rem; font-weight: 300; color: #8A7E6E; letter-spacing: 0.08em; }
+
+.sd-title {
   font-family: 'Noto Serif TC', serif;
-  font-size: 2rem;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
   font-weight: 500;
   color: #2C2C2C;
   letter-spacing: 0.12em;
-  margin: 0 0 10px;
-}
-.sy-range {
-  font-size: 0.82rem;
-  font-weight: 300;
-  color: #8A8278;
-  letter-spacing: 0.06em;
-  margin: 0;
+  line-height: 1.5;
+  margin: 0 0 20px;
 }
 
-/* ── Error ─────────────────────────────────────────────── */
-.sy-error {
-  text-align: center;
-  padding: 80px 40px;
-  color: #8A8278;
-  font-size: 0.9rem;
-}
-
-/* ── Body ──────────────────────────────────────────────── */
-.sy-body {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 48px 40px;
+.sd-sub-line {
   display: flex;
-  flex-direction: column;
-  gap: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.sd-loc-icon { width: 13px; height: 13px; color: #A09280; flex-shrink: 0; }
+.sd-location { font-size: 0.82rem; font-weight: 300; color: #7A7268; letter-spacing: 0.06em; }
+
+/* Edit mode inputs */
+.sd-textarea {
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px dashed #C4B89A;
+  outline: none;
+  font-family: inherit; font-size: inherit; font-weight: inherit; color: inherit;
+  letter-spacing: inherit; line-height: inherit;
+  width: 100%; resize: none; overflow: hidden;
+  padding: 2px 0; text-align: center;
+  transition: border-color 0.2s;
+}
+.sd-textarea:focus { border-bottom-color: #8A7E6E; }
+.sd-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px dashed #C4B89A;
+  outline: none;
+  font-family: inherit; font-size: inherit; font-weight: inherit; color: inherit;
+  letter-spacing: inherit; padding: 1px 0; text-align: center;
+  transition: border-color 0.2s; width: auto;
+}
+.sd-input:focus { border-bottom-color: #8A7E6E; }
+.sd-edit-hint { margin-top: 16px; font-size: 0.68rem; color: #A09280; letter-spacing: 0.06em; }
+
+/* ── Sections ────────────────────────────────────────────── */
+.sd-section { padding: 40px 40px; border-bottom: 1px solid #E8E4DC; }
+.sd-section--content { padding-bottom: 80px; border-bottom: none; }
+.sd-section-inner { max-width: 720px; margin: 0 auto; }
+
+.sd-section-title {
+  font-family: 'Noto Serif TC', serif;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #8A7E6E;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin: 0 0 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #DDD8CF;
 }
 
-/* ── Season group ──────────────────────────────────────── */
-.sy-season-group {
-  border-radius: 4px;
-  overflow: hidden;
-  border: 1px solid #DDD8CF;
-}
-.sy-season-header {
+/* ── Service Team ─────────────────────────────────────────── */
+.sd-section--team { background-color: #F4F1EC; }
+.sd-team-grid { display: flex; flex-wrap: wrap; gap: 28px; }
+.sd-team-item { display: flex; flex-direction: column; gap: 4px; }
+.sd-team-label { font-size: 0.62rem; font-weight: 300; color: #A09280; letter-spacing: 0.12em; text-transform: uppercase; }
+.sd-team-value { font-size: 0.92rem; font-weight: 400; color: #2C2C2C; letter-spacing: 0.04em; }
+
+/* ── Scripture ────────────────────────────────────────────── */
+.sd-scripture-list { display: flex; flex-direction: column; gap: 0; border: 1px solid #DDD8CF; border-radius: 4px; overflow: hidden; }
+
+.sd-reading { border-bottom: 1px solid #DDD8CF; }
+.sd-reading:last-child { border-bottom: none; }
+
+.sd-reading-hd {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 20px;
-  color: #fff;
-}
-.sy-season-name-wrap {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-.sy-season-name {
-  font-family: 'Noto Serif TC', serif;
-  font-size: 1.05rem;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-}
-.sy-season-en {
-  font-size: 0.7rem;
-  font-weight: 300;
-  letter-spacing: 0.14em;
-  opacity: 0.85;
-  text-transform: uppercase;
-}
-.sy-season-count {
-  font-size: 0.72rem;
-  font-weight: 300;
-  opacity: 0.85;
-  letter-spacing: 0.08em;
-}
-
-/* ── Weeks wrapper ─────────────────────────────────────── */
-.sy-weeks {
-  background-color: #FAFAF8;
-}
-
-/* ── 共用列格線（主日 + 特殊日統一 4 欄）──────────────── */
-/* bar(4px) | 中文+英文(1fr) | 日期(auto) | 記錄(auto) */
-.sy-week-row,
-.sy-week-row--special {
-  display: grid;
-  grid-template-columns: 4px 1fr auto auto;
-  align-items: center;
-  gap: 0 16px;
-  padding: 0 20px 0 0;
-  border-bottom: 1px solid #EDEAE4;
-  min-height: 48px;
+  background: #FDFCFA;
+  border: none;
+  cursor: pointer;
+  text-align: left;
   transition: background-color 0.15s;
+  gap: 12px;
 }
-.sy-week-row:last-child,
-.sy-week-row--special:last-child { border-bottom: none; }
-.sy-week-row:hover        { background-color: #F2EFE9; }
-.sy-week-row--special:hover { background-color: #EDE8E0; }
+.sd-reading-hd:hover { background-color: #F4F1EC; }
+.sd-reading--open .sd-reading-hd { background-color: #F0EDE6; }
 
-.sy-week-row--special {
-  min-height: 40px;
-  background-color: #F4F1EC;
-}
+.sd-reading-ref { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sd-reading-label { font-size: 0.65rem; font-weight: 400; color: #A09280; letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap; }
+.sd-reading-book { font-family: 'Noto Serif TC', serif; font-size: 0.92rem; font-weight: 500; color: #3A3025; letter-spacing: 0.06em; }
+.sd-reading-chevron { color: #A09280; font-size: 0.75rem; transition: transform 0.2s; flex-shrink: 0; }
+.sd-reading--open .sd-reading-chevron { transform: rotate(180deg); }
 
-.sy-bar {
-  align-self: stretch;
-  width: 4px;
-  flex-shrink: 0;
-}
+.sd-reading-body { padding: 20px 20px 24px; background-color: #FDFCFA; border-top: 1px solid #EDE8DF; }
+.sd-reading-expand-enter-active, .sd-reading-expand-leave-active { transition: opacity 0.2s; }
+.sd-reading-expand-enter-from, .sd-reading-expand-leave-to { opacity: 0; }
 
-/* 中文名稱（主日週標 + 特殊日中文名共用） */
-.sy-week-label {
-  font-family: 'Noto Serif TC', serif;
-  font-size: 0.9rem;
+.sd-verse { display: grid; grid-template-columns: 28px 1fr; gap: 0 8px; margin: 0 0 6px; }
+.sd-verse-num { font-size: 0.68rem; color: #B0A890; font-weight: 400; padding-top: 3px; text-align: right; }
+.sd-verse-text { font-family: 'Noto Serif TC', serif; font-size: 0.9rem; font-weight: 400; color: #2C2C2C; line-height: 1.9; letter-spacing: 0.04em; }
+.sd-bible-version { margin: 16px 0 0; font-size: 0.68rem; font-weight: 300; color: #B0A890; letter-spacing: 0.1em; text-align: right; }
+
+/* ── Worship songs ────────────────────────────────────────── */
+.sd-songs-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.sd-song { font-size: 0.9rem; font-weight: 300; color: #3A3530; letter-spacing: 0.04em; padding-left: 16px; position: relative; }
+.sd-song::before { content: '♩'; position: absolute; left: 0; color: #C4B89A; font-size: 0.75rem; }
+.sd-songs-empty { font-size: 0.85rem; color: #B0A890; letter-spacing: 0.04em; }
+
+.sd-textarea-plain {
+  width: 100%;
+  background-color: #FDFCFA;
+  border: 1.5px dashed #C4B89A;
+  border-radius: 3px;
+  padding: 12px 16px;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 300;
   color: #2C2C2C;
+  line-height: 1.9;
+  letter-spacing: 0.04em;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.sd-textarea-plain:focus { border-color: #8A7E6E; }
+
+/* ── Sermon content ───────────────────────────────────────── */
+.sd-content-body { display: flex; flex-direction: column; gap: 1.2em; }
+.sd-content-para {
+  font-family: 'Noto Serif TC', serif;
+  font-size: 1rem;
+  font-weight: 400;
+  color: #2C2C2C;
+  line-height: 2.1;
   letter-spacing: 0.06em;
-  padding: 13px 0 13px 14px;
+  text-align: justify;
+  margin: 0;
 }
+.sd-content-textarea { min-height: 50vh; }
 
-/* 英文標籤：接在中文後，2rem 間距 */
-.sy-week-en {
-  margin-left: 2rem;
-  font-size: 0.68rem;
-  color: #9A9080;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
+/* ── Not found ────────────────────────────────────────────── */
+.sd-notfound { min-height: 60vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; font-size: 0.9rem; color: #9A9080; }
+.sd-notfound a { color: #8A7E6E; text-decoration: none; }
 
-.sy-week-date {
-  font-size: 0.78rem;
-  color: #7A7268;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-.sy-week-empty {
-  font-size: 0.7rem;
-  color: #C0B8B0;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  text-align: right;
-}
-
-/* ── 告別式行 ──────────────────────────────────────────── */
-.sy-week-row--funeral {
-  background-color: #EFEBE4;
-  border-top: 2px solid #8A8278;
-}
-.sy-week-row--funeral .sy-special-name {
-  color: #2C2824;
-  font-weight: 500;
-}
-.sy-week-row--funeral .sy-week-date {
-  color: #5A5450;
-}
-.sy-week-row--funeral .sy-special-en {
-  color: #7A7268;
-}
-
-/* ── Responsive ────────────────────────────────────────── */
+/* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .sy-topbar { padding: 16px 20px; }
-  .sy-body { padding: 24px 16px; }
-
-  .sy-week-row,
-  .sy-week-row--special {
-    grid-template-columns: 4px 1fr auto;
-  }
-  .sy-week-en   { display: none; }
-  .sy-week-empty { display: none; }
+  .sd-topbar { padding: 16px 20px; }
+  .sd-header { padding: 40px 20px 36px; }
+  .sd-section { padding: 32px 20px; }
+  .sd-reading-hd { padding: 12px 16px; }
+  .sd-reading-body { padding: 16px 16px 20px; }
 }
 </style>

@@ -13,6 +13,7 @@
 
         <!-- 中：典藏名稱 -->
         <div class="pa-title-group">
+          <span class="pa-logo-cross" aria-hidden="true">✝</span>
           <span class="pa-header-zh">龐君華會督數位典藏</span>
           <span class="pa-header-divider">·</span>
           <span class="pa-header-en">Bishop Pong Kwan-wah Digital Archive</span>
@@ -172,8 +173,11 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useHead } from '#imports'
 import { usePongEditor } from '~/composables/usePongEditor'
 import { usePongSession } from '~/composables/usePongSession'
+
+useHead({ title: '龐君華會督數位典藏' })
 
 const { isEditing, saveStatus, toggleEdit } = usePongEditor()
 const { session, isLoggedIn, isChief, logout, loadSession } = usePongSession()
@@ -329,6 +333,14 @@ onMounted(() => {
   gap: 10px;
   white-space: nowrap;
 }
+.pa-logo-cross {
+  font-size: 1rem;
+  color: #8A7A68;
+  line-height: 1;
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+
 .pa-header-zh {
   font-family: 'Noto Serif TC', 'SimSun', serif;
   font-size: 1rem;

@@ -115,7 +115,9 @@ Directory structure:
     │       │   └── [id].vue
     │       └── sermons/
     │           ├── index.vue
-    │           └── [year].vue
+    │           ├── [year].vue
+    │           └── year/
+    │               └── [year].vue
     ├── public/
     │   ├── favicon.ico
     │   ├── robots.txt
