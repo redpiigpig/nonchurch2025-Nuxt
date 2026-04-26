@@ -429,15 +429,16 @@ const seasonColor = computed(() => {
 .sd-title-wrap .sd-title { margin-bottom: 0; }
 
 /* ── YouTube embed ────────────────────────────────────────── */
-.sd-section--video { background-color: #1A1A1A; padding: 32px 40px; }
+.sd-section--video { background-color: #F9F8F6; padding: 48px 40px; border-bottom: 1px solid #E8E4DC; }
 .sd-section--video .sd-section-inner { max-width: 720px; margin: 0 auto; }
 .sd-video-wrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
-  background: #000;
+  padding-top: 56.25%;
   border-radius: 4px;
   overflow: hidden;
+  background-color: #000;
+  box-shadow: 0 8px 32px rgba(40,30,20,0.18);
 }
 .sd-video-iframe {
   position: absolute;
