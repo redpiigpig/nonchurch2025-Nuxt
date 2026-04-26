@@ -449,7 +449,7 @@ const seasonColor = computed(() => {
 
 /* ── YouTube button in header (一般禮拜) ───────────────────── */
 .sd-yt-header-wrap {
-  margin-top: 1rem;
+  margin-top: 2rem;
   text-align: center;
 }
 
