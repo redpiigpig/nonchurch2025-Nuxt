@@ -42,10 +42,15 @@
       </div>
     </header>
 
-    <!-- ── YouTube Embed ─────────────────────────────────────── -->
-    <section v-if="youtubeEmbed || isEditing" class="sd-section sd-section--video">
+    <!-- ── YouTube ────────────────────────────────────────────── -->
+    <section
+      v-if="sermon.youtube_url || isEditing"
+      class="sd-section"
+      :class="isMemorial ? 'sd-section--video' : 'sd-section--yt-link'"
+    >
       <div class="sd-section-inner">
-        <div v-if="!isEditing" class="sd-video-wrap">
+        <!-- 追思禮拜：全寬 iframe -->
+        <div v-if="!isEditing && isMemorial && youtubeEmbed" class="sd-video-wrap">
           <iframe
             :src="youtubeEmbed"
             title="禮拜影片記錄"
@@ -55,8 +60,22 @@
             class="sd-video-iframe"
           ></iframe>
         </div>
+        <!-- 一般禮拜：按鈕連結 -->
+        <a
+          v-else-if="!isEditing && sermon.youtube_url"
+          :href="sermon.youtube_url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="sd-yt-btn"
+        >
+          <svg class="sd-yt-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M23.8 7.2s-.2-1.7-.9-2.4c-.9-.9-1.9-.9-2.4-1C17.8 3.6 12 3.6 12 3.6s-5.8 0-8.5.2c-.5.1-1.5.1-2.4 1-.7.7-.9 2.4-.9 2.4S0 9.1 0 11v1.8c0 1.9.2 3.8.2 3.8s.2 1.7.9 2.4c.9.9 2.1.8 2.6.9C5.2 20 12 20 12 20s5.8 0 8.5-.2c.5-.1 1.5-.1 2.4-1 .7-.7.9-2.4.9-2.4s.2-1.9.2-3.8V11c0-1.9-.2-3.8-.2-3.8zM9.7 15.5V8.4l6.6 3.6-6.6 3.5z"/>
+          </svg>
+          觀看完整禮拜錄影
+        </a>
+        <!-- 編輯模式 -->
         <input
-          v-else
+          v-if="isEditing"
           v-model="local.youtube_url"
           class="sd-input"
           placeholder="YouTube 連結（https://...）"
@@ -197,7 +216,7 @@ const { data: sermon } = await useAsyncData(`pong-sermon-${route.params.year}`, 
   const { data, error } = await supabase
     .from('pong_sermons')
     .select('*')
-    .eq('id', route.params.year)
+    .eq('sermon_date', route.params.year)
     .eq('is_published', true)
     .single()
   return error ? null : data
@@ -207,7 +226,7 @@ const local = reactive({})
 watch(sermon, (v) => { if (v) Object.assign(local, v) }, { immediate: true })
 watch(isEditing, async (on) => {
   if (!on) return
-  const { data } = await supabase.from('pong_sermons').select('*').eq('id', route.params.year).single()
+  const { data } = await supabase.from('pong_sermons').select('*').eq('sermon_date', route.params.year).single()
   if (data) Object.assign(local, data)
 })
 
@@ -301,6 +320,8 @@ const SEASON_COLORS = {
   easter:    '#A07828',
   pentecost: '#2A6E3A',
 }
+
+const isMemorial = computed(() => /追思|安息/.test(sermon.value?.occasion || ''))
 
 const youtubeEmbed = computed(() => {
   const url = sermon.value?.youtube_url
@@ -432,9 +453,29 @@ const seasonColor = computed(() => {
 .sd-title-wrap { margin-bottom: 20px; }
 .sd-title-wrap .sd-title { margin-bottom: 0; }
 
-/* ── YouTube embed ────────────────────────────────────────── */
+/* ── YouTube embed (追思禮拜) ───────────────────────────────── */
 .sd-section--video { background-color: #F9F8F6; padding: 48px 40px; border-bottom: 1px solid #E8E4DC; }
 .sd-section--video .sd-section-inner { max-width: 720px; margin: 0 auto; }
+
+/* ── YouTube button link (一般禮拜) ────────────────────────── */
+.sd-section--yt-link { background-color: #F4F1EC; padding: 20px 40px; border-bottom: 1px solid #E8E4DC; }
+.sd-yt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  background: #CC0000;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 3px;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  transition: background 0.2s;
+}
+.sd-yt-btn:hover { background: #AA0000; }
+.sd-yt-icon { width: 15px; height: 15px; flex-shrink: 0; }
 .sd-video-wrap {
   position: relative;
   width: 100%;

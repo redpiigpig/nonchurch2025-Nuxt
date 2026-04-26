@@ -44,7 +44,7 @@
               </span>
               <NuxtLink
                 v-if="sermonFor(entry.date)"
-                :to="`/pong-archive/sermons/${sermonFor(entry.date).id}`"
+                :to="`/pong-archive/sermons/${sermonFor(entry.date).sermon_date}`"
                 class="sy-sermon-title"
               >{{ sermonFor(entry.date).title }}</NuxtLink>
               <span v-else class="sy-sermon-title"></span>
@@ -60,7 +60,7 @@
               </span>
               <NuxtLink
                 v-if="sermonFor(entry.date)"
-                :to="`/pong-archive/sermons/${sermonFor(entry.date).id}`"
+                :to="`/pong-archive/sermons/${sermonFor(entry.date).sermon_date}`"
                 class="sy-sermon-title"
               >{{ sermonFor(entry.date).title }}</NuxtLink>
               <span v-else class="sy-sermon-title"></span>
