@@ -54,14 +54,14 @@ export function fmt(date) {
 // 計算某教會年（church_year）的所有主日槽位
 // church_year = 將臨期第一主日所在的公曆年（如 2024 表示 2024-2025 教會年）
 export function getChurchYearSundays(churchYear) {
-  // 將臨期第一主日：最接近 11/30 且在其之前的週日，往前數 3 週
-  // 即：聖誕節前第四個週日
+  // 將臨期第一主日：聖誕節前第四個週日
+  // 用 Dec 24 當上限，確保聖誕日本身（即使是週日）不被算成將臨期主日
   const christmas = new Date(churchYear, 11, 25) // Dec 25
-  const advent1 = addDays(prevSunday(christmas), -21) // 往前 3 週
+  const advent1 = addDays(prevSunday(addDays(christmas, -1)), -21)
 
   // 下一教會年的將臨期第一主日
   const christmas2 = new Date(churchYear + 1, 11, 25)
-  const nextAdvent1 = addDays(prevSunday(christmas2), -21)
+  const nextAdvent1 = addDays(prevSunday(addDays(christmas2, -1)), -21)
 
   // 復活節
   const easter = easterDate(churchYear + 1)
@@ -188,7 +188,7 @@ export function getLectionaryYearEn(churchYear) {
 export function getCurrentChurchYear(date = new Date()) {
   const year = date.getFullYear()
   const christmas = new Date(year, 11, 25)
-  const advent1 = addDays(prevSunday(christmas), -21)
+  const advent1 = addDays(prevSunday(addDays(christmas, -1)), -21)
   return date >= advent1 ? year : year - 1
 }
 

@@ -326,7 +326,7 @@ const lockedDays = computed(() => {
   const sunday = slots[idx].sunday
   for (let d = 0; d <= 6; d++) {
     const date = new Date(sunday.getTime() + d * 86400000)
-    if (date.getMonth() === 11 && date.getDate() >= 24) locked.add(d)
+    if (date.getMonth() === 11 && date.getDate() >= 25) locked.add(d)
   }
   return locked
 })

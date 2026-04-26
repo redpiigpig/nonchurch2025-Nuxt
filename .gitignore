@@ -29,6 +29,9 @@ __pycache__/
 *.pyc
 temp/
 
+# 本地教會資料（不進 Git）
+城中教會講道.txt
+
 # Local env files
 .env
 .env.*

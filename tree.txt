@@ -155,7 +155,11 @@ Directory structure:
     │   ├── generate_docx.py
     │   ├── pong_sermon_pipeline.py
     │   ├── footnote_stats.mjs
-    │   └── normalize_footnotes.mjs
+    │   ├── normalize_footnotes.mjs
+    │   ├── seed_lectionary_advent_A_wk1.mjs
+    │   ├── seed_lectionary_advent_A_wk2.mjs
+    │   ├── seed_lectionary_advent_A_wk3.mjs
+    │   └── seed_lectionary_advent_A_wk4.mjs
     ├── server/
     │   └── api/
     │       ├── classify-article.post.js
