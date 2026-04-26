@@ -79,7 +79,7 @@ export function getChurchYearSundays(churchYear) {
       season: 'advent',
       seasonZh: '將臨期',
       week: w,
-      label: `將臨期第${w}主日`,
+      label: `將臨期第${w}週`,
       sunday: addDays(advent1, (w - 1) * 7),
     })
   }
@@ -88,13 +88,11 @@ export function getChurchYearSundays(churchYear) {
   // 聖誕日（12/25）本身及之後的主日
   const christmasSunday1 = nextSunday(addDays(christmas, 1))
   const christmasSunday2 = addDays(christmasSunday1, 7)
-  slots.push({ season: 'christmas', seasonZh: '聖誕期', week: 1, label: '聖誕期第一主日', sunday: christmasSunday1 })
-  // 第二主日只有在 1/1 前還有一個週日時才存在（有些年只有一個）
+  slots.push({ season: 'christmas', seasonZh: '聖誕期', week: 1, label: '聖誕期第一週', sunday: christmasSunday1 })
   if (christmasSunday2 < new Date(churchYear + 1, 0, 7)) {
-    slots.push({ season: 'christmas', seasonZh: '聖誕期', week: 2, label: '聖誕期第二主日', sunday: christmasSunday2 })
+    slots.push({ season: 'christmas', seasonZh: '聖誕期', week: 2, label: '聖誕期第二週', sunday: christmasSunday2 })
   } else {
-    // 槽位保留但標記為可選
-    slots.push({ season: 'christmas', seasonZh: '聖誕期', week: 2, label: '聖誕期第二主日', sunday: null, optional: true })
+    slots.push({ season: 'christmas', seasonZh: '聖誕期', week: 2, label: '聖誕期第二週', sunday: null, optional: true })
   }
 
   // ── 顯現期 1–9 ────────────────────────────────────────
@@ -110,7 +108,7 @@ export function getChurchYearSundays(churchYear) {
       season: 'epiphany',
       seasonZh: '顯現期',
       week: w,
-      label: w === 1 ? '耶穌受洗主日' : w === 9 ? '登山變相主日' : `顯現期第${w}主日`,
+      label: w === 1 ? '顯現期第1週（耶穌受洗）' : w === 9 ? '顯現期第9週（登山變相）' : `顯現期第${w}週`,
       sunday: available ? sunday : null,
       optional: !available,
     })
@@ -123,7 +121,7 @@ export function getChurchYearSundays(churchYear) {
       season: 'lent',
       seasonZh: '大齋期',
       week: w,
-      label: w === 6 ? '棕枝主日' : `大齋期第${w}主日`,
+      label: w === 6 ? '大齋期第6週（棕枝主日）' : `大齋期第${w}週`,
       sunday,
     })
   }
@@ -134,7 +132,7 @@ export function getChurchYearSundays(churchYear) {
       season: 'easter',
       seasonZh: '復活期',
       week: w,
-      label: w === 1 ? '復活節主日' : w === 7 ? '聖靈降臨節' : `復活期第${w}主日`,
+      label: w === 1 ? '復活期第1週（復活節）' : w === 7 ? '復活期第7週（聖靈降臨節）' : `復活期第${w}週`,
       sunday: addDays(easter, (w - 1) * 7),
     })
   }
@@ -165,7 +163,7 @@ export function getChurchYearSundays(churchYear) {
       season: 'pentecost',
       seasonZh: '聖靈降臨後',
       week: p,
-      label: p === 1 ? '三一主日' : `聖靈降臨後第${p}主日`,
+      label: p === 1 ? '聖靈降臨後第1週（三一主日）' : `聖靈降臨後第${p}週`,
       sunday: available ? sun : null,
       optional: !available,
     })
