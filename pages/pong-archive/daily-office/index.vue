@@ -38,7 +38,6 @@
           <div class="do-wheel-label">
             <span class="do-wheel-cycle">{{ yi.cycle }}年</span>
             <span class="do-wheel-en">Year {{ yi.yearEn }}</span>
-            <span class="do-wheel-gospel">{{ yi.gospel }}</span>
           </div>
 
           <div class="do-wheel-container">
