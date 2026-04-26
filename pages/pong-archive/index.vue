@@ -4,7 +4,6 @@
     <!-- ── Hero Section ──────────────────────────────────── -->
     <section class="pa-hero">
       <div class="pa-hero-inner">
-        <p class="pa-hero-eyebrow">龐君華會督 · Bishop Pong Kwan-wah</p>
         <h1 class="pa-hero-title">龐君華會督文集數位典藏</h1>
         <blockquote class="pa-hero-quote">
           <p class="pa-hero-quote-text">
