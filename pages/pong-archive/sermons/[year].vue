@@ -15,16 +15,38 @@
           <span class="sd-date" :style="{ color: seasonColor }">{{ formatDate(sermon.sermon_date) }}</span>
         </div>
 
-        <textarea
-          v-if="isEditing"
-          v-model="local.title"
-          class="sd-title sd-textarea"
-          rows="1"
-          placeholder="講道標題"
-          @input="e => { autoResize(e.target); save('title', local.title) }"
-          ref="titleRef"
-        />
-        <h1 v-else class="sd-title">{{ sermon.title }}</h1>
+        <div class="sd-title-wrap">
+          <textarea
+            v-if="isEditing"
+            v-model="local.title"
+            class="sd-title sd-textarea"
+            rows="1"
+            placeholder="講道標題"
+            @input="e => { autoResize(e.target); save('title', local.title) }"
+            ref="titleRef"
+          />
+          <h1 v-else class="sd-title">{{ sermon.title }}</h1>
+          <a
+            v-if="sermon.youtube_url && !isEditing"
+            :href="sermon.youtube_url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="sd-yt-badge"
+            title="觀看完整禮拜記錄"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            </svg>
+            <span>觀看完整禮拜記錄</span>
+          </a>
+          <input
+            v-if="isEditing"
+            v-model="local.youtube_url"
+            class="sd-yt-input sd-input"
+            placeholder="YouTube 連結（https://...）"
+            @input="save('youtube_url', local.youtube_url)"
+          />
+        </div>
 
         <div class="sd-sub-line">
           <svg class="sd-loc-icon" viewBox="0 0 14 14" fill="none">
@@ -60,29 +82,6 @@
             <span v-else class="sd-team-value">{{ sermon.worship_team || '—' }}</span>
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- ── YouTube Link ──────────────────────────────────────── -->
-    <section v-if="sermon.youtube_url || isEditing" class="sd-section sd-section--youtube">
-      <div class="sd-section-inner">
-        <h2 class="sd-section-title">影音記錄</h2>
-        <div v-if="!isEditing">
-          <a :href="sermon.youtube_url" target="_blank" rel="noopener noreferrer" class="sd-yt-link">
-            <svg class="sd-yt-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-            </svg>
-            <span class="sd-yt-label">觀看完整禮拜記錄</span>
-          </a>
-        </div>
-        <input
-          v-else
-          v-model="local.youtube_url"
-          class="sd-team-value sd-input"
-          placeholder="YouTube 連結（https://...）"
-          style="width: 100%; max-width: 480px;"
-          @input="save('youtube_url', local.youtube_url)"
-        />
       </div>
     </section>
 
@@ -411,21 +410,38 @@ const seasonColor = computed(() => {
 .sd-team-label { font-size: 0.62rem; font-weight: 300; color: #A09280; letter-spacing: 0.12em; text-transform: uppercase; }
 .sd-team-value { font-size: 0.92rem; font-weight: 400; color: #2C2C2C; letter-spacing: 0.04em; }
 
-/* ── YouTube ──────────────────────────────────────────────── */
-.sd-yt-link {
+/* ── Title wrap + YouTube badge ──────────────────────────── */
+.sd-title-wrap {
+  position: relative;
+  margin-bottom: 20px;
+}
+.sd-title-wrap .sd-title {
+  margin-bottom: 0;
+}
+.sd-yt-badge {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 20px;
-  background-color: #FF0000;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 5px 11px 5px 9px;
+  background-color: #CC0000;
   color: #fff;
-  border-radius: 4px;
+  border-radius: 3px;
   text-decoration: none;
-  transition: background-color 0.2s, opacity 0.2s;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  transition: background-color 0.2s;
+  white-space: nowrap;
 }
-.sd-yt-link:hover { background-color: #CC0000; }
-.sd-yt-icon { width: 20px; height: 20px; flex-shrink: 0; }
-.sd-yt-label { font-size: 0.88rem; font-weight: 400; letter-spacing: 0.06em; }
+.sd-yt-badge:hover { background-color: #AA0000; }
+.sd-yt-input {
+  display: block;
+  margin-top: 8px;
+  width: 100%;
+  max-width: 480px;
+  text-align: left;
+}
 
 /* ── Scripture ────────────────────────────────────────────── */
 .sd-scripture-list { display: flex; flex-direction: column; gap: 0; border: 1px solid #DDD8CF; border-radius: 4px; overflow: hidden; }
