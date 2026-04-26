@@ -506,7 +506,7 @@ const churchYearRange = computed(() => {
 .sy-week-row:hover { background-color: #F2EFE9; }
 
 .sy-week-row--special {
-  height: 40px;
+  height: 48px;
   background-color: #F4F1EC;
 }
 .sy-week-row--special:hover { background-color: #EDE8E0; }

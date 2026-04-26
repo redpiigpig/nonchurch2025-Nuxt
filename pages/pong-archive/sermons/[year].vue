@@ -100,7 +100,7 @@
     </section>
 
     <!-- ── Worship Songs ───────────────────────────────────── -->
-    <section class="sd-section sd-section--songs">
+    <section v-if="worshipSongs.length || isEditing" class="sd-section sd-section--songs">
       <div class="sd-section-inner">
         <h2 class="sd-section-title">禮拜詩歌</h2>
         <div v-if="!isEditing">
@@ -133,7 +133,10 @@
           @input="save('content', local.content)"
         />
         <div v-else class="sd-content-body">
-          <p v-for="(para, i) in contentParagraphs" :key="i" class="sd-content-para">{{ para }}</p>
+          <template v-for="(item, i) in contentParagraphs" :key="i">
+            <p v-if="item.type === 'speaker'" class="sd-content-speaker">{{ item.text }}</p>
+            <p v-else class="sd-content-para">{{ item.text }}</p>
+          </template>
         </div>
       </div>
     </section>
@@ -232,10 +235,21 @@ function onSongsInput(e) {
 }
 
 // ── Content paragraphs ───────────────────────────────────────
+// Lines matching "名字：" at the start are speaker tags → bold, no indent
+const SPEAKER_RE = /^(.{2,8}[牧師會督長老執事主任]：)(.*)/
+
 const contentParagraphs = computed(() => {
   const t = sermon.value?.content
   if (!t) return []
-  return t.split(/\n{2,}|\n/).filter(Boolean)
+  return t.split(/\n+/).filter(Boolean).flatMap(line => {
+    const m = line.match(SPEAKER_RE)
+    if (m) {
+      const results = [{ type: 'speaker', text: m[1] }]
+      if (m[2].trim()) results.push({ type: 'para', text: m[2].trim() })
+      return results
+    }
+    return [{ type: 'para', text: line }]
+  })
 })
 
 function formatDate(d) {
@@ -422,7 +436,18 @@ function formatDate(d) {
   line-height: 2.1;
   letter-spacing: 0.06em;
   text-align: justify;
+  text-indent: 2em;
   margin: 0;
+}
+.sd-content-speaker {
+  font-family: 'Noto Serif TC', serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #2C2C2C;
+  line-height: 2.1;
+  letter-spacing: 0.06em;
+  margin: 0;
+  margin-top: 0.4em;
 }
 .sd-content-textarea { min-height: 50vh; }
 
