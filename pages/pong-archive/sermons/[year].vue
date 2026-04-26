@@ -36,31 +36,35 @@
             <span v-else class="sd-location">{{ sermon.location || '—' }}</span>
           </div>
 
-          <a
-            v-if="sermon.youtube_url && !isEditing"
-            :href="sermon.youtube_url"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="sd-yt-badge"
-            title="觀看完整禮拜記錄"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-            </svg>
-            <span>觀看完整禮拜記錄</span>
-          </a>
-          <input
-            v-if="isEditing"
-            v-model="local.youtube_url"
-            class="sd-yt-input sd-input"
-            placeholder="YouTube 連結（https://...）"
-            @input="save('youtube_url', local.youtube_url)"
-          />
         </div>
 
         <div v-if="isEditing" class="sd-edit-hint">✦ 編輯模式</div>
       </div>
     </header>
+
+    <!-- ── YouTube Embed ─────────────────────────────────────── -->
+    <section v-if="youtubeEmbed || isEditing" class="sd-section sd-section--video">
+      <div class="sd-section-inner">
+        <div v-if="!isEditing" class="sd-video-wrap">
+          <iframe
+            :src="youtubeEmbed"
+            title="禮拜影片記錄"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+            class="sd-video-iframe"
+          ></iframe>
+        </div>
+        <input
+          v-else
+          v-model="local.youtube_url"
+          class="sd-input"
+          placeholder="YouTube 連結（https://...）"
+          style="width:100%;max-width:480px;"
+          @input="save('youtube_url', local.youtube_url)"
+        />
+      </div>
+    </section>
 
     <!-- ── Service Team ────────────────────────────────────── -->
     <section class="sd-section sd-section--team">
@@ -294,6 +298,15 @@ const SEASON_COLORS = {
   pentecost: '#2A6E3A',
 }
 
+const youtubeEmbed = computed(() => {
+  const url = sermon.value?.youtube_url
+  if (!url) return null
+  const v = url.match(/[?&]v=([^&]+)/)
+  const t = url.match(/[?&]t=(\d+)/)
+  if (!v) return null
+  return `https://www.youtube.com/embed/${v[1]}${t ? `?start=${t[1]}` : ''}`
+})
+
 const seasonColor = computed(() => {
   const s = sermon.value?.liturgical_season || ''
   if (/將臨/.test(s))                              return SEASON_COLORS.advent
@@ -411,37 +424,27 @@ const seasonColor = computed(() => {
 .sd-team-label { font-size: 0.62rem; font-weight: 300; color: #A09280; letter-spacing: 0.12em; text-transform: uppercase; }
 .sd-team-value { font-size: 0.92rem; font-weight: 400; color: #2C2C2C; letter-spacing: 0.04em; }
 
-/* ── Title wrap + YouTube badge ──────────────────────────── */
-.sd-title-wrap {
+/* ── Title wrap ───────────────────────────────────────────── */
+.sd-title-wrap { margin-bottom: 20px; }
+.sd-title-wrap .sd-title { margin-bottom: 0; }
+
+/* ── YouTube embed ────────────────────────────────────────── */
+.sd-section--video { background-color: #1A1A1A; padding: 32px 40px; }
+.sd-section--video .sd-section-inner { max-width: 720px; margin: 0 auto; }
+.sd-video-wrap {
   position: relative;
-  margin-bottom: 20px;
-}
-.sd-title-wrap .sd-title {
-  margin-bottom: 0;
-}
-.sd-yt-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 10px;
-  padding: 5px 11px 5px 9px;
-  background-color: #CC0000;
-  color: #fff;
-  border-radius: 3px;
-  text-decoration: none;
-  font-size: 0.72rem;
-  font-weight: 400;
-  letter-spacing: 0.06em;
-  transition: background-color 0.2s;
-  white-space: nowrap;
-}
-.sd-yt-badge:hover { background-color: #AA0000; }
-.sd-yt-input {
-  display: block;
-  margin-top: 8px;
   width: 100%;
-  max-width: 480px;
-  text-align: left;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sd-video-iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
 }
 
 /* ── Scripture ────────────────────────────────────────────── */
