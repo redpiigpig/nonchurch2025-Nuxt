@@ -93,7 +93,7 @@
           <div v-if="isEditing || sermon.preacher" class="sd-team-item">
             <span class="sd-team-label">證道</span>
             <input v-if="isEditing" v-model="local.preacher" class="sd-team-value sd-input" placeholder="證道者" @input="save('preacher', local.preacher)" />
-            <span v-else class="sd-team-value">{{ displayPreacher }}</span>
+            <span v-else class="sd-team-value">{{ sermon.preacher }}</span>
           </div>
           <div v-if="isEditing || sermon.worship_leader" class="sd-team-item">
             <span class="sd-team-label">司會</span>
@@ -322,14 +322,6 @@ const SEASON_COLORS = {
 }
 
 const isMemorial = computed(() => /追思|安息/.test(sermon.value?.occasion || ''))
-
-const displayPreacher = computed(() => {
-  const name = sermon.value?.preacher
-  if (name !== '龐君華') return name
-  const date = sermon.value?.sermon_date
-  if (!date) return name
-  return date >= '2019-05-01' ? '龐君華會督' : '龐君華牧師'
-})
 
 const youtubeEmbed = computed(() => {
   const url = sermon.value?.youtube_url
