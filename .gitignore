@@ -18,12 +18,9 @@ logs
 .fleet
 .idea
 
-# 本地完整雜誌稿／圖檔（體積大，不進 Git；`git add .` 會自動略過）
-stores/無境界者雜誌/
-
-# stores 工作文件（本地參考文件、機器人狀態、教會資料）
-stores/*.md
-stores/三讀三禱/
+# stores 整個忽略，只保留正式程式碼
+stores/*
+!stores/tempArticles.js
 
 # Office / system temp files
 ~$*.docx
@@ -32,9 +29,6 @@ stores/三讀三禱/
 __pycache__/
 *.pyc
 temp/
-
-# 本地教會資料（不進 Git）
-城中教會講道.txt
 
 # Local env files
 .env
