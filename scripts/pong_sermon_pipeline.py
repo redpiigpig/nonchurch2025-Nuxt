@@ -19,6 +19,17 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+# Windows：預載 Ollama 附帶的 CUDA v12 DLL，讓 ctranslate2 能找到
+import ctypes as _ctypes
+_CUDA_DLL_PATH = r'C:\Users\user\AppData\Local\Programs\Ollama\lib\ollama\cuda_v12'
+if os.name == 'nt' and os.path.exists(_CUDA_DLL_PATH):
+    os.add_dll_directory(_CUDA_DLL_PATH)
+    for _dll in ['cudart64_12.dll', 'cublas64_12.dll', 'cublasLt64_12.dll']:
+        try:
+            _ctypes.CDLL(os.path.join(_CUDA_DLL_PATH, _dll))
+        except OSError:
+            pass
+
 import requests
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / '.env')
