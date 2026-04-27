@@ -152,14 +152,31 @@ Directory structure:
     │   └── magazines/
     │       └── Vol.1.pdf ~ Vol.6.pdf  (6 files)
     ├── scripts/
-    │   ├── generate_docx.py
-    │   ├── pong_sermon_pipeline.py
+    │   ├── fetch_chengzhong_sermons.py
     │   ├── footnote_stats.mjs
+    │   ├── generate_docx.py
+    │   ├── lectionary_pipeline.py
+    │   ├── lectionary_yearb_html.py
+    │   ├── merge_pdfs.py
+    │   ├── migrate_content_to_html.mjs
+    │   ├── migrate_pong_sermons_v2.mjs
     │   ├── normalize_footnotes.mjs
+    │   ├── patch_docx.py
+    │   ├── patch_memorial_prayer.mjs
+    │   ├── patch_sermons_songs_yt.mjs
+    │   ├── pong_sermon_pipeline.py
     │   ├── seed_lectionary_advent_A_wk1.mjs
     │   ├── seed_lectionary_advent_A_wk2.mjs
     │   ├── seed_lectionary_advent_A_wk3.mjs
-    │   └── seed_lectionary_advent_A_wk4.mjs
+    │   ├── seed_lectionary_advent_A_wk4.mjs
+    │   ├── seed_media_lecture_20231015.mjs
+    │   ├── seed_memorial_20260131.mjs
+    │   ├── seed_pong_media_transcript.mjs
+    │   ├── seed_pong_sermon_20130106.mjs
+    │   ├── seed_pong_sermon_20240317.mjs
+    │   ├── seed_pong_sermons_2013_batch.mjs
+    │   ├── setup_pong_auth.mjs
+    │   └── update_lectionary_html.mjs
     ├── server/
     │   └── api/
     │       ├── classify-article.post.js

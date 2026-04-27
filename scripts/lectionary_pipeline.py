@@ -576,13 +576,9 @@ def process_week(meta):
         print(f'  ✓ 已存在 (id={existing_id})，跳過')
         return True
 
-    # Derive filename from URL
+    # Derive filename: {Year}-{Season}-wk{NN}.pdf
     url = meta['url']
-    url_id = re.search(r'/(\d+)/?$', url)
-    if url_id:
-        fname = f"{yr}-{season}-wk{wk}-{url_id.group(1)}.pdf"
-    else:
-        fname = url.split('/')[-1]
+    fname = f"{yr}-{season.capitalize()}-wk{wk:02d}.pdf"
     pdf_path = PDF_DIR / fname
 
     # Download
