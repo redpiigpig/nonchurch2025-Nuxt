@@ -40,8 +40,8 @@
 
     <template v-else>
 
-      <!-- Intro letter -->
-      <section v-if="weekData.intro_letter || editMode" class="wk-intro">
+      <!-- Intro letter — 乙年無靈修引言，不顯示此區段 -->
+      <section v-if="yearParam !== 'B' && (weekData.intro_letter || editMode)" class="wk-intro">
         <div class="wk-intro-inner">
           <p class="wk-section-label">本週靈修引言</p>
           <div v-if="!editMode" class="wk-intro-body" v-html="renderBody(weekData.intro_letter)"></div>
