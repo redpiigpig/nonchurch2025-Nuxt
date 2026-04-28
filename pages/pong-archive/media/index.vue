@@ -127,8 +127,8 @@
         >
           <div class="mi-short-thumb">
             <img
-              v-if="item.youtube_id"
-              :src="`https://img.youtube.com/vi/${item.youtube_id}/mqdefault.jpg`"
+              v-if="item.thumbnail_url || item.youtube_id"
+              :src="item.thumbnail_url || `https://img.youtube.com/vi/${item.youtube_id}/mqdefault.jpg`"
               :alt="item.title"
               loading="lazy"
             />

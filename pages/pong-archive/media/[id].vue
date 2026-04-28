@@ -155,7 +155,9 @@
                 <p v-for="(para, j) in seg.paragraphs" :key="j">{{ para }}</p>
               </div>
             </div>
-            <div v-else class="md-ts-para">{{ seg.text }}</div>
+            <div v-else-if="seg.type === 'block'" class="md-ts-block">
+              <p v-for="(para, j) in seg.paras" :key="j">{{ para }}</p>
+            </div>
           </template>
         </div>
       </div>
@@ -269,9 +271,6 @@ function autoResize(el) {
 }
 
 // ── Transcript parser ────────────────────────────────────────
-// Topic-break starters (zh): flush current para when a new topic begins
-const TOPIC_RE = /^(那(麼|么)?|但[是]?|另外|接下來|接下来|今天|其實|其实|所以|可是|而且|第[一二三四五六七八九十]|首先|最後|最后|讓我們|让我们|天父|这是|不过|然后|让我们)/
-
 const parsedTranscript = computed(() => {
   const text = item.value?.transcript
   if (!text) return []
@@ -279,9 +278,9 @@ const parsedTranscript = computed(() => {
   const segments = []
   let curSpeaker = null
   let curParas = []
-  // accumulate raw Whisper lines into a paragraph buffer
+  // paragraphs accumulated within the current section block
+  let blockParas = []
   let paraBuf = []
-  let paraBufChars = 0
 
   const flushSpeech = () => {
     if (curSpeaker !== null && curParas.length)
@@ -291,32 +290,40 @@ const parsedTranscript = computed(() => {
 
   const flushPara = () => {
     if (paraBuf.length) {
-      segments.push({ type: 'para', text: paraBuf.join('') })
-      paraBuf = []; paraBufChars = 0
+      blockParas.push(paraBuf.join(''))
+      paraBuf = []
     }
   }
 
-  for (let idx = 0; idx < lines.length; idx++) {
-    const line = lines[idx].trim()
+  const flushBlock = () => {
+    flushPara()
+    if (blockParas.length) {
+      segments.push({ type: 'block', paras: [...blockParas] })
+      blockParas = []
+    }
+  }
 
-    // blank line → force paragraph break
-    if (!line) {
-      if (curSpeaker !== null) curParas.push('')
+  for (const line of lines) {
+    const l = line.trim()
+
+    // blank line → paragraph break within block
+    if (!l) {
+      if (curSpeaker !== null) { /* ignore blanks in speech */ }
       else flushPara()
       continue
     }
 
     // section header 【xxx】
-    if (/^【.+】$/.test(line)) {
-      flushPara(); flushSpeech()
-      segments.push({ type: 'section', text: line.replace(/^【|】$/g, '') })
+    if (/^【.+】$/.test(l)) {
+      flushBlock(); flushSpeech()
+      segments.push({ type: 'section', text: l.replace(/^【|】$/g, '') })
       continue
     }
 
-    // speaker line  "龐君華：blah"
-    const m = line.match(/^(.{1,12}?)(?:（[^）]*）)?\s*：\s*(.*)$/)
+    // speaker line  "龐君華牧師：blah" — name ≤ 12 chars, no sentence punctuation
+    const m = l.match(/^(.{1,12}?)(?:（[^）]*）)?\s*：\s*(.*)$/)
     if (m && m[1].length <= 10 && !/[，。？！]/.test(m[1])) {
-      flushPara(); flushSpeech()
+      flushBlock(); flushSpeech()
       curSpeaker = m[1].trim()
       if (m[2].trim()) curParas.push(m[2].trim())
       continue
@@ -324,19 +331,13 @@ const parsedTranscript = computed(() => {
 
     // under a speech block
     if (curSpeaker !== null) {
-      curParas.push(line); continue
+      curParas.push(l); continue
     }
 
-    // plain Whisper line → accumulate into paragraph
-    const nextLine = (lines[idx + 1] || '').trim()
-    const topicBreak = TOPIC_RE.test(nextLine) && (paraBuf.length >= 6 || paraBufChars >= 200)
-    const lenBreak   = paraBuf.length >= 10
-
-    paraBuf.push(line); paraBufChars += line.length
-
-    if (topicBreak || lenBreak) flushPara()
+    // plain text line → accumulate into current paragraph
+    paraBuf.push(l)
   }
-  flushPara(); flushSpeech()
+  flushBlock(); flushSpeech()
   return segments
 })
 
@@ -564,9 +565,12 @@ onMounted(() => { loadSession() })
 .md-ts-speech--bishop .md-ts-speaker { color: #5B3F2A; }
 .md-ts-speech--host .md-ts-speaker { color: #3A5A4A; }
 .md-ts-content { font-size: 0.92rem; font-weight: 300; color: #3A3530; line-height: 2; letter-spacing: 0.04em; }
-.md-ts-content p { margin: 0 0 0.8em; }
+.md-ts-content p { text-indent: 2rem; margin: 0 0 0.5em; }
 .md-ts-content p:last-child { margin-bottom: 0; }
-.md-ts-para { font-size: 0.88rem; font-weight: 300; color: #6A6460; line-height: 2; letter-spacing: 0.04em; padding: 16px 0; border-bottom: 1px solid #EAE6DE; }
+
+.md-ts-block { font-size: 0.92rem; font-weight: 300; color: #3A3530; line-height: 2; letter-spacing: 0.04em; padding-bottom: 20px; }
+.md-ts-block p { text-indent: 2rem; margin: 0 0 0.5em; }
+.md-ts-block p:last-child { margin-bottom: 0; }
 
 /* ── Proofreader Sign-off ────────────────────────────────── */
 .md-pr-section {
