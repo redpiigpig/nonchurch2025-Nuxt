@@ -21,10 +21,7 @@
         class="sy-season-group"
       >
         <div class="sy-season-header" :style="{ backgroundColor: group.color }">
-          <div class="sy-season-name-wrap">
-            <span class="sy-season-name">{{ group.seasonName }}</span>
-            <span class="sy-season-en">{{ group.seasonEn }}</span>
-          </div>
+          <span class="sy-season-name">{{ group.seasonName }}</span>
           <span class="sy-season-count">{{ group.sundayCount }} 主日</span>
         </div>
 
@@ -38,10 +35,7 @@
               :class="{ 'sy-week-row--funeral': entry.isFuneral }"
             >
               <span class="sy-bar" :style="{ backgroundColor: entry.specialColor }"></span>
-              <span class="sy-week-label">
-                {{ entry.specialName }}
-                <span class="sy-week-en">{{ entry.specialEn }}</span>
-              </span>
+              <span class="sy-week-label">{{ entry.specialName }}</span>
               <NuxtLink
                 v-if="sermonFor(entry.date)"
                 :to="`/pong-archive/sermons/${sermonFor(entry.date).sermon_date}`"
@@ -54,10 +48,7 @@
             <!-- 主日行 -->
             <div v-else class="sy-week-row">
               <span class="sy-bar" :style="{ backgroundColor: entry.barColor || group.color }"></span>
-              <span class="sy-week-label">
-                {{ entry.weekLabel }}
-                <span v-if="entry.weekEn" class="sy-week-en">{{ entry.weekEn }}</span>
-              </span>
+              <span class="sy-week-label">{{ entry.weekLabel }}</span>
               <NuxtLink
                 v-if="sermonFor(entry.date)"
                 :to="`/pong-archive/sermons/${sermonFor(entry.date).sermon_date}`"
@@ -172,23 +163,12 @@ function cn(n) { return CH[n] ?? String(n) }
 
 // ── 節期設定 ──────────────────────────────────────────────
 const SEASONS = {
-  advent:    { name: '將臨期',   en: 'Advent',         color: '#5B3F8A' },
-  christmas: { name: '聖誕期',   en: 'Christmastide',  color: '#A07828' },
-  epiphany:  { name: '顯現期',   en: 'Epiphanytide',   color: '#2A6E3A' },
-  lent:      { name: '大齋期',   en: 'Lent',           color: '#7B2D6E' },
-  easter:    { name: '復活期',   en: 'Eastertide',     color: '#A07828' },
-  pentecost: { name: '聖靈降臨期', en: 'Ordinary Time', color: '#2A6E3A' },
-}
-
-function sundayEn(sk, n, isDec25, isPentecost, isChristKing) {
-  if (sk === 'christmas' && isDec25)     return 'Christmas Day'
-  if (sk === 'epiphany'  && n === 1)     return 'Baptism of the Lord'
-  if (sk === 'lent'      && n === 6)     return 'Palm Sunday'
-  if (sk === 'easter'    && n === 1)     return 'Easter Sunday'
-  if (sk === 'easter'    && isPentecost) return 'Pentecost Sunday'
-  if (sk === 'pentecost' && n === 1)     return 'Trinity Sunday'
-  if (isChristKing)                      return 'Christ the King'
-  return ''
+  advent:    { name: '將臨期',     color: '#5B3F8A' },
+  christmas: { name: '聖誕期',     color: '#A07828' },
+  epiphany:  { name: '顯現期',     color: '#2A6E3A' },
+  lent:      { name: '大齋期',     color: '#7B2D6E' },
+  easter:    { name: '復活期',     color: '#A07828' },
+  pentecost: { name: '聖靈降臨期', color: '#2A6E3A' },
 }
 
 function sundayLabel(sk, n, isDec25, isPentecost, isChristKing) {
@@ -203,7 +183,7 @@ function sundayLabel(sk, n, isDec25, isPentecost, isChristKing) {
       return `復活期第${cn(n)}主日`
     case 'pentecost':
       if (n === 1) return '三一主日'
-      if (isChristKing) return '基督普世君王日'
+      if (isChristKing) return '基督君王主日'
       return `聖靈降臨後第${cn(n - 1)}主日`
     default: return ''
   }
@@ -257,7 +237,6 @@ function buildChurchYear(y) {
       isSpecial: false,
       seasonKey: sk,
       weekLabel: sundayLabel(sk, n, isDec25, isPent, isChristKing),
-      weekEn:    sundayEn(sk, n, isDec25, isPent, isChristKing),
       barColor,
     })
     cur = addDays(cur, 7)
@@ -273,7 +252,6 @@ function buildChurchYear(y) {
       isSpecial:   true,
       seasonKey:   'christmas',
       specialName: '平安夜禮拜',
-      specialEn:   'Christmas Eve',
       specialColor:'#A07828',
     })
   }
@@ -285,7 +263,6 @@ function buildChurchYear(y) {
       isSpecial:   true,
       seasonKey:   'lent',
       specialName: '聖灰日',
-      specialEn:   'Ash Wednesday',
       specialColor:'#6B4A90',
     })
   }
@@ -297,7 +274,6 @@ function buildChurchYear(y) {
       isSpecial:   true,
       seasonKey:   'lent',
       specialName: '受難日禮拜',
-      specialEn:   'Good Friday',
       specialColor:'#8B1818',
     })
   }
@@ -311,7 +287,6 @@ function buildChurchYear(y) {
         isSpecial:   true,
         seasonKey:   'easter',
         specialName: '龐君華會督就任禮拜',
-        specialEn:   'Installation Service',
         specialColor:'#B22020',
       })
     }
@@ -326,7 +301,6 @@ function buildChurchYear(y) {
       isFuneral:   true,
       seasonKey:   'epiphany',
       specialName: '龐君華會督告別式',
-      specialEn:   'Funeral Service',
       specialColor:'#3A3530',
     })
   }
@@ -351,7 +325,6 @@ const groupedWeeks = computed(() => {
         index:       groupIndex++,
         seasonKey:   curKey,
         seasonName:  s.name,
-        seasonEn:    s.en,
         color:       s.color,
         sundayCount: 0,
         entries:     [],
@@ -458,23 +431,11 @@ const churchYearRange = computed(() => {
   padding: 14px 20px;
   color: #fff;
 }
-.sy-season-name-wrap {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
 .sy-season-name {
   font-family: 'Noto Serif TC', serif;
   font-size: 1.05rem;
   font-weight: 500;
   letter-spacing: 0.1em;
-}
-.sy-season-en {
-  font-size: 0.7rem;
-  font-weight: 300;
-  letter-spacing: 0.14em;
-  opacity: 0.85;
-  text-transform: uppercase;
 }
 .sy-season-count {
   font-size: 0.72rem;
@@ -526,14 +487,6 @@ const churchYearRange = computed(() => {
   white-space: nowrap;
 }
 
-.sy-week-en {
-  margin-left: 1.5rem;
-  font-size: 0.68rem;
-  color: #9A9080;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
 
 /* Sermon title: center column, link when has sermon */
 .sy-sermon-title {
@@ -571,6 +524,5 @@ a.sy-sermon-title:hover {
 @media (max-width: 640px) {
   .sy-topbar { padding: 16px 20px; }
   .sy-body   { padding: 24px 16px; }
-  .sy-week-en { display: none; }
 }
 </style>
