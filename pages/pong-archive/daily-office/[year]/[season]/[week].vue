@@ -66,7 +66,7 @@
             </thead>
             <tbody>
               <tr
-                v-for="row in lectionaryTable"
+                v-for="row in pagedLectionaryTable"
                 :key="row.week"
                 :class="{ 'wk-lec-current': row.week === week }"
               >
@@ -78,6 +78,14 @@
               </tr>
             </tbody>
           </table>
+          <div v-if="lecPageCount > 1" class="wk-lec-nav">
+            <button class="wk-lec-nav-btn" :disabled="lecPage === 0" @click="lecPage--">&#8249;</button>
+            <span class="wk-lec-nav-label">
+              第 {{ lecPage * 4 + 1 }}–{{ Math.min((lecPage + 1) * 4, lectionaryTable.length) }} 週
+              <span class="wk-lec-nav-page">（{{ lecPage + 1 }} / {{ lecPageCount }}）</span>
+            </span>
+            <button class="wk-lec-nav-btn" :disabled="lecPage >= lecPageCount - 1" @click="lecPage++">&#8250;</button>
+          </div>
         </div>
       </section>
 
@@ -322,6 +330,35 @@ const RCL = {
       { week: 3, label: '第三週（主日）', ot: '徒 2:42-47',         ps: '詩 23',                 ep: '彼前 2:19-25',     gos: '約 10:1-10'  },
       { week: 4, label: '第四週（主日）', ot: '徒 7:55-60',         ps: '詩 31:1-5, 15-16',      ep: '彼前 2:2-10',      gos: '約 14:1-14'  },
     ],
+    pentecost: [
+      { week:  1, label: '聖靈降臨主日',     ot: '徒 2:1-21',               ps: '詩 104:24-34, 35b',     ep: '林前 12:3b-13',         gos: '約 20:19-23'   },
+      { week:  2, label: '三一主日',         ot: '創 1:1-2:4',              ps: '詩 8',                  ep: '林後 13:11-13',         gos: '太 28:16-20'   },
+      { week:  3, label: '第三週（主日）',   ot: '創 6:9-22; 8:14-19',      ps: '詩 46',                 ep: '羅 1:16-17; 3:22b-28',  gos: '太 7:21-29'    },
+      { week:  4, label: '第四週（主日）',   ot: '創 12:1-9',               ps: '詩 33:1-12',            ep: '羅 4:13-25',            gos: '太 9:9-13, 18-26' },
+      { week:  5, label: '第五週（主日）',   ot: '創 18:1-15; 21:1-7',      ps: '詩 116:1-2, 12-19',     ep: '羅 5:1-8',              gos: '太 9:35-10:8'  },
+      { week:  6, label: '第六週（主日）',   ot: '創 21:8-21',              ps: '詩 86:1-10, 16-17',     ep: '羅 6:1b-11',            gos: '太 10:24-39'   },
+      { week:  7, label: '第七週（主日）',   ot: '創 22:1-14',              ps: '詩 13',                 ep: '羅 6:12-23',            gos: '太 10:40-42'   },
+      { week:  8, label: '第八週（主日）',   ot: '創 24:34-38, 42-49, 58-67',ps: '詩 45:10-17',          ep: '羅 7:15-25',            gos: '太 11:16-19, 25-30' },
+      { week:  9, label: '第九週（主日）',   ot: '創 25:19-34',             ps: '詩 119:105-112',        ep: '羅 8:1-11',             gos: '太 13:1-9, 18-23' },
+      { week: 10, label: '第十週（主日）',   ot: '創 28:10-19',             ps: '詩 139:1-12, 23-24',    ep: '羅 8:12-25',            gos: '太 13:24-30, 36-43' },
+      { week: 11, label: '第十一週（主日）', ot: '創 29:15-28',             ps: '詩 105:1-11, 45b',      ep: '羅 8:26-39',            gos: '太 13:31-33, 44-52' },
+      { week: 12, label: '第十二週（主日）', ot: '創 32:22-31',             ps: '詩 17:1-7, 15',         ep: '羅 9:1-5',              gos: '太 14:13-21'   },
+      { week: 13, label: '第十三週（主日）', ot: '創 37:1-4, 12-28',        ps: '詩 105:1-6, 16-22',     ep: '羅 10:5-15',            gos: '太 14:22-33'   },
+      { week: 14, label: '第十四週（主日）', ot: '創 45:1-15',              ps: '詩 133',                ep: '羅 11:1-2, 29-32',      gos: '太 15:10-28'   },
+      { week: 15, label: '第十五週（主日）', ot: '出 1:8-2:10',             ps: '詩 124',                ep: '羅 12:1-8',             gos: '太 16:13-20'   },
+      { week: 16, label: '第十六週（主日）', ot: '出 3:1-15',               ps: '詩 105:1-6, 23-26',     ep: '羅 12:9-21',            gos: '太 16:21-28'   },
+      { week: 17, label: '第十七週（主日）', ot: '出 12:1-14',              ps: '詩 149',                ep: '羅 13:8-14',            gos: '太 18:15-20'   },
+      { week: 18, label: '第十八週（主日）', ot: '出 14:19-31',             ps: '詩 114',                ep: '羅 14:1-12',            gos: '太 18:21-35'   },
+      { week: 19, label: '第十九週（主日）', ot: '出 16:2-15',              ps: '詩 105:1-6, 37-45',     ep: '腓 1:21-30',            gos: '太 20:1-16'    },
+      { week: 20, label: '第二十週（主日）', ot: '出 17:1-7',               ps: '詩 78:1-4, 12-16',      ep: '腓 2:1-13',             gos: '太 21:23-32'   },
+      { week: 21, label: '第二十一週（主日）', ot: '出 20:1-4, 7-9, 12-20', ps: '詩 19',                 ep: '腓 3:4b-14',            gos: '太 21:33-46'   },
+      { week: 22, label: '第二十二週（主日）', ot: '出 32:1-14',            ps: '詩 106:1-6, 19-23',     ep: '腓 4:1-9',              gos: '太 22:1-14'    },
+      { week: 23, label: '第二十三週（主日）', ot: '出 33:12-23',           ps: '詩 99',                 ep: '帖前 1:1-10',           gos: '太 22:15-22'   },
+      { week: 24, label: '第二十四週（主日）', ot: '申 34:1-12',            ps: '詩 90:1-6, 13-17',      ep: '帖前 2:1-8',            gos: '太 22:34-46'   },
+      { week: 25, label: '第二十五週（主日）', ot: '書 3:7-17',             ps: '詩 107:1-7, 33-37',     ep: '帖前 2:9-13',           gos: '太 23:1-12'    },
+      { week: 26, label: '第二十六週（主日）', ot: '書 24:1-3, 14-25',      ps: '詩 78:1-7',             ep: '帖前 4:13-18',          gos: '太 25:1-13'    },
+      { week: 27, label: '基督君王主日',     ot: '結 34:11-16, 20-24',      ps: '詩 100',                ep: '弗 1:15-23',            gos: '太 25:31-46'   },
+    ],
   },
   B: {
     advent: [
@@ -458,6 +495,13 @@ const RCL = {
 }
 
 const lectionaryTable = computed(() => RCL[yearParam]?.[season] ?? [])
+
+const lecPage = ref(Math.max(0, Math.floor((week - 1) / 4)))
+const lecPageCount = computed(() => Math.ceil(lectionaryTable.value.length / 4))
+const pagedLectionaryTable = computed(() => {
+  const start = lecPage.value * 4
+  return lectionaryTable.value.slice(start, start + 4)
+})
 
 const yearLabel = YEAR_LABELS[yearParam] || yearParam
 const seasonColor = SEASON_COLORS[season] || SEASON_COLORS.pentecost
@@ -843,6 +887,30 @@ function renderKeyVerse(text) {
   color: #2C2C2C;
 }
 .wk-lec-table td:first-child { white-space: nowrap; color: #7A7268; font-size: 0.78rem; }
+
+.wk-lec-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  padding: 0.8rem 0 0.2rem;
+}
+.wk-lec-nav-btn {
+  background: none;
+  border: 1px solid #C8C0B0;
+  border-radius: 4px;
+  width: 2rem;
+  height: 2rem;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: #6B6050;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.wk-lec-nav-btn:hover:not(:disabled) { background: #EDE8E0; }
+.wk-lec-nav-btn:disabled { opacity: 0.3; cursor: default; }
+.wk-lec-nav-label { font-size: 0.85rem; color: #5A5040; }
+.wk-lec-nav-page { color: #9A9080; margin-left: 0.3em; }
 
 .wk-essay { background-color: #F2EFE9; border-top: 1px solid #DDD8CF; }
 .wk-essay-inner { max-width: 720px; margin: 0 auto; padding: 2rem 40px; }
