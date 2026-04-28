@@ -570,21 +570,22 @@ function onKeydown(e) {
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
-const selectedYearSlot = computed(() => {
+// 單次計算，供 slot、weekExistsInYear、dateRangeLabel 共用
+const _yearSlotData = computed(() => {
   const slots = getChurchYearSundays(selectedChurchYear.value)
-  return slots.find(s => s.season === season && s.week === week) ?? null
+  const idx   = slots.findIndex(s => s.season === season && s.week === week)
+  return { slots, idx, slot: idx >= 0 ? slots[idx] : null }
 })
 
-const weekExistsInYear = computed(() => {
-  const s = selectedYearSlot.value
-  return s ? !s.optional : true // 若 RCL 無此節期，預設顯示（不判斷）
+const selectedYearSlot  = computed(() => _yearSlotData.value.slot)
+const weekExistsInYear  = computed(() => {
+  const s = _yearSlotData.value.slot
+  return s ? !s.optional : true
 })
 
 const dateRangeLabel = computed(() => {
-  const s = selectedYearSlot.value
+  const { slots, idx, slot: s } = _yearSlotData.value
   if (!s || !s.sunday) return ''
-  const slots = getChurchYearSundays(selectedChurchYear.value)
-  const idx = slots.indexOf(s)
   const nextSun = slots.slice(idx + 1).find(x => x.sunday)?.sunday
   const end = nextSun
     ? new Date(nextSun.getTime() - 86400000)
