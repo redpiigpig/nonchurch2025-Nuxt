@@ -344,6 +344,9 @@ const RCL = {
       { week: 2, label: '第二週（主日）', ot: '徒 2:14, 36-41',     ps: '詩 116:1-4, 12-19',     ep: '彼前 1:17-23',     gos: '路 24:13-35' },
       { week: 3, label: '第三週（主日）', ot: '徒 2:42-47',         ps: '詩 23',                 ep: '彼前 2:19-25',     gos: '約 10:1-10'  },
       { week: 4, label: '第四週（主日）', ot: '徒 7:55-60',         ps: '詩 31:1-5, 15-16',      ep: '彼前 2:2-10',      gos: '約 14:1-14'  },
+      { week: 5, label: '第五週（主日）', ot: '徒 17:22-31',        ps: '詩 66:8-20',            ep: '彼前 3:13-22',     gos: '約 14:15-21' },
+      { week: 6, label: '第六週（主日）', ot: '徒 1:1-11',          ps: '詩 47',                 ep: '弗 1:15-23',       gos: '路 24:44-53' },
+      { week: 7, label: '第七週（主日）', ot: '徒 1:6-14',          ps: '詩 68:1-10, 32-35',     ep: '彼前 4:12-14; 5:6-11', gos: '約 17:1-11' },
     ],
     pentecost: [
       { week:  1, label: '聖靈降臨主日',     ot: '徒 2:1-21',               ps: '詩 104:24-34, 35b',     ep: '林前 12:3b-13',         gos: '約 20:19-23'   },
@@ -510,13 +513,21 @@ const RCL = {
   },
 }
 
-const lectionaryTable = computed(() => RCL[yearParam]?.[season] ?? [])
+// 依所選年度過濾：optional 的週次（如某年聖誕期只有一週）不顯示
+const lectionaryTable = computed(() => {
+  const allRows = RCL[yearParam]?.[season] ?? []
+  const yearSlots = getChurchYearSundays(selectedChurchYear.value)
+  return allRows.filter(row => {
+    const slot = yearSlots.find(s => s.season === season && s.week === row.week)
+    return !slot?.optional
+  })
+})
 
 const lecPage = ref(Math.max(0, Math.floor((week - 1) / 4)))
 const lecPageCount = computed(() => Math.ceil(lectionaryTable.value.length / 4))
 const pagedLectionaryTable = computed(() => {
-  const start = lecPage.value * 4
-  return lectionaryTable.value.slice(start, start + 4)
+  const page = Math.min(lecPage.value, Math.max(0, lecPageCount.value - 1))
+  return lectionaryTable.value.slice(page * 4, page * 4 + 4)
 })
 
 const yearLabel = YEAR_LABELS[yearParam] || yearParam
