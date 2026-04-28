@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
 pong_fix_2013_transcripts.py
-本地整理 2013 年講道逐字稿：
-  - opencc 簡體 → 繁體（台灣慣用詞）
-  - 自然分段
-  - 加上「龐君華牧師：」首行
-  - 更新 pong_media.transcript、pong_sermons.content、pong_sermons.preacher
+整理講道逐字稿完整管線：
+  1. opencc 簡體 → 繁體（台灣慣用詞）
+  2. 移除 FFFD 亂碼字元
+  3. AI 裁切（year >= 2014）：呼叫 Gemini 自動去除完整禮拜中的非講道部分
+  4. 自然分段
+  5. 加上「龐君華牧師：」首行
+  6. 更新 pong_media.transcript、pong_sermons.content、pong_sermons.preacher
 
 用法：
   python scripts/pong_fix_2013_transcripts.py [--dry-run] [--id MEDIA_ID] [--force] [--year 2013]
@@ -35,6 +37,39 @@ PREACHER = '龐君華牧師'
 HEADER = '龐君華牧師：'
 
 _converter = opencc.OpenCC('s2twp')
+
+# ── Gemini AI 講道裁切 ─────────────────────────────────────
+_GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+_EXTRACT_PROMPT = (
+    '以下是完整主日崇拜逐字稿，包含詩歌、讀經、禱告、講道、結尾等段落。\n'
+    '請只保留「講道」部分：從講道員開始講解聖經或主題，到講道結尾禱告「阿門」為止。\n'
+    '去掉所有講道以外的內容（開場詩、詩班、讀經、公禱、奉獻、三一頌、閉幕詩等）。\n'
+    '只回傳提取的講道文字，不加任何說明、標記或引號。\n\n'
+    '逐字稿：\n'
+)
+
+
+def extract_sermon_only(text: str) -> str:
+    """呼叫 Gemini 從完整崇拜逐字稿中自動提取講道部分"""
+    api_key = os.environ.get('VITE_GEMINI_API_KEY', '')
+    if not api_key:
+        print('  [WARN] 無 VITE_GEMINI_API_KEY，略過 AI 裁切', file=sys.stderr)
+        return text
+    try:
+        r = requests.post(
+            _GEMINI_URL,
+            params={'key': api_key},
+            json={'contents': [{'parts': [{'text': _EXTRACT_PROMPT + text}]}]},
+            timeout=90,
+        )
+        r.raise_for_status()
+        extracted = r.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+        if len(extracted) > 200:
+            return extracted
+        print('  [WARN] AI 回傳文字過短，使用原始逐字稿', file=sys.stderr)
+    except Exception as e:
+        print(f'  [WARN] AI 裁切失敗：{e}，使用原始逐字稿', file=sys.stderr)
+    return text
 
 # 話題轉折詞，出現時考慮在此分段
 TOPIC_RE = re.compile(
@@ -90,27 +125,33 @@ def split_into_paragraphs(text: str) -> str:
     return '\n\n'.join(paras)
 
 
-def process_transcript(transcript: str) -> str:
-    """完整整理流程：SC→TC → 移除FFFD → 分段 → 加首行標記"""
+def process_transcript(transcript: str, do_extract: bool = False) -> str:
+    """完整整理流程：SC→TC → 移除FFFD → [AI裁切] → 分段 → 加首行標記"""
     text = transcript.strip()
 
-    # SC→TC
+    # 1. SC→TC
     if has_simplified(text):
         text = sc_to_tc(text)
 
-    # 移除 FFFD
+    # 2. 移除 FFFD
     text, fffd_count = clean_fffd(text)
     if fffd_count:
         print(f'  [FFFD] 移除 {fffd_count} 個亂碼字元', file=sys.stderr)
+
+    # 3. AI 裁切（完整崇拜錄影 → 只保留講道）
+    if do_extract:
+        before = len(text)
+        print('  [AI] 裁切講道部分中...', file=sys.stderr)
+        text = extract_sermon_only(text)
+        print(f'  [AI] 裁切前 {before} → 後 {len(text)} 字', file=sys.stderr)
 
     # 如果已有 龐君華牧師 開頭，先去掉，稍後統一加回
     if text.startswith(HEADER):
         text = text[len(HEADER):].lstrip('\n')
 
-    # 判斷是否已有自然段落（段落數 ≥ 3 就不重新分段）
+    # 4. 判斷是否已有自然段落（段落數 ≥ 3 就不重新分段）
     existing_paras = [p for p in text.split('\n\n') if p.strip()]
     if len(existing_paras) >= 3:
-        # 只是合併確保格式統一
         final_body = '\n\n'.join(existing_paras)
     else:
         final_body = split_into_paragraphs(text)
@@ -172,7 +213,13 @@ def main():
     parser.add_argument('--id', help='只處理指定 media id')
     parser.add_argument('--force', action='store_true', help='強制重新整理所有逐字稿')
     parser.add_argument('--year', type=int, default=2013, help='處理哪一年（預設 2013）')
+    parser.add_argument('--no-extract', action='store_true', help='強制停用 AI 裁切（即使 year >= 2014）')
     args = parser.parse_args()
+
+    # 2014 年起為完整禮拜錄影，自動啟用 AI 裁切
+    do_extract = (args.year >= 2014) and not args.no_extract
+    if do_extract:
+        print(f'[AI 裁切] year={args.year}，自動啟用 Gemini 講道裁切', file=sys.stderr)
 
     entries = get_all_media(args.year)
     if args.id:
@@ -216,7 +263,7 @@ def main():
             ok += 1
             continue
 
-        fixed = process_transcript(transcript)
+        fixed = process_transcript(transcript, do_extract=do_extract)
         print(f'  → {len(transcript)} → {len(fixed)} 字', file=sys.stderr)
 
         if args.dry_run:
