@@ -195,6 +195,33 @@ def link_sermon(sermon_id, media_id, title, content):
     )
 
 
+def insert_sermon(date_str, title):
+    """若 pong_sermons 沒有該日期，建立新記錄"""
+    year = int(date_str[:4])
+    month = int(date_str[5:7])
+    # 教會年：12 月起算為新年（將臨期）
+    church_year = year if month == 12 else year - 1
+    # 以日期 YYYYMMDD 作為 ID
+    sermon_id = int(date_str.replace('-', ''))
+    r = requests.post(
+        f'{_sb_url()}/rest/v1/pong_sermons',
+        headers=_sb_headers(),
+        json={
+            'id': sermon_id,
+            'sermon_date': date_str,
+            'title': title,
+            'church_year': church_year,
+            'preacher': '龐君華牧師',
+            'location': '城中教會',
+            'is_published': False,
+        },
+    )
+    if r.status_code in (200, 201):
+        return r.json()[0]['id']
+    # 衝突（已存在）直接查回來
+    return sermon_id
+
+
 #  批次檔案解析
 
 def parse_batch_file(path):
@@ -219,7 +246,7 @@ def parse_batch_file(path):
         m = re.match(r'^(\d{4}-\d{2}-\d{2})\s+(.*)', line)
         if m:
             date = m.group(1)
-            title = m.group(2).strip()
+            title = re.sub(r'\.mpg|\.mp4|\.avi|\.mov', '', m.group(2).strip())
             # 下一行應為 URL
             j = i + 1
             while j < len(lines) and not lines[j].strip():
@@ -263,7 +290,10 @@ def process_single(url, date_override, title_override, lang, auto_yes):
             print(f'[SKIP] 此講道已有 media_id={sermon["media_id"]}，跳過。')
             return False
     else:
-        print(f'\n[DB] 未找到 {date} 的講道記錄，將只建立 pong_media（不連結）。')
+        print(f'\n[DB] 未找到 {date} 的講道記錄，自動建立 pong_sermons...')
+        new_id = insert_sermon(date, title)
+        sermon = {'id': new_id, 'title': title, 'sermon_date': date, 'media_id': None, 'content': None}
+        print(f'[DB] 已建立 pong_sermons id={new_id}')
 
     # 下載音訊 + 轉錄
     with tempfile.TemporaryDirectory() as tmpdir:
