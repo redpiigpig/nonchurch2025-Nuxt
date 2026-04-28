@@ -88,6 +88,22 @@
       </div>
     </section>
 
+    <!-- Team credits -->
+    <footer class="do-credits">
+      <div class="do-credits-inner">
+        <div class="do-credits-grid">
+          <div class="do-credit-row"><span class="do-credit-role">內容原稿</span><span class="do-credit-names">龐君華</span></div>
+          <div class="do-credit-row"><span class="do-credit-role">文字工作</span><span class="do-credit-names">邱泰耀、褚秀玲、鄭沂珊</span></div>
+          <div class="do-credit-row"><span class="do-credit-role">影音工作</span><span class="do-credit-names">蕭曉玲、呂華光、褚秀玲</span></div>
+          <div class="do-credit-row"><span class="do-credit-role">後勤協作</span><span class="do-credit-names">蕭毓蓉</span></div>
+          <div class="do-credit-row"><span class="do-credit-role">封面設計</span><span class="do-credit-names">王柏欽</span></div>
+          <div class="do-credit-row"><span class="do-credit-role">整合執行</span><span class="do-credit-names">陳繼賢、張芝嘉</span></div>
+        </div>
+        <p class="do-credits-site-label">官方網站</p>
+        <a href="https://www.1day3read3pray.com/" target="_blank" rel="noopener" class="do-credits-link">www.1day3read3pray.com</a>
+      </div>
+    </footer>
+
   </div>
 </template>
 
@@ -321,11 +337,33 @@ function onSliceClick(slot, yearEn) {
 .do-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .do-legend-name { font-size: 0.75rem; font-weight: 300; color: #7A7268; letter-spacing: 0.06em; }
 
+/* ── Team credits ─────────────────────────────────────────── */
+.do-credits { border-top: 1px solid #E8E4DC; background: #F2EFE9; }
+.do-credits-inner { max-width: 720px; margin: 0 auto; padding: 40px 40px 48px; text-align: center; }
+.do-credits-grid { display: grid; grid-template-columns: auto auto; gap: 6px 20px; width: fit-content; margin: 0 auto 24px; text-align: left; }
+.do-credit-row { display: contents; }
+.do-credit-role { font-size: 0.7rem; font-weight: 500; color: #9A9080; letter-spacing: 0.12em; padding-top: 2px; white-space: nowrap; }
+.do-credit-names { font-family: 'Noto Serif TC', serif; font-size: 0.85rem; color: #5A5040; letter-spacing: 0.04em; line-height: 1.8; }
+.do-credits-site-label { font-size: 0.65rem; font-weight: 500; color: #9A9080; letter-spacing: 0.18em; text-transform: uppercase; margin: 0 0 6px; }
+.do-credits-link {
+  display: inline-block;
+  font-size: 0.78rem;
+  color: #7A7268;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  border-bottom: 1px solid #C8C0B0;
+  padding-bottom: 1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+.do-credits-link:hover { color: #3A3025; border-color: #3A3025; }
+
 /* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 768px) {
   .do-wheels-grid { grid-template-columns: 1fr; gap: 40px; }
   .do-wheel-container { max-width: 280px; }
   .do-topbar { padding: 16px 20px; }
   .do-today-inner { padding: 32px 20px; }
+  .do-credits-inner { padding: 32px 20px 40px; }
+  .do-credits-grid { gap: 4px 14px; }
 }
 </style>

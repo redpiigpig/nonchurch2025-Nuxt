@@ -3,14 +3,6 @@
     <header class="pa-header" :class="{ 'pa-header--editing': isEditing }">
       <div class="pa-header-inner">
 
-        <!-- 左：返回主站 -->
-        <div class="pa-site-label">
-          <NuxtLink to="/" class="pa-back-link" title="返回主站">
-            <span class="pa-back-arrow">←</span>
-            <span class="pa-back-text">返回主站</span>
-          </NuxtLink>
-        </div>
-
         <!-- 中：典藏名稱 -->
         <div class="pa-title-group">
           <span class="pa-logo-cross" aria-hidden="true">✝</span>
@@ -303,35 +295,24 @@ onMounted(() => {
 }
 
 .pa-header-inner {
+  position: relative;
   max-width: 1100px;
   margin: 0 auto;
   height: 64px;
   display: flex;
   align-items: center;
-  gap: 24px;
+  justify-content: flex-end;
 }
-
-.pa-site-label { flex: 1; }
-
-.pa-back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #7A7268;
-  text-decoration: none;
-  font-size: 0.8rem;
-  letter-spacing: 0.06em;
-  transition: color 0.2s ease;
-  white-space: nowrap;
-}
-.pa-back-link:hover { color: #4A4540; }
-.pa-back-arrow { font-size: 0.9rem; line-height: 1; }
 
 .pa-title-group {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 10px;
   white-space: nowrap;
+  pointer-events: none;
 }
 .pa-logo-cross {
   font-size: 1rem;

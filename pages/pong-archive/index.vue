@@ -128,7 +128,29 @@
           <span class="pa-card-arrow">→</span>
         </NuxtLink>
 
-        <!-- 6. 照片錦集 -->
+        <!-- 6. 相關報導 -->
+        <NuxtLink to="/pong-archive/reports" class="pa-card pa-card--reports">
+          <div class="pa-card-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <rect x="6" y="8" width="36" height="32" rx="3" stroke="currentColor" stroke-width="2" fill="none"/>
+              <rect x="12" y="14" width="10" height="10" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+              <line x1="26" y1="15" x2="36" y2="15" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="26" y1="20" x2="36" y2="20" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="12" y1="29" x2="36" y2="29" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="12" y1="34" x2="28" y2="34" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="pa-card-body">
+            <span class="pa-card-en">Press &amp; Reports</span>
+            <h2 class="pa-card-title">相關報導</h2>
+            <p class="pa-card-desc">
+              收錄各方媒體對龐會督事奉生涯的相關採訪、報導與評論，見證其影響廣及教會與社會。
+            </p>
+          </div>
+          <span class="pa-card-arrow">→</span>
+        </NuxtLink>
+
+        <!-- 7. 照片錦集 -->
         <NuxtLink to="/pong-archive/photos" class="pa-card pa-card--photos">
           <div class="pa-card-icon">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

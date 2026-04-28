@@ -80,25 +80,61 @@
     </section>
 
     <!-- ── Service Team ────────────────────────────────────── -->
-    <section v-if="isEditing || sermon.preacher || sermon.worship_leader || sermon.worship_team" class="sd-section sd-section--team">
+    <section v-if="isEditing || hasAnyTeamField" class="sd-section sd-section--team">
       <div class="sd-section-inner">
         <h2 class="sd-section-title">服事團隊</h2>
         <div class="sd-team-grid">
-          <div v-if="isEditing || sermon.preacher" class="sd-team-item">
-            <span class="sd-team-label">證道</span>
-            <input v-if="isEditing" v-model="local.preacher" class="sd-team-value sd-input" placeholder="證道者" @input="save('preacher', local.preacher)" />
-            <span v-else class="sd-team-value">{{ sermon.preacher }}</span>
-          </div>
-          <div v-if="isEditing || sermon.worship_leader" class="sd-team-item">
-            <span class="sd-team-label">司會</span>
-            <input v-if="isEditing" v-model="local.worship_leader" class="sd-team-value sd-input" placeholder="司會" @input="save('worship_leader', local.worship_leader)" />
-            <span v-else class="sd-team-value">{{ sermon.worship_leader }}</span>
-          </div>
-          <div v-if="isEditing || sermon.worship_team" class="sd-team-item">
-            <span class="sd-team-label">敬拜</span>
-            <input v-if="isEditing" v-model="local.worship_team" class="sd-team-value sd-input" placeholder="敬拜團隊" @input="save('worship_team', local.worship_team)" />
-            <span v-else class="sd-team-value">{{ sermon.worship_team }}</span>
-          </div>
+          <!-- 城中教會：主禮 / 證道 / 司會 / 讀經 / 領唱 / 獻詩 -->
+          <template v-if="isChengzhong">
+            <div v-if="isEditing || sermon.officiant" class="sd-team-item">
+              <span class="sd-team-label">主禮</span>
+              <input v-if="isEditing" v-model="local.officiant" class="sd-team-value sd-input" placeholder="主禮" @input="save('officiant', local.officiant)" />
+              <span v-else class="sd-team-value">{{ sermon.officiant }}</span>
+            </div>
+            <div v-if="isEditing || sermon.preacher" class="sd-team-item">
+              <span class="sd-team-label">證道</span>
+              <input v-if="isEditing" v-model="local.preacher" class="sd-team-value sd-input" placeholder="證道者" @input="save('preacher', local.preacher)" />
+              <span v-else class="sd-team-value">{{ sermon.preacher }}</span>
+            </div>
+            <div v-if="isEditing || sermon.worship_leader" class="sd-team-item">
+              <span class="sd-team-label">司會</span>
+              <input v-if="isEditing" v-model="local.worship_leader" class="sd-team-value sd-input" placeholder="司會" @input="save('worship_leader', local.worship_leader)" />
+              <span v-else class="sd-team-value">{{ sermon.worship_leader }}</span>
+            </div>
+            <div v-if="isEditing || sermon.scripture_reader" class="sd-team-item">
+              <span class="sd-team-label">讀經</span>
+              <input v-if="isEditing" v-model="local.scripture_reader" class="sd-team-value sd-input" placeholder="讀經" @input="save('scripture_reader', local.scripture_reader)" />
+              <span v-else class="sd-team-value">{{ sermon.scripture_reader }}</span>
+            </div>
+            <div v-if="isEditing || sermon.song_leader" class="sd-team-item">
+              <span class="sd-team-label">領唱</span>
+              <input v-if="isEditing" v-model="local.song_leader" class="sd-team-value sd-input" placeholder="領唱" @input="save('song_leader', local.song_leader)" />
+              <span v-else class="sd-team-value">{{ sermon.song_leader }}</span>
+            </div>
+            <div v-if="isEditing || sermon.choir" class="sd-team-item">
+              <span class="sd-team-label">獻詩</span>
+              <input v-if="isEditing" v-model="local.choir" class="sd-team-value sd-input" placeholder="獻詩" @input="save('choir', local.choir)" />
+              <span v-else class="sd-team-value">{{ sermon.choir }}</span>
+            </div>
+          </template>
+          <!-- 其他教會：證道 / 司會 / 敬拜 -->
+          <template v-else>
+            <div v-if="isEditing || sermon.preacher" class="sd-team-item">
+              <span class="sd-team-label">證道</span>
+              <input v-if="isEditing" v-model="local.preacher" class="sd-team-value sd-input" placeholder="證道者" @input="save('preacher', local.preacher)" />
+              <span v-else class="sd-team-value">{{ sermon.preacher }}</span>
+            </div>
+            <div v-if="isEditing || sermon.worship_leader" class="sd-team-item">
+              <span class="sd-team-label">司會</span>
+              <input v-if="isEditing" v-model="local.worship_leader" class="sd-team-value sd-input" placeholder="司會" @input="save('worship_leader', local.worship_leader)" />
+              <span v-else class="sd-team-value">{{ sermon.worship_leader }}</span>
+            </div>
+            <div v-if="isEditing || sermon.worship_team" class="sd-team-item">
+              <span class="sd-team-label">敬拜</span>
+              <input v-if="isEditing" v-model="local.worship_team" class="sd-team-value sd-input" placeholder="敬拜團隊" @input="save('worship_team', local.worship_team)" />
+              <span v-else class="sd-team-value">{{ sermon.worship_team }}</span>
+            </div>
+          </template>
         </div>
       </div>
     </section>
@@ -238,6 +274,16 @@ function autoResize(el) {
   el.style.height = el.scrollHeight + 'px'
 }
 
+// ── Location helpers ─────────────────────────────────────────
+const isChengzhong = computed(() => (sermon.value?.location || '').includes('城中教會'))
+const hasAnyTeamField = computed(() => {
+  const s = sermon.value
+  if (!s) return false
+  return isChengzhong.value
+    ? s.officiant || s.preacher || s.worship_leader || s.scripture_reader || s.song_leader || s.choir
+    : s.preacher || s.worship_leader || s.worship_team
+})
+
 // ── Scripture readings ───────────────────────────────────────
 const scriptureReadings = computed(() => {
   const r = sermon.value?.scripture_readings
@@ -277,8 +323,8 @@ function onSongsInput(e) {
 }
 
 // ── Content paragraphs ───────────────────────────────────────
-// Any line starting with 1-12 chars then ： is treated as a speaker label
-const SPEAKER_RE = /^(.{1,12})：(.*)/
+// Any line starting with 1-8 chars then ： is treated as a speaker label
+const SPEAKER_RE = /^(.{1,8})：(.*)/
 
 function normalizeSpeakerName(name) {
   return name.replace(/^李牧師$/, '李信政牧師')

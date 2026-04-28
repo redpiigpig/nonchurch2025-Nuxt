@@ -1395,7 +1395,7 @@ h2 {
 /* ── 龐會督典藏入口橫幅 ─────────────────────────────── */
 .pong-archive-banner {
   padding: 0;
-  margin: 0 0 2rem 0;
+  margin: 0 30px 2rem 30px;
 }
 .pong-archive-banner__inner {
   display: flex;

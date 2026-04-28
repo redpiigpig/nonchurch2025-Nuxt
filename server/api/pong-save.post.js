@@ -8,7 +8,12 @@ const ALLOWED_TABLES = [
   'pong_daily_office',
   'pong_photos',
   'pong_remembrance',
+  'pong_lectionary_weeks',
+  'pong_lectionary_days',
 ]
+
+// Tables that don't have an updated_at column
+const NO_TIMESTAMP = new Set(['pong_lectionary_weeks', 'pong_lectionary_days'])
 
 export default defineEventHandler(async (event) => {
   const { table, id, fields } = await readBody(event)
@@ -24,9 +29,13 @@ export default defineEventHandler(async (event) => {
     process.env.SUPABASE_SERVICE_KEY,
   )
 
+  const payload = NO_TIMESTAMP.has(table)
+    ? { ...fields }
+    : { ...fields, updated_at: new Date().toISOString() }
+
   const { error } = await supabase
     .from(table)
-    .update({ ...fields, updated_at: new Date().toISOString() })
+    .update(payload)
     .eq('id', id)
 
   if (error) throw createError({ statusCode: 500, message: error.message })

@@ -22,7 +22,7 @@
         <NuxtLink
           v-for="item in interviews"
           :key="item.id"
-          :to="`/pong-archive/media/${item.broadcast_date}`"
+          :to="`/pong-archive/media/${item.id}`"
           class="mi-card"
         >
           <div class="mi-thumb">
@@ -74,7 +74,7 @@
         <NuxtLink
           v-for="item in talks"
           :key="item.id"
-          :to="`/pong-archive/media/${item.broadcast_date}`"
+          :to="`/pong-archive/media/${item.id}`"
           class="mi-card"
         >
           <div class="mi-thumb">
@@ -111,6 +111,48 @@
       </div>
     </section>
 
+    <!-- ── 短影音 ──────────────────────────────────────────────── -->
+    <section class="mi-section">
+      <h2 class="mi-section-heading">
+        <span class="mi-section-zh">短影音</span>
+        <span class="mi-section-en">Short Clips</span>
+      </h2>
+
+      <div v-if="shorts.length" class="mi-shorts-grid">
+        <NuxtLink
+          v-for="item in shorts"
+          :key="item.id"
+          :to="`/pong-archive/media/${item.id}`"
+          class="mi-short-card"
+        >
+          <div class="mi-short-thumb">
+            <img
+              v-if="item.youtube_id"
+              :src="`https://img.youtube.com/vi/${item.youtube_id}/mqdefault.jpg`"
+              :alt="item.title"
+              loading="lazy"
+            />
+            <div v-else class="mi-thumb-placeholder">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="6" y="12" width="36" height="26" rx="3" stroke="currentColor" stroke-width="2" fill="none"/>
+                <polygon points="20,19 20,31 33,25" fill="currentColor" opacity="0.5"/>
+              </svg>
+            </div>
+            <div class="mi-play-badge">▶</div>
+          </div>
+          <div class="mi-short-body">
+            <span v-if="item.broadcast_date" class="mi-date">{{ formatDate(item.broadcast_date) }}</span>
+            <h3 class="mi-short-title">{{ item.title }}</h3>
+            <p v-if="item.description" class="mi-card-desc">{{ item.description }}</p>
+          </div>
+        </NuxtLink>
+      </div>
+
+      <div v-else class="mi-empty">
+        <p>尚無短影音資料。</p>
+      </div>
+    </section>
+
   </div>
 </template>
 
@@ -140,6 +182,9 @@ const interviews = computed(() =>
 )
 const talks = computed(() =>
   (items.value || []).filter(i => i.media_type === 'talk')
+)
+const shorts = computed(() =>
+  (items.value || []).filter(i => i.media_type === 'short')
 )
 
 function formatDate(d) {
@@ -376,11 +421,65 @@ function formatDate(d) {
   letter-spacing: 0.06em;
 }
 
+/* ── Shorts Grid ─────────────────────────────────────────── */
+.mi-shorts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.mi-short-card {
+  display: flex;
+  flex-direction: column;
+  background-color: #F2EFE9;
+  border: 1px solid #DDD8CF;
+  border-radius: 4px;
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.mi-short-card:hover {
+  border-color: #C4B89A;
+  box-shadow: 0 4px 16px rgba(60,50,40,0.08);
+  transform: translateY(-2px);
+}
+
+.mi-short-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  background-color: #E0DBD1;
+  overflow: hidden;
+}
+.mi-short-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mi-short-body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mi-short-title {
+  font-family: 'Noto Serif TC', serif;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #3A3025;
+  letter-spacing: 0.05em;
+  margin: 0;
+  line-height: 1.5;
+}
+
 /* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 640px) {
   .mi-topbar, .mi-section { padding: 16px 20px; }
   .mi-header { padding: 40px 20px 28px; }
   .mi-thumb { width: 100px; height: 56px; }
   .mi-card { gap: 14px; }
+  .mi-shorts-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
 </style>

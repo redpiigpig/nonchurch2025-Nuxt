@@ -41,10 +41,11 @@
     <template v-else>
 
       <!-- Intro letter -->
-      <section v-if="weekData.intro_letter" class="wk-intro">
+      <section v-if="weekData.intro_letter || editMode" class="wk-intro">
         <div class="wk-intro-inner">
           <p class="wk-section-label">本週靈修引言</p>
-          <div class="wk-intro-body" v-html="renderBody(weekData.intro_letter)"></div>
+          <div v-if="!editMode" class="wk-intro-body" v-html="renderBody(weekData.intro_letter)"></div>
+          <textarea v-else class="wk-edit-area wk-edit-area--tall" :value="weekData.intro_letter || ''" @blur="onWeekBlur($event, 'intro_letter')" placeholder="本週靈修引言…"></textarea>
         </div>
       </section>
 
@@ -81,11 +82,19 @@
       </section>
 
       <!-- Theme essay -->
-      <section v-if="weekData.theme_essay" class="wk-essay">
+      <section v-if="weekData.theme_essay || editMode" class="wk-essay">
         <div class="wk-essay-inner">
           <p class="wk-section-label">主題默想</p>
-          <h2 v-if="weekData.theme_essay_title" class="wk-essay-title" v-html="essayTitleHtml"></h2>
-          <div class="wk-essay-body" v-html="renderBody(weekData.theme_essay)"></div>
+          <template v-if="!editMode">
+            <h2 v-if="weekData.theme_essay_title" class="wk-essay-title" v-html="essayTitleHtml"></h2>
+            <div class="wk-essay-body" v-html="renderBody(weekData.theme_essay)"></div>
+          </template>
+          <template v-else>
+            <p class="wk-edit-field-label">標題</p>
+            <textarea class="wk-edit-area wk-edit-area--sm" :value="weekData.theme_essay_title || ''" @blur="onWeekBlur($event, 'theme_essay_title')" placeholder="主題默想標題…"></textarea>
+            <p class="wk-edit-field-label">內文</p>
+            <textarea class="wk-edit-area wk-edit-area--tall" :value="weekData.theme_essay || ''" @blur="onWeekBlur($event, 'theme_essay')" placeholder="主題默想內文…"></textarea>
+          </template>
         </div>
       </section>
 
@@ -129,17 +138,36 @@
               </button>
 
               <div v-if="openReadings[ri]" class="wk-reading-body">
-                <!-- 1. 經文 -->
-                <div v-if="reading.text" class="wk-scripture" v-html="renderScripture(reading.text)"></div>
-                <!-- 2. 默想 -->
-                <div v-if="reading.meditation" class="wk-meditation">
-                  <p class="wk-meditation-label">默想</p>
-                  <div v-html="renderPara(reading.meditation)"></div>
+                <!-- 讀 -->
+                <div class="wk-rp-section wk-rp-section--read">
+                  <span class="wk-rp-label">經文</span>
+                  <div class="wk-rp-content">
+                    <template v-if="!editMode">
+                      <div v-if="reading.text" class="wk-scripture" v-html="renderScripture(reading.text)"></div>
+                    </template>
+                    <textarea v-else class="wk-edit-area wk-edit-area--tall" :value="reading.text || ''" @blur="onReadingBlur($event, currentDay, ri, 'text')" placeholder="經文…"></textarea>
+                  </div>
                 </div>
-                <!-- 3. 金句（默想之後） -->
-                <div v-if="reading.key_verse" class="wk-key-verse">
-                  <span class="wk-key-verse-label">金句</span>
-                  <blockquote class="wk-key-verse-text" v-html="renderKeyVerse(reading.key_verse)"></blockquote>
+                <!-- 禱 -->
+                <div class="wk-rp-section">
+                  <span class="wk-rp-label">祈禱</span>
+                  <div class="wk-rp-content">
+                    <template v-if="!editMode">
+                      <div v-if="reading.meditation" class="wk-meditation">
+                        <div v-html="renderPara(reading.meditation)"></div>
+                      </div>
+                      <div v-if="reading.key_verse" class="wk-key-verse">
+                        <span class="wk-key-verse-label">金句</span>
+                        <blockquote class="wk-key-verse-text" v-html="renderKeyVerse(reading.key_verse)"></blockquote>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <p class="wk-edit-field-label">默想</p>
+                      <textarea class="wk-edit-area wk-edit-area--tall" :value="reading.meditation || ''" @blur="onReadingBlur($event, currentDay, ri, 'meditation')" placeholder="默想…"></textarea>
+                      <p class="wk-edit-field-label">金句</p>
+                      <textarea class="wk-edit-area wk-edit-area--sm" :value="reading.key_verse || ''" @blur="onReadingBlur($event, currentDay, ri, 'key_verse')" placeholder="金句…"></textarea>
+                    </template>
+                  </div>
                 </div>
               </div>
             </div>
@@ -147,23 +175,68 @@
         </div>
       </section>
 
-      <!-- Appendices -->
-      <section v-if="weekData.appendices?.length" class="wk-appendices">
+      <!-- Liturgy Appendices (optional, e.g. 點燭儀式) -->
+      <section v-if="liturgyAppendices.length" class="wk-appendices">
         <div class="wk-appendices-inner">
-          <div v-for="(app, i) in weekData.appendices" :key="i" class="wk-appendix">
-            <h3 v-if="app.title" class="wk-appendix-title">{{ app.title }}</h3>
-            <div v-if="app.body" class="wk-appendix-body" v-html="isHtml(app.body) ? app.body : renderPara(app.body)"></div>
+          <p class="wk-section-label">附註</p>
+          <div v-for="app in liturgyAppendices" :key="'lit-' + app._idx" class="wk-appendix">
+            <template v-if="editMode">
+              <p class="wk-edit-field-label">附錄標題</p>
+              <textarea class="wk-edit-area wk-edit-area--sm" :value="app.title || ''" @blur="onAppendixBlur($event, app._idx, 'title')" placeholder="標題…"></textarea>
+              <p class="wk-edit-field-label">附錄內文</p>
+              <textarea class="wk-edit-area wk-edit-area--tall" :value="app.body || ''" @blur="onAppendixBlur($event, app._idx, 'body')" placeholder="附錄內文…"></textarea>
+            </template>
+            <template v-else>
+              <h3 v-if="app.title" class="wk-appendix-title">{{ app.title }}</h3>
+              <div v-if="app.body" class="wk-appendix-body" v-html="isHtml(app.body) ? app.body : renderPara(app.body)"></div>
+            </template>
+          </div>
+        </div>
+      </section>
+
+      <!-- Discussion (本週小組討論) -->
+      <section v-if="discussionAppendices.length" class="wk-discussion">
+        <div class="wk-discussion-inner">
+          <div v-for="app in discussionAppendices" :key="'disc-' + app._idx" class="wk-appendix">
+            <template v-if="editMode">
+              <p class="wk-edit-field-label">討論標題</p>
+              <textarea class="wk-edit-area wk-edit-area--sm" :value="app.title || ''" @blur="onAppendixBlur($event, app._idx, 'title')" placeholder="標題…"></textarea>
+              <p class="wk-edit-field-label">討論內文</p>
+              <textarea class="wk-edit-area wk-edit-area--tall" :value="app.body || ''" @blur="onAppendixBlur($event, app._idx, 'body')" placeholder="討論內文…"></textarea>
+            </template>
+            <template v-else>
+              <h3 v-if="app.title" class="wk-appendix-title">{{ app.title }}</h3>
+              <div v-if="app.body" class="wk-appendix-body" v-html="isHtml(app.body) ? app.body : renderPara(app.body)"></div>
+            </template>
           </div>
         </div>
       </section>
 
     </template>
+
+    <!-- Team credits -->
+    <footer class="wk-credits">
+      <div class="wk-credits-inner">
+        <div class="wk-credits-grid">
+          <div class="wk-credit-row"><span class="wk-credit-role">內容原稿</span><span class="wk-credit-names">龐君華</span></div>
+          <div class="wk-credit-row"><span class="wk-credit-role">文字工作</span><span class="wk-credit-names">邱泰耀、褚秀玲、鄭沂珊</span></div>
+          <div class="wk-credit-row"><span class="wk-credit-role">影音工作</span><span class="wk-credit-names">蕭曉玲、呂華光、褚秀玲</span></div>
+          <div class="wk-credit-row"><span class="wk-credit-role">後勤協作</span><span class="wk-credit-names">蕭毓蓉</span></div>
+          <div class="wk-credit-row"><span class="wk-credit-role">封面設計</span><span class="wk-credit-names">王柏欽</span></div>
+          <div class="wk-credit-row"><span class="wk-credit-role">整合執行</span><span class="wk-credit-names">陳繼賢、張芝嘉</span></div>
+        </div>
+        <p class="wk-credits-site-label">官方網站</p>
+        <a href="https://www.1day3read3pray.com/" target="_blank" rel="noopener" class="wk-credits-link">www.1day3read3pray.com</a>
+      </div>
+    </footer>
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { createClient } from '@supabase/supabase-js'
+import { usePongEditor } from '~/composables/usePongEditor'
 import {
   getChurchYearSundays,
   getCurrentChurchYear,
@@ -171,6 +244,34 @@ import {
 } from '~/composables/useChurchCalendar.js'
 
 definePageMeta({ layout: 'pong-archive' })
+
+// ── Edit mode (shared singleton from layout) ──────────────────
+const { isEditing: editMode, saveField, saveFields } = usePongEditor()
+
+function onReadingBlur(event, day, ri, field) {
+  if (!day || !weekData.value) return
+  const value = event.target.value
+  const dayRow = weekData.value.pong_lectionary_days.find(d => d.id === day.id)
+  if (!dayRow) return
+  const updatedReadings = dayRow.readings.map((r, i) => i === ri ? { ...r, [field]: value } : r)
+  dayRow.readings = updatedReadings
+  saveFields('pong_lectionary_days', day.id, { readings: updatedReadings })
+}
+
+function onWeekBlur(event, field) {
+  if (!weekData.value) return
+  const value = event.target.value
+  weekData.value[field] = value
+  saveField('pong_lectionary_weeks', weekData.value.id, field, value)
+}
+
+function onAppendixBlur(event, ai, key) {
+  if (!weekData.value?.appendices) return
+  const value = event.target.value
+  const updated = weekData.value.appendices.map((a, i) => i === ai ? { ...a, [key]: value } : a)
+  weekData.value.appendices = updated
+  saveFields('pong_lectionary_weeks', weekData.value.id, { appendices: updated })
+}
 
 const route = useRoute()
 const yearParam = route.params.year
@@ -194,6 +295,32 @@ const RCL = {
       { week: 2, label: '第二週（主日）', ot: '賽 11:1-10', ps: '詩 72:1-7, 18-19',      ep: '羅 15:4-13',  gos: '太 3:1-12'   },
       { week: 3, label: '第三週（主日）', ot: '賽 35:1-10', ps: '詩 146:5-10\n或路 1:47-55', ep: '雅 5:7-10',  gos: '太 11:2-11'  },
       { week: 4, label: '第四週（主日）', ot: '賽 7:10-16', ps: '詩 80:1-7, 17-19',      ep: '羅 1:1-7',    gos: '太 1:18-25'  },
+    ],
+    christmas: [
+      { week: 1, label: '第一週（主日）', ot: '耶 31:7-14',         ps: '詩 147:12-20',          ep: '弗 1:3-14',        gos: '約 1:1-18'    },
+      { week: 2, label: '第二週（主日）', ot: '賽 42:1-9',          ps: '詩 29',                 ep: '徒 10:34-43',      gos: '太 3:13-17'   },
+    ],
+    epiphany: [
+      { week: 1, label: '第一週（主日）', ot: '賽 49:1-7',          ps: '詩 40:1-11',            ep: '林前 1:1-9',       gos: '約 1:29-42'  },
+      { week: 2, label: '第二週（主日）', ot: '賽 9:1-4',           ps: '詩 27:1, 4-9',          ep: '林前 1:10-18',     gos: '太 4:12-23'  },
+      { week: 3, label: '第三週（主日）', ot: '彌 6:1-8',           ps: '詩 15',                 ep: '林前 1:18-31',     gos: '太 5:1-12'   },
+      { week: 4, label: '第四週（主日）', ot: '賽 58:1-9',          ps: '詩 112:1-9',            ep: '林前 2:1-12',      gos: '太 5:13-20'  },
+      { week: 5, label: '第五週（主日）', ot: '出 24:12-18',        ps: '詩 2',                  ep: '彼後 1:16-21',     gos: '太 17:1-9'   },
+      { week: 6, label: '第六週（主日）', ot: '創 2:15-17; 3:1-7', ps: '詩 32',                 ep: '羅 5:12-19',       gos: '太 4:1-11'   },
+    ],
+    lent: [
+      { week: 1, label: '第一週（主日）', ot: '創 12:1-4',          ps: '詩 121',                ep: '羅 4:1-5, 13-17',  gos: '約 3:1-17'   },
+      { week: 2, label: '第二週（主日）', ot: '出 17:1-7',          ps: '詩 95',                 ep: '羅 5:1-11',        gos: '約 4:5-42'   },
+      { week: 3, label: '第三週（主日）', ot: '撒上 16:1-13',       ps: '詩 23',                 ep: '弗 5:8-14',        gos: '約 9:1-41'   },
+      { week: 4, label: '第四週（主日）', ot: '結 37:1-14',         ps: '詩 130',                ep: '羅 8:6-11',        gos: '約 11:1-45'  },
+      { week: 5, label: '第五週（主日）', ot: '賽 50:4-9',          ps: '詩 118:1-2, 19-29',     ep: '腓 2:5-11',        gos: '太 21:1-11'  },
+      { week: 6, label: '第六週（主日）', ot: '徒 10:34-43',        ps: '詩 118:1-2, 14-24',     ep: '西 3:1-4',         gos: '約 20:1-18'  },
+    ],
+    easter: [
+      { week: 1, label: '第一週（主日）', ot: '徒 2:14, 22-32',     ps: '詩 16',                 ep: '彼前 1:3-9',       gos: '約 20:19-31' },
+      { week: 2, label: '第二週（主日）', ot: '徒 2:14, 36-41',     ps: '詩 116:1-4, 12-19',     ep: '彼前 1:17-23',     gos: '路 24:13-35' },
+      { week: 3, label: '第三週（主日）', ot: '徒 2:42-47',         ps: '詩 23',                 ep: '彼前 2:19-25',     gos: '約 10:1-10'  },
+      { week: 4, label: '第四週（主日）', ot: '徒 7:55-60',         ps: '詩 31:1-5, 15-16',      ep: '彼前 2:2-10',      gos: '約 14:1-14'  },
     ],
   },
   B: {},
@@ -302,6 +429,14 @@ const openReadings = ref({})
 function toggleReading(i) { openReadings.value[i] = !openReadings.value[i] }
 watch(activeDay, () => { openReadings.value = { 0: true } }, { immediate: true })
 
+// ── Appendices split ──────────────────────────────────────────
+const liturgyAppendices = computed(() =>
+  (weekData.value?.appendices || []).map((a, i) => ({ ...a, _idx: i })).filter(a => !a.title?.includes('討論'))
+)
+const discussionAppendices = computed(() =>
+  (weekData.value?.appendices || []).map((a, i) => ({ ...a, _idx: i })).filter(a => a.title?.includes('討論'))
+)
+
 // ── Day date map（跟著 selectedChurchYear 更新）─────────────────
 const dayDateMap = computed(() => {
   const slots = getChurchYearSundays(selectedChurchYear.value)
@@ -360,39 +495,82 @@ function isHtml(str) {
   return str && str.trimStart().startsWith('<')
 }
 
-// Scripture: each line becomes a verse paragraph
+// Scripture: merge PDF-wrapped continuation lines into their verse
 function renderScripture(text) {
   if (!text) return ''
   if (isHtml(text)) return text
-  return text.split('\n').filter(l => l.trim()).map(line =>
-    `<p class="wk-verse">${line}</p>`
-  ).join('')
+  const verses = []
+  for (const line of text.split('\n')) {
+    const t = line.trim()
+    if (!t) continue
+    if (/^\d+:\d+\s/.test(t) || verses.length === 0) {
+      verses.push(t)
+    } else {
+      verses[verses.length - 1] += t
+    }
+  }
+  return verses.map(v => `<p class="wk-verse">${v}</p>`).join('')
 }
 
-// Single-block text: wrap in <p> with no special indent
+// Single-block text: collapse PDF-wrapped single newlines, keep \n\n as paragraph break
 function renderPara(text) {
   if (!text) return ''
   if (isHtml(text)) return text
-  return text.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('')
+  return text.split('\n\n').map(p => `<p>${p.replace(/\n/g, '')}</p>`).join('')
 }
 
 // Intro letter / body with auto-detected signature
+// Each line (single \n) becomes its own <p>; \n\n collapses PDF artifacts per block
 function renderBody(text) {
   if (!text) return ''
   if (isHtml(text)) return text
-  const parts = text.split('\n\n')
-  return parts.map((p, i) => {
-    const content = p.replace(/\n/g, '<br>')
-    const isSig = i === parts.length - 1 && (p.includes('主內') || p.includes('敬上') || p.includes('主恩'))
-    return isSig ? `<p class="wk-signature">${content}</p>` : `<p>${content}</p>`
-  }).join('')
+
+  // Find signature start by scanning last 6 lines
+  const allLines = text.split('\n')
+  let sigStart = -1
+  const scan = Math.min(6, allLines.length)
+  for (let i = allLines.length - scan; i < allLines.length; i++) {
+    if (allLines[i].includes('主內') || allLines[i].includes('敬上') || allLines[i].includes('主恩')) {
+      sigStart = i
+      break
+    }
+  }
+
+  const bodyLines = sigStart >= 0 ? allLines.slice(0, sigStart) : allLines
+  const sigHtml = sigStart >= 0
+    ? `<p class="wk-signature">${allLines.slice(sigStart).join('<br>')}</p>`
+    : ''
+
+  const bodyText = bodyLines.join('\n').trimEnd()
+  if (!bodyText.trim()) return sigHtml
+
+  let bodyHtml
+  if (bodyText.includes('\n\n')) {
+    // Text has explicit paragraph breaks: each block is one <p>, collapse PDF line-wraps within block
+    bodyHtml = bodyText.split('\n\n').filter(p => p.trim()).map(p => `<p>${p.replace(/\n/g, '')}</p>`).join('')
+  } else {
+    // Single-newline text: each non-empty line is its own <p> (greeting / body / closing)
+    bodyHtml = bodyLines.filter(l => l.trim()).map(l => `<p>${l.trim()}</p>`).join('')
+  }
+
+  return bodyHtml + sigHtml
 }
 
-// Key verse: lines joined with line break
+// Key verse: merge PDF-wrapped continuation lines, keep verse-starting lines separate
 function renderKeyVerse(text) {
   if (!text) return ''
   if (isHtml(text)) return text
-  return text.split('\n').filter(Boolean).join('<br>')
+  const verses = []
+  for (const line of text.split('\n')) {
+    const t = line.trim()
+    if (!t) continue
+    if (/^\d+:\d+\s/.test(t) || verses.length === 0) {
+      verses.push(t)
+    } else {
+      verses[verses.length - 1] += t
+    }
+  }
+  return verses.join('<br>')
 }
 </script>
 
@@ -412,7 +590,7 @@ function renderKeyVerse(text) {
 .wk-header-inner { max-width: 720px; margin: 0 auto; }
 .wk-eyebrow { font-size: 0.72rem; font-weight: 300; color: rgba(255,255,255,0.7); letter-spacing: 0.2em; text-transform: uppercase; margin: 0 0 12px; }
 .wk-title-main { font-family: 'Noto Serif TC', serif; font-size: 1.8rem; font-weight: 500; color: #fff; letter-spacing: 0.12em; margin: 0 0 6px; }
-.wk-title-theme { font-family: 'Noto Serif TC', serif; font-size: 1.05rem; font-weight: 400; color: rgba(255,255,255,0.88); letter-spacing: 0.1em; margin: 0 0 22px; }
+.wk-title-theme { font-family: 'Noto Serif TC', serif; font-size: 1.05rem; font-weight: 700; color: rgba(255,255,255,0.88); letter-spacing: 0.1em; margin: 0 0 22px; }
 
 /* ── Year picker ──────────────────────────────────────────── */
 .wk-year-picker { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; cursor: grab; user-select: none; }
@@ -441,16 +619,18 @@ function renderKeyVerse(text) {
 .wk-section-label { font-size: 0.68rem; font-weight: 300; color: #A09280; letter-spacing: 0.22em; text-transform: uppercase; margin: 0 0 20px; }
 
 /* ── Intro letter ─────────────────────────────────────────── */
-.wk-intro { border-bottom: 1px solid #E8E4DC; }
-.wk-intro-inner { max-width: 720px; margin: 0 auto; padding: 48px 40px; }
+.wk-intro { border-top: 1px solid #DDD8CF; }
+.wk-intro-inner { max-width: 720px; margin: 0 auto; padding: 2rem 40px; }
 .wk-intro-body { font-family: 'Noto Serif TC', serif; font-size: 1rem; line-height: 2.1; color: #3A3025; }
 .wk-intro-body :deep(p) { text-indent: 2em; margin-bottom: 0.9em; }
+.wk-intro-body :deep(p:first-child) { text-indent: 0; margin-bottom: 1.4em; }
 .wk-intro-body :deep(.wk-signature) { text-indent: 0; text-align: right; margin-top: 2em; margin-bottom: 0; color: #5A5040; line-height: 1.9; }
+.wk-intro-body :deep(p:last-child) { margin-bottom: 0; }
 
 /* ── Theme essay ──────────────────────────────────────────── */
 /* ── Lectionary overview ──────────────────────────────────── */
-.wk-lectionary { border-bottom: 1px solid #E8E4DC; padding: 40px 0; }
-.wk-lectionary-inner { max-width: 860px; margin: 0 auto; padding: 0 32px; }
+.wk-lectionary { border-top: 1px solid #DDD8CF; }
+.wk-lectionary-inner { max-width: 860px; margin: 0 auto; padding: 2rem 32px; }
 .wk-lec-heading {
   font-family: 'Noto Serif TC', serif;
   font-size: 1.1rem;
@@ -498,15 +678,16 @@ function renderKeyVerse(text) {
 }
 .wk-lec-table td:first-child { white-space: nowrap; color: #7A7268; font-size: 0.78rem; }
 
-.wk-essay { background-color: #F2EFE9; border-bottom: 1px solid #E8E4DC; }
-.wk-essay-inner { max-width: 720px; margin: 0 auto; padding: 48px 40px; }
+.wk-essay { background-color: #F2EFE9; border-top: 1px solid #DDD8CF; }
+.wk-essay-inner { max-width: 720px; margin: 0 auto; padding: 2rem 40px; }
 .wk-essay-title { font-family: 'Noto Serif TC', serif; font-size: 1.15rem; font-weight: 500; color: #2C2C2C; letter-spacing: 0.06em; line-height: 1.8; margin: 0 0 24px; }
 .wk-essay-body { font-size: 0.95rem; line-height: 2.1; color: #3A3025; }
 .wk-essay-body :deep(p) { text-indent: 2em; margin-bottom: 1em; }
+.wk-essay-body :deep(p:last-child) { margin-bottom: 0; }
 
 /* ── Day section ──────────────────────────────────────────── */
-.wk-days-section { padding: 40px 0 64px; }
-.wk-days-inner { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+.wk-days-section { padding: 0; border-top: 1px solid #DDD8CF; }
+.wk-days-inner { max-width: 1000px; margin: 0 auto; padding: 2rem 24px; }
 .wk-day-tabs { display: flex; gap: 0; margin-bottom: 32px; border-bottom: 1px solid #E8E4DC; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
 .wk-day-tabs::-webkit-scrollbar { display: none; }
 .wk-day-date { font-size: 0.78em; opacity: 0.75; }
@@ -540,6 +721,7 @@ function renderKeyVerse(text) {
   align-items: center;
   gap: 12px;
   padding: 16px 20px;
+  position: relative;
   background: #fff;
   border: none;
   cursor: pointer;
@@ -554,18 +736,33 @@ function renderKeyVerse(text) {
 .wk-reading-ref { display: flex; align-items: baseline; gap: 6px; flex: 1; min-width: 0; }
 .wk-reading-book { font-family: 'Noto Serif TC', serif; font-size: 0.9rem; font-weight: 500; color: #3A3025; letter-spacing: 0.04em; }
 .wk-reading-passage { font-size: 0.75rem; font-weight: 300; color: #9A9080; }
-.wk-reading-title { font-size: 0.75rem; font-weight: 300; color: #7A7268; margin-right: auto; }
+.wk-reading-title { position: absolute; left: 50%; transform: translateX(-50%); font-size: 0.78rem; font-weight: 700; color: #5A5040; white-space: nowrap; pointer-events: none; }
 .wk-reading-chevron { font-size: 1.2rem; color: #C0B8A8; transition: transform 0.2s; line-height: 1; flex-shrink: 0; }
 .wk-reading-chevron.open { transform: rotate(90deg); }
 .wk-reading-body { border-top: 1px solid #E8E4DC; padding: 24px 24px 28px; background: #FDFCFA; }
 
+/* ── 讀/禱 section layout ────────────────────────────────────── */
+.wk-rp-section { display: flex; gap: 14px; }
+.wk-rp-section--read { padding-bottom: 20px; border-bottom: 1px solid #EDEAD5; margin-bottom: 20px; }
+.wk-rp-label {
+  flex-shrink: 0;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: 'Noto Serif TC', serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #C4B89A;
+  letter-spacing: 0.2em;
+  text-align: center;
+  align-self: flex-start;
+}
+.wk-rp-content { flex: 1; min-width: 0; }
+
 /* Scripture */
-.wk-scripture { margin-bottom: 24px; border-bottom: 1px solid #EDEAD5; padding-bottom: 20px; }
 .wk-scripture :deep(.wk-verse) { font-family: 'Noto Serif TC', serif; font-size: 0.9rem; line-height: 1.95; color: #3A3025; margin: 0 0 0.35em; }
 
 /* Meditation */
 .wk-meditation { margin-bottom: 20px; }
-.wk-meditation-label { font-size: 0.65rem; font-weight: 500; color: #9A9080; letter-spacing: 0.18em; text-transform: uppercase; margin: 0 0 10px; }
 .wk-meditation :deep(p) { font-size: 0.88rem; line-height: 2; color: #4A4030; margin-bottom: 0.6em; }
 
 /* Key verse */
@@ -573,9 +770,23 @@ function renderKeyVerse(text) {
 .wk-key-verse-label { font-size: 0.65rem; font-weight: 500; color: #9A9080; letter-spacing: 0.18em; text-transform: uppercase; display: block; margin-bottom: 8px; }
 .wk-key-verse-text { font-family: 'Noto Serif TC', serif; font-size: 0.95rem; color: #3A3025; line-height: 2; margin: 0; }
 
-/* ── Appendices ───────────────────────────────────────────── */
-.wk-appendices { background: #F2EFE9; border-top: 1px solid #E8E4DC; }
-.wk-appendices-inner { max-width: 720px; margin: 0 auto; padding: 48px 40px; }
+/* ── Edit mode fields ────────────────────────────────────────── */
+.wk-edit-area {
+  width: 100%; box-sizing: border-box;
+  border: none; border-bottom: 1px dashed #C8C0B0;
+  background: #FDFCF4;
+  font-family: 'Noto Serif TC', serif; font-size: 0.9rem; line-height: 2; color: #3A3025;
+  padding: 6px 0; resize: vertical; outline: none;
+  min-height: 80px;
+}
+.wk-edit-area--tall { min-height: 140px; }
+.wk-edit-area--sm { min-height: 48px; }
+.wk-edit-area:focus { border-bottom-color: #8A7A5A; background: #FFFEF8; }
+.wk-edit-field-label { font-size: 0.62rem; font-weight: 600; color: #B0A89A; letter-spacing: 0.2em; text-transform: uppercase; margin: 14px 0 4px; }
+
+/* ── Appendices (liturgical) ──────────────────────────────── */
+.wk-appendices { background: #F2EFE9; padding: 0; margin: 0; border-top: 1px solid #DDD8CF; }
+.wk-appendices-inner { max-width: 720px; margin: 0 auto; padding: 2rem 40px; }
 .wk-appendix { margin-bottom: 48px; }
 .wk-appendix:last-child { margin-bottom: 0; }
 .wk-appendix-title {
@@ -589,6 +800,8 @@ function renderKeyVerse(text) {
 }
 .wk-appendix-body { font-size: 0.9rem; line-height: 1.95; color: #3A3025; }
 .wk-appendix-body :deep(p) { margin-bottom: 0.8em; }
+.wk-appendix-body :deep(p:last-child) { margin-bottom: 0; }
+.wk-appendix-body :deep(*:first-child) { margin-top: 0; }
 .wk-appendix-body :deep(table) { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.85rem; }
 .wk-appendix-body :deep(th) { background: #EAE5DC; padding: 8px 12px; font-weight: 500; border: 1px solid #DDD8CF; text-align: left; font-family: 'Noto Sans TC', sans-serif; }
 .wk-appendix-body :deep(td) { padding: 8px 12px; border: 1px solid #DDD8CF; vertical-align: top; line-height: 1.7; }
@@ -596,19 +809,50 @@ function renderKeyVerse(text) {
 .wk-appendix-body :deep(.wk-lit-week) { font-family: 'Noto Serif TC', serif; font-size: 0.95rem; font-weight: 600; color: #4A3580; margin: 1.6em 0 0.5em; }
 .wk-appendix-body :deep(.wk-lit-action) { font-style: italic; color: #7A7268; margin: 0.3em 0; }
 .wk-appendix-body :deep(.wk-lit-note) { font-size: 0.82rem; color: #8A8278; margin-top: 1.2em; border-top: 1px solid #DDD8CF; padding-top: 0.8em; }
-.wk-appendix-body :deep(.wk-disc-author) { color: #8A8278; font-size: 0.82rem; margin-bottom: 1.2em; text-align: right; }
-.wk-appendix-body :deep(.wk-disc-subtitle) { font-family: 'Noto Serif TC', serif; font-size: 0.95rem; font-weight: 600; color: #3A3025; margin: 1.8em 0 0.6em; }
+
+/* ── Discussion section ───────────────────────────────────── */
+.wk-discussion { background: #EEF0EB; padding: 0; margin: 0; border-top: 1px solid #DDD8CF; }
+.wk-discussion-inner { max-width: 720px; margin: 0 auto; padding: 2rem 40px; }
+.wk-discussion .wk-appendix-body :deep(.wk-disc-author) { color: #8A8278; font-size: 0.82rem; margin-bottom: 1.2em; text-align: right; }
+.wk-discussion .wk-appendix-body :deep(.wk-disc-subtitle) { font-family: 'Noto Serif TC', serif; font-size: 0.95rem; font-weight: 600; color: #3A3025; margin: 1.8em 0 0.6em; }
+.wk-discussion .wk-appendix-body :deep(*:first-child) { margin-top: 0; }
+.wk-discussion .wk-appendix-body :deep(*:last-child) { margin-bottom: 0; }
+
+/* ── Team credits ─────────────────────────────────────────── */
+.wk-credits { background: #F2EFE9; border-top: 1px solid #DDD8CF; }
+.wk-credits-inner { max-width: 720px; margin: 0 auto; padding: 2rem 40px; text-align: center; }
+.wk-credits-grid { display: grid; grid-template-columns: auto auto; gap: 6px 20px; width: fit-content; margin: 0 auto 24px; text-align: left; }
+.wk-credit-row { display: contents; }
+.wk-credit-role { font-size: 0.7rem; font-weight: 500; color: #9A9080; letter-spacing: 0.12em; padding-top: 2px; white-space: nowrap; }
+.wk-credit-names { font-family: 'Noto Serif TC', serif; font-size: 0.85rem; color: #5A5040; letter-spacing: 0.04em; line-height: 1.8; }
+.wk-credits-site-label { font-size: 0.65rem; font-weight: 500; color: #9A9080; letter-spacing: 0.18em; text-transform: uppercase; margin: 0 0 6px; }
+.wk-credits-link {
+  display: inline-block;
+  font-size: 0.78rem;
+  color: #7A7268;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  border-bottom: 1px solid #C8C0B0;
+  padding-bottom: 1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+.wk-credits-link:hover { color: #3A3025; border-color: #3A3025; }
 
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 640px) {
   .wk-topbar { padding: 16px 20px; }
   .wk-header { padding: 36px 20px 32px; }
   .wk-title-main { font-size: 1.4rem; }
-  .wk-intro-inner, .wk-essay-inner, .wk-appendices-inner { padding: 36px 20px; }
+  .wk-intro-inner, .wk-essay-inner { padding: 2rem 20px; }
+  .wk-appendices-inner, .wk-discussion-inner { padding: 2rem 20px; }
+  .wk-lectionary-inner { padding: 2rem 16px; }
+  .wk-days-inner { padding: 12px 12px; }
+  .wk-credits-inner { padding: 2px 20px; }
   .wk-days-inner { padding: 0 12px; }
   .wk-day-tab { padding: 8px 2px; font-size: 0.65rem; letter-spacing: 0; }
   .wk-day-date { display: none; }
   .wk-lec-table { font-size: 0.72rem; }
   .wk-lec-table th, .wk-lec-table td { padding: 6px 6px; }
+  .wk-credits-grid { gap: 4px 14px; }
 }
 </style>

@@ -98,7 +98,19 @@
     <!-- ── YouTube Player ───────────────────────────────────── -->
     <section v-if="youtubeId" class="md-player-section">
       <div class="md-player-inner">
-        <div class="md-player-wrap">
+        <!-- 短影音：豎版 9:16 -->
+        <div v-if="isShort" class="md-player-wrap md-player-wrap--short">
+          <iframe
+            :src="youtubeEmbedSrc"
+            title="YouTube Shorts player"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen
+            loading="lazy"
+          ></iframe>
+        </div>
+        <!-- 一般影片：橫版 16:9 -->
+        <div v-else class="md-player-wrap">
           <iframe
             :src="youtubeEmbedSrc"
             title="YouTube video player"
@@ -219,7 +231,7 @@ const supabase = createClient(
 const { data: item } = await useAsyncData(`pong-media-${route.params.id}`, async () => {
   const { data, error } = await supabase
     .from('pong_media').select('*')
-    .eq('broadcast_date', route.params.id).eq('is_published', true).single()
+    .eq('id', route.params.id).eq('is_published', true).single()
   return error ? null : data
 })
 
@@ -228,7 +240,7 @@ const local = reactive({})
 watch(item, (v) => { if (v) Object.assign(local, v) }, { immediate: true })
 watch(isEditing, async (on) => {
   if (!on) return
-  const { data } = await supabase.from('pong_media').select('*').eq('broadcast_date', route.params.id).single()
+  const { data } = await supabase.from('pong_media').select('*').eq('id', route.params.id).single()
   if (data) Object.assign(local, data)
 })
 
@@ -238,9 +250,11 @@ watch(isEditing, async (on) => {
 })
 
 const youtubeId = computed(() => isEditing.value ? local.youtube_id : item.value?.youtube_id)
+const isShort = computed(() => (isEditing.value ? local.media_type : item.value?.media_type) === 'short')
 const youtubeEmbedSrc = computed(() => {
   const id = youtubeId.value
   if (!id) return null
+  if (isShort.value) return `https://www.youtube.com/embed/${id}`
   const start = item.value?.youtube_start
   return `https://www.youtube.com/embed/${id}${start ? `?start=${start}` : ''}`
 })
@@ -255,6 +269,9 @@ function autoResize(el) {
 }
 
 // ── Transcript parser ────────────────────────────────────────
+// Topic-break starters (zh): flush current para when a new topic begins
+const TOPIC_RE = /^(那(麼|么)?|但[是]?|另外|接下來|接下来|今天|其實|其实|所以|可是|而且|第[一二三四五六七八九十]|首先|最後|最后|讓我們|让我们|天父|这是|不过|然后|让我们)/
+
 const parsedTranscript = computed(() => {
   const text = item.value?.transcript
   if (!text) return []
@@ -262,28 +279,64 @@ const parsedTranscript = computed(() => {
   const segments = []
   let curSpeaker = null
   let curParas = []
+  // accumulate raw Whisper lines into a paragraph buffer
+  let paraBuf = []
+  let paraBufChars = 0
 
-  const flush = () => {
+  const flushSpeech = () => {
     if (curSpeaker !== null && curParas.length)
       segments.push({ type: 'speech', speaker: curSpeaker, paragraphs: [...curParas] })
     curSpeaker = null; curParas = []
   }
 
-  for (const raw of lines) {
-    const line = raw.trim()
-    if (!line) continue
-    if (/^【.+】$/.test(line)) {
-      flush(); segments.push({ type: 'section', text: line.replace(/^【|】$/g, '') }); continue
+  const flushPara = () => {
+    if (paraBuf.length) {
+      segments.push({ type: 'para', text: paraBuf.join('') })
+      paraBuf = []; paraBufChars = 0
     }
+  }
+
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx].trim()
+
+    // blank line → force paragraph break
+    if (!line) {
+      if (curSpeaker !== null) curParas.push('')
+      else flushPara()
+      continue
+    }
+
+    // section header 【xxx】
+    if (/^【.+】$/.test(line)) {
+      flushPara(); flushSpeech()
+      segments.push({ type: 'section', text: line.replace(/^【|】$/g, '') })
+      continue
+    }
+
+    // speaker line  "龐君華：blah"
     const m = line.match(/^(.{1,12}?)(?:（[^）]*）)?\s*：\s*(.*)$/)
     if (m && m[1].length <= 10 && !/[，。？！]/.test(m[1])) {
-      flush(); curSpeaker = m[1].trim()
-      if (m[2].trim()) curParas.push(m[2].trim()); continue
+      flushPara(); flushSpeech()
+      curSpeaker = m[1].trim()
+      if (m[2].trim()) curParas.push(m[2].trim())
+      continue
     }
-    if (curSpeaker !== null) { curParas.push(line) }
-    else { flush(); segments.push({ type: 'para', text: line }) }
+
+    // under a speech block
+    if (curSpeaker !== null) {
+      curParas.push(line); continue
+    }
+
+    // plain Whisper line → accumulate into paragraph
+    const nextLine = (lines[idx + 1] || '').trim()
+    const topicBreak = TOPIC_RE.test(nextLine) && (paraBuf.length >= 6 || paraBufChars >= 200)
+    const lenBreak   = paraBuf.length >= 10
+
+    paraBuf.push(line); paraBufChars += line.length
+
+    if (topicBreak || lenBreak) flushPara()
   }
-  flush()
+  flushPara(); flushSpeech()
   return segments
 })
 
@@ -459,6 +512,11 @@ onMounted(() => { loadSession() })
   position: relative; width: 100%; padding-top: 56.25%;
   border-radius: 4px; overflow: hidden; background-color: #000;
   box-shadow: 0 8px 32px rgba(40,30,20,0.18);
+}
+.md-player-wrap--short {
+  max-width: 360px;
+  padding-top: calc(360px * 16 / 9);
+  margin: 0 auto;
 }
 .md-player-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
 .md-yt-link { margin-top: 12px; text-align: right; }
