@@ -33,23 +33,9 @@
 
     <div v-if="pending" class="wk-loading">載入中…</div>
 
-    <div v-else-if="!weekData" class="wk-empty">
-      <p>經課資料尚未上傳</p>
-      <p class="wk-empty-sub">{{ yearLabel }}　{{ seasonColor.name }}　第 {{ week }} 週</p>
-    </div>
-
     <template v-else>
 
-      <!-- Intro letter — 乙年無靈修引言，不顯示此區段 -->
-      <section v-if="yearParam !== 'B' && (weekData.intro_letter || editMode)" class="wk-intro">
-        <div class="wk-intro-inner">
-          <p class="wk-section-label">本週靈修引言</p>
-          <div v-if="!editMode" class="wk-intro-body" v-html="renderBody(weekData.intro_letter)"></div>
-          <textarea v-else class="wk-edit-area wk-edit-area--tall" :value="weekData.intro_letter || ''" @blur="onWeekBlur($event, 'intro_letter')" placeholder="本週靈修引言…"></textarea>
-        </div>
-      </section>
-
-      <!-- Lectionary overview table -->
+      <!-- Lectionary overview table — always visible when RCL data exists -->
       <section v-if="lectionaryTable.length" class="wk-lectionary">
         <div class="wk-lectionary-inner">
           <h3 class="wk-lec-heading">{{ YEAR_CHINESE[yearParam] }}{{ SEASON_CHINESE[season] }}的主日經課表</h3>
@@ -86,6 +72,23 @@
             </span>
             <button class="wk-lec-nav-btn" :disabled="lecPage >= lecPageCount - 1" @click="lecPage++">&#8250;</button>
           </div>
+        </div>
+      </section>
+
+      <!-- No content uploaded -->
+      <div v-if="!weekData" class="wk-empty">
+        <p>日讀資料尚未上傳</p>
+        <p class="wk-empty-sub">{{ yearLabel }}　{{ seasonColor.name }}　第 {{ week }} 週</p>
+      </div>
+
+      <template v-else>
+
+      <!-- Intro letter — 乙年無靈修引言，不顯示此區段 -->
+      <section v-if="yearParam !== 'B' && (weekData.intro_letter || editMode)" class="wk-intro">
+        <div class="wk-intro-inner">
+          <p class="wk-section-label">本週靈修引言</p>
+          <div v-if="!editMode" class="wk-intro-body" v-html="renderBody(weekData.intro_letter)"></div>
+          <textarea v-else class="wk-edit-area wk-edit-area--tall" :value="weekData.intro_letter || ''" @blur="onWeekBlur($event, 'intro_letter')" placeholder="本週靈修引言…"></textarea>
         </div>
       </section>
 
@@ -220,7 +223,9 @@
         </div>
       </section>
 
-    </template>
+      </template><!-- end v-else weekData -->
+
+    </template><!-- end v-else pending -->
 
     <!-- Team credits -->
     <footer class="wk-credits">
