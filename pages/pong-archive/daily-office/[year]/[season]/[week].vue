@@ -28,10 +28,20 @@
           >{{ y }}</button>
         </div>
         <p v-if="dateRangeLabel" class="wk-date-range">{{ dateRangeLabel }}</p>
+        <p v-else-if="!weekExistsInYear" class="wk-date-range wk-no-week">
+          本禮儀年度無{{ SEASON_CHINESE[season] }}第 {{ week }} 週
+        </p>
       </div>
     </header>
 
     <div v-if="pending" class="wk-loading">載入中…</div>
+
+    <template v-else-if="!weekExistsInYear">
+      <div class="wk-empty wk-no-week-body">
+        <p>{{ selectedChurchYear }}-{{ selectedChurchYear + 1 }} 教會年</p>
+        <p class="wk-empty-sub">本年度的{{ SEASON_CHINESE[season] }}只有 {{ lectionaryTable.length }} 週，無第 {{ week }} 週</p>
+      </div>
+    </template>
 
     <template v-else>
 
@@ -560,18 +570,26 @@ function onKeydown(e) {
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
-const dateRangeLabel = computed(() => {
+const selectedYearSlot = computed(() => {
   const slots = getChurchYearSundays(selectedChurchYear.value)
-  const idx = slots.findIndex(s => s.season === season && s.week === week)
-  if (idx < 0) return ''
-  const slot = slots[idx]
-  if (!slot.sunday) return ''
-  const start = slot.sunday
-  const nextSun = slots[idx + 1]?.sunday
+  return slots.find(s => s.season === season && s.week === week) ?? null
+})
+
+const weekExistsInYear = computed(() => {
+  const s = selectedYearSlot.value
+  return s ? !s.optional : true // 若 RCL 無此節期，預設顯示（不判斷）
+})
+
+const dateRangeLabel = computed(() => {
+  const s = selectedYearSlot.value
+  if (!s || !s.sunday) return ''
+  const slots = getChurchYearSundays(selectedChurchYear.value)
+  const idx = slots.indexOf(s)
+  const nextSun = slots.slice(idx + 1).find(x => x.sunday)?.sunday
   const end = nextSun
     ? new Date(nextSun.getTime() - 86400000)
-    : new Date(start.getTime() + 6 * 86400000)
-  const sy = start.getFullYear(), sm = start.getMonth() + 1, sd = start.getDate()
+    : new Date(s.sunday.getTime() + 6 * 86400000)
+  const sy = s.sunday.getFullYear(), sm = s.sunday.getMonth() + 1, sd = s.sunday.getDate()
   const em = end.getMonth() + 1, ed = end.getDate()
   return `${sy}年${sm}月${sd}日 – ${em}月${ed}日`
 })
@@ -826,10 +844,12 @@ function renderKeyVerse(text) {
 .wk-year-btn:hover { border-color: rgba(255,255,255,0.7); color: #fff; }
 .wk-year-btn--active { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.8); color: #fff; font-weight: 500; }
 .wk-date-range { font-size: 0.78rem; font-weight: 300; color: rgba(255,255,255,0.7); letter-spacing: 0.08em; margin: 0; }
+.wk-no-week { opacity: 0.6; font-style: italic; }
 
 /* ── Loading / Empty ──────────────────────────────────────── */
 .wk-loading, .wk-empty { max-width: 720px; margin: 80px auto; text-align: center; font-size: 0.9rem; color: #A09280; letter-spacing: 0.06em; line-height: 2; }
 .wk-empty-sub { font-size: 0.75rem; color: #C0B8A8; }
+.wk-no-week-body { margin: 60px auto; }
 
 /* ── Section label ────────────────────────────────────────── */
 .wk-section-label { font-size: 0.68rem; font-weight: 300; color: #A09280; letter-spacing: 0.22em; text-transform: uppercase; margin: 0 0 20px; }

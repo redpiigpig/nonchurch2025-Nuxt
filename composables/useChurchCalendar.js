@@ -86,10 +86,12 @@ export function getChurchYearSundays(churchYear) {
 
   // ── 聖誕期 ─────────────────────────────────────────────
   // 聖誕日（12/25）本身及之後的主日
+  const epiphanyDay = new Date(churchYear + 1, 0, 6) // Jan 6 主顯節
   const christmasSunday1 = nextSunday(addDays(christmas, 1))
   const christmasSunday2 = addDays(christmasSunday1, 7)
   slots.push({ season: 'christmas', seasonZh: '聖誕期', week: 1, label: '聖誕期第一週', sunday: christmasSunday1 })
-  if (christmasSunday2 < new Date(churchYear + 1, 0, 7)) {
+  // 聖誕期第二週：僅在 Jan 2-5 有主日時存在（Jan 6 = 主顯節，不算入聖誕期）
+  if (christmasSunday2 < epiphanyDay) {
     slots.push({ season: 'christmas', seasonZh: '聖誕期', week: 2, label: '聖誕期第二週', sunday: christmasSunday2 })
   } else {
     slots.push({ season: 'christmas', seasonZh: '聖誕期', week: 2, label: '聖誕期第二週', sunday: null, optional: true })
