@@ -424,8 +424,8 @@ function formatDate(d) {
 /* ── Shorts Grid ─────────────────────────────────────────── */
 .mi-shorts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
 }
 
 .mi-short-card {
@@ -448,15 +448,14 @@ function formatDate(d) {
 .mi-short-thumb {
   position: relative;
   width: 100%;
-  aspect-ratio: 9 / 16;
+  aspect-ratio: 16 / 9;
   background-color: #E0DBD1;
   overflow: hidden;
 }
 .mi-short-thumb img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  background-color: #2A2520;
+  object-fit: cover;
 }
 
 .mi-short-body {
@@ -481,6 +480,6 @@ function formatDate(d) {
   .mi-header { padding: 40px 20px 28px; }
   .mi-thumb { width: 100px; height: 56px; }
   .mi-card { gap: 14px; }
-  .mi-shorts-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .mi-shorts-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 }
 </style>
