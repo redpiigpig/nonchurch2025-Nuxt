@@ -49,26 +49,54 @@ _EXTRACT_PROMPT = (
 )
 
 
+def _gemini_keys() -> list:
+    """從 GEMINI_API_KEYS（逗號分隔）或 VITE_GEMINI_API_KEY 取得所有可用 key"""
+    multi = os.environ.get('GEMINI_API_KEYS', '')
+    if multi:
+        return [k.strip() for k in multi.split(',') if k.strip()]
+    single = os.environ.get('VITE_GEMINI_API_KEY', '')
+    return [single] if single else []
+
+
 def extract_sermon_only(text: str) -> str:
-    """呼叫 Gemini 從完整崇拜逐字稿中自動提取講道部分"""
-    api_key = os.environ.get('VITE_GEMINI_API_KEY', '')
-    if not api_key:
-        print('  [WARN] 無 VITE_GEMINI_API_KEY，略過 AI 裁切', file=sys.stderr)
+    """輪流使用多個 Gemini key，429 時自動換下一支"""
+    keys = _gemini_keys()
+    if not keys:
+        print('  [WARN] 無 Gemini API key，略過 AI 裁切', file=sys.stderr)
         return text
-    try:
-        r = requests.post(
-            _GEMINI_URL,
-            params={'key': api_key},
-            json={'contents': [{'parts': [{'text': _EXTRACT_PROMPT + text}]}]},
-            timeout=90,
-        )
-        r.raise_for_status()
-        extracted = r.json()['candidates'][0]['content']['parts'][0]['text'].strip()
-        if len(extracted) > 200:
-            return extracted
-        print('  [WARN] AI 回傳文字過短，使用原始逐字稿', file=sys.stderr)
-    except Exception as e:
-        print(f'  [WARN] AI 裁切失敗：{e}，使用原始逐字稿', file=sys.stderr)
+
+    for round_num in range(3):  # 最多重試 3 輪
+        all_429 = True
+        for attempt, key in enumerate(keys):
+            try:
+                r = requests.post(
+                    _GEMINI_URL,
+                    params={'key': key},
+                    json={'contents': [{'parts': [{'text': _EXTRACT_PROMPT + text}]}]},
+                    timeout=90,
+                )
+                if r.status_code == 429:
+                    print(f'  [AI] key[{attempt+1}] 429 限速，換下一支...', file=sys.stderr)
+                    time.sleep(1)
+                    continue
+                all_429 = False
+                r.raise_for_status()
+                extracted = r.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+                time.sleep(5)
+                if len(extracted) > 200:
+                    return extracted
+                print('  [AI] 回傳文字過短，使用原始逐字稿', file=sys.stderr)
+                return text
+            except Exception as e:
+                all_429 = False
+                print(f'  [WARN] key[{attempt+1}] 失敗：{e}', file=sys.stderr)
+                continue
+
+        if all_429:
+            print(f'  [AI] 所有 key 均 429，等 65 秒後重試（第 {round_num+1} 輪）...', file=sys.stderr)
+            time.sleep(65)
+
+    print('  [WARN] Gemini 三輪均失敗，使用原始逐字稿', file=sys.stderr)
     return text
 
 # 話題轉折詞，出現時考慮在此分段
