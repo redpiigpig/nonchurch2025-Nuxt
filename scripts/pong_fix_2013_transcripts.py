@@ -65,6 +65,9 @@ def extract_sermon_only(text: str) -> str:
         print('  [WARN] 無 Gemini API key，略過 AI 裁切', file=sys.stderr)
         return text
 
+    # Wait times between rounds (seconds): 120s → 300s → give up
+    _round_waits = [120, 300]
+
     for round_num in range(3):  # 最多重試 3 輪
         all_429 = True
         for attempt, key in enumerate(keys):
@@ -77,12 +80,12 @@ def extract_sermon_only(text: str) -> str:
                 )
                 if r.status_code == 429:
                     print(f'  [AI] key[{attempt+1}] 429 限速，換下一支...', file=sys.stderr)
-                    time.sleep(1)
+                    time.sleep(3)
                     continue
                 all_429 = False
                 r.raise_for_status()
                 extracted = r.json()['candidates'][0]['content']['parts'][0]['text'].strip()
-                time.sleep(5)
+                time.sleep(10)
                 if len(extracted) > 200:
                     return extracted
                 print('  [AI] 回傳文字過短，使用原始逐字稿', file=sys.stderr)
@@ -92,9 +95,10 @@ def extract_sermon_only(text: str) -> str:
                 print(f'  [WARN] key[{attempt+1}] 失敗：{e}', file=sys.stderr)
                 continue
 
-        if all_429:
-            print(f'  [AI] 所有 key 均 429，等 65 秒後重試（第 {round_num+1} 輪）...', file=sys.stderr)
-            time.sleep(65)
+        if all_429 and round_num < len(_round_waits):
+            wait = _round_waits[round_num]
+            print(f'  [AI] 所有 key 均 429，等 {wait} 秒後重試（第 {round_num+1} 輪）...', file=sys.stderr)
+            time.sleep(wait)
 
     print('  [WARN] Gemini 三輪均失敗，使用原始逐字稿', file=sys.stderr)
     return text
