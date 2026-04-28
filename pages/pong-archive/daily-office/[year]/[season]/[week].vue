@@ -519,41 +519,77 @@ function renderPara(text) {
   return text.split('\n\n').map(p => `<p>${p.replace(/\n/g, '')}</p>`).join('')
 }
 
-// Intro letter / body with auto-detected signature
-// Each line (single \n) becomes its own <p>; \n\n collapses PDF artifacts per block
+// Intro letter renderer: splits into greeting / body / signature three sections.
+// Handles all known signature formats: 主內末龐君華、陳繼賢弟兄、工作團隊、於20XX日期行，
+// including the case where the org name is embedded at the end of the last body paragraph.
 function renderBody(text) {
   if (!text) return ''
   if (isHtml(text)) return text
 
-  // Find signature start by scanning last 6 lines
-  const allLines = text.split('\n')
-  let sigStart = -1
-  const scan = Math.min(6, allLines.length)
-  for (let i = allLines.length - scan; i < allLines.length; i++) {
-    if (allLines[i].includes('主內') || allLines[i].includes('敬上') || allLines[i].includes('主恩')) {
-      sigStart = i
+  const SIG_END_RE   = /^於\s*20\d{2}/                         // date line starting sig
+  const SIG_PARA_RE  = /主內|敬上|謹識|奉上|陳繼賢|工作團隊/   // para entirely is a sig block
+  const SIG_TAIL_RE  = /([\s\S]+[。！？])([^。！？\n]{2,30})$/ // body text ending with sig name
+  const SIG_NAME_RE  = /工作團隊|陳繼賢|龐君華|謹識/           // recognisable sig names in tail
+
+  // Normalise to \n\n-separated paragraphs
+  const paras = text.trim().split('\n\n').map(p => p.trim()).filter(Boolean)
+  if (!paras.length) return ''
+
+  // ── Locate signature block (scan up to last 4 paragraphs) ──────────────
+  let sigStartIdx = paras.length
+  for (let i = paras.length - 1; i >= Math.max(0, paras.length - 4); i--) {
+    const lines = paras[i].split('\n').filter(l => l.trim())
+    // A line counts as "sig-like" only if it's short (≤40 chars) AND matches sig markers,
+    // or it's a date line. This prevents long body paragraphs ending in 工作團隊 from being
+    // mis-classified as signature blocks.
+    const allSig = lines.every(l => SIG_END_RE.test(l) || (l.trim().length <= 40 && SIG_PARA_RE.test(l)))
+    if (allSig || SIG_END_RE.test(lines[0] || '')) {
+      sigStartIdx = i
+    } else {
       break
     }
   }
 
-  const bodyLines = sigStart >= 0 ? allLines.slice(0, sigStart) : allLines
-  const sigHtml = sigStart >= 0
-    ? `<p class="wk-signature">${allLines.slice(sigStart).join('<br>')}</p>`
-    : ''
-
-  const bodyText = bodyLines.join('\n').trimEnd()
-  if (!bodyText.trim()) return sigHtml
-
-  let bodyHtml
-  if (bodyText.includes('\n\n')) {
-    // Text has explicit paragraph breaks: each block is one <p>, collapse PDF line-wraps within block
-    bodyHtml = bodyText.split('\n\n').filter(p => p.trim()).map(p => `<p>${p.replace(/\n/g, '')}</p>`).join('')
-  } else {
-    // Single-newline text: each non-empty line is its own <p> (greeting / body / closing)
-    bodyHtml = bodyLines.filter(l => l.trim()).map(l => `<p>${l.trim()}</p>`).join('')
+  // ── Handle sig name embedded at end of last body paragraph ─────────────
+  // e.g. "...上主與我們同在。「每日三讀三禱」工作團隊" + next para = "於 2026 年..."
+  let extractedSigName = ''
+  if (sigStartIdx < paras.length && sigStartIdx >= 1) {
+    const prevIdx = sigStartIdx - 1
+    if (prevIdx >= 1) {  // never strip the greeting
+      const m = SIG_TAIL_RE.exec(paras[prevIdx])
+      if (m && SIG_NAME_RE.test(m[2])) {
+        paras[prevIdx] = m[1].trimEnd()
+        extractedSigName = m[2].trim()
+      }
+    }
   }
 
-  return bodyHtml + sigHtml
+  // If still no sig found, try: does the last para end with a sig name?
+  if (sigStartIdx === paras.length && paras.length >= 2) {
+    const m = SIG_TAIL_RE.exec(paras[paras.length - 1])
+    if (m && SIG_NAME_RE.test(m[2])) {
+      paras[paras.length - 1] = m[1].trimEnd()
+      extractedSigName = m[2].trim()
+      sigStartIdx = paras.length  // extractedSigName will be prepended to sigParas below
+    }
+  }
+
+  // ── Assemble three sections ─────────────────────────────────────────────
+  const greeting  = paras[0]
+  const bodyParas = paras.slice(1, sigStartIdx)
+  let   sigParas  = paras.slice(sigStartIdx)
+  if (extractedSigName) sigParas = [extractedSigName, ...sigParas]
+
+  const greetHtml   = greeting
+    ? `<p class="wk-greeting">${greeting.replace(/\n/g, '')}</p>` : ''
+
+  const contentHtml = bodyParas
+    .map(p => `<p>${p.replace(/\n/g, '')}</p>`).join('')
+
+  const sigHtml = sigParas.length
+    ? `<p class="wk-signature">${sigParas.map(p => p.replace(/\n/g, '<br>')).join('<br>')}</p>` : ''
+
+  return greetHtml + contentHtml + sigHtml
 }
 
 // Key verse: merge PDF-wrapped continuation lines, keep verse-starting lines separate
@@ -623,8 +659,8 @@ function renderKeyVerse(text) {
 .wk-intro-inner { max-width: 720px; margin: 0 auto; padding: 2rem 40px; }
 .wk-intro-body { font-family: 'Noto Serif TC', serif; font-size: 1rem; line-height: 2.1; color: #3A3025; }
 .wk-intro-body :deep(p) { text-indent: 2em; margin-bottom: 0.9em; }
-.wk-intro-body :deep(p:first-child) { text-indent: 0; margin-bottom: 1.4em; }
-.wk-intro-body :deep(.wk-signature) { text-indent: 0; text-align: right; margin-top: 2em; margin-bottom: 0; color: #5A5040; line-height: 1.9; }
+.wk-intro-body :deep(.wk-greeting) { text-indent: 0; margin-bottom: 1.6em; font-weight: 500; letter-spacing: 0.04em; }
+.wk-intro-body :deep(.wk-signature) { text-indent: 0; text-align: right; margin-top: 2.2em; margin-bottom: 0; color: #5A5040; line-height: 2; font-size: 0.93rem; }
 .wk-intro-body :deep(p:last-child) { margin-bottom: 0; }
 
 /* ── Theme essay ──────────────────────────────────────────── */
