@@ -2972,6 +2972,15 @@ const colorLabel = (color) => {
 .remark-tiptap :deep(.ProseMirror):focus {
   border-color: #6366f1;
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+  height: auto;
+  min-height: 37px;
+  white-space: pre-wrap;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+.remark-tiptap :deep(.ProseMirror):focus p {
+  white-space: pre-wrap;
 }
 
 .remark-tiptap :deep(.ProseMirror)::-webkit-scrollbar {
