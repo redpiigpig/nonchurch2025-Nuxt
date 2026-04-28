@@ -100,13 +100,27 @@
       <div class="md-player-inner">
         <!-- 短影音：豎版 9:16 -->
         <div v-if="isShort" class="md-player-wrap md-player-wrap--short">
+          <!-- facade：有自訂封面時，先顯示圖片，點擊才載入 YouTube -->
+          <div
+            v-if="!videoPlaying && item.thumbnail_url"
+            class="md-short-facade"
+            @click="videoPlaying = true"
+          >
+            <img :src="item.thumbnail_url" :alt="item.title" />
+            <div class="md-facade-play">
+              <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="40" cy="40" r="40" fill="rgba(0,0,0,0.52)"/>
+                <polygon points="32,24 62,40 32,56" fill="white"/>
+              </svg>
+            </div>
+          </div>
           <iframe
-            :src="youtubeEmbedSrc"
+            v-else
+            :src="videoPlaying ? youtubePlaySrc : youtubeEmbedSrc"
             title="YouTube Shorts player"
             frameborder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowfullscreen
-            loading="lazy"
           ></iframe>
         </div>
         <!-- 一般影片：橫版 16:9 -->
@@ -259,6 +273,14 @@ const youtubeEmbedSrc = computed(() => {
   if (isShort.value) return `https://www.youtube.com/embed/${id}`
   const start = item.value?.youtube_start
   return `https://www.youtube.com/embed/${id}${start ? `?start=${start}` : ''}`
+})
+
+const videoPlaying = ref(false)
+watch(() => item.value?.id, () => { videoPlaying.value = false })
+const youtubePlaySrc = computed(() => {
+  const src = youtubeEmbedSrc.value
+  if (!src) return null
+  return src + (src.includes('?') ? '&' : '?') + 'autoplay=1'
 })
 
 function save(field, value) {
@@ -520,6 +542,31 @@ onMounted(() => { loadSession() })
   margin: 0 auto;
 }
 .md-player-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+
+.md-short-facade {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.md-short-facade img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.md-facade-play {
+  position: relative;
+  z-index: 1;
+  width: 72px;
+  height: 72px;
+  transition: transform 0.15s;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+}
+.md-short-facade:hover .md-facade-play { transform: scale(1.12); }
 .md-yt-link { margin-top: 12px; text-align: right; }
 .md-yt-ext { font-size: 0.75rem; font-weight: 300; color: #9A9080; text-decoration: none; letter-spacing: 0.06em; transition: color 0.2s; }
 .md-yt-ext:hover { color: #5A5040; }

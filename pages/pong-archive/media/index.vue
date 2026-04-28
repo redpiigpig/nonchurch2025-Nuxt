@@ -44,7 +44,6 @@
           <div class="mi-card-body">
             <div class="mi-card-meta">
               <span v-if="item.source" class="mi-source">{{ item.source }}</span>
-              <span v-if="item.program_name" class="mi-program">{{ item.program_name }}</span>
               <span v-if="item.broadcast_date" class="mi-date">{{ formatDate(item.broadcast_date) }}</span>
             </div>
             <h3 class="mi-card-title">{{ item.title }}</h3>
@@ -125,7 +124,12 @@
           :to="`/pong-archive/media/${item.id}`"
           class="mi-short-card"
         >
-          <div class="mi-short-thumb">
+          <div
+            class="mi-short-thumb"
+            :style="(item.thumbnail_url || item.youtube_id)
+              ? { '--thumb-src': `url('${item.thumbnail_url || `https://img.youtube.com/vi/${item.youtube_id}/mqdefault.jpg`}')` }
+              : {}"
+          >
             <img
               v-if="item.thumbnail_url || item.youtube_id"
               :src="item.thumbnail_url || `https://img.youtube.com/vi/${item.youtube_id}/mqdefault.jpg`"
@@ -449,13 +453,24 @@ function formatDate(d) {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  background-color: #E0DBD1;
+  background-color: #1a1410;
   overflow: hidden;
 }
+.mi-short-thumb::before {
+  content: '';
+  position: absolute;
+  inset: -8%;
+  background-image: var(--thumb-src);
+  background-size: cover;
+  background-position: center;
+  filter: blur(18px) brightness(0.45);
+}
 .mi-short-thumb img {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .mi-short-body {

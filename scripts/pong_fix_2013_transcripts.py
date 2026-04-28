@@ -118,8 +118,9 @@ def has_simplified(text: str) -> bool:
 
 def clean_fffd(text: str) -> tuple[str, int]:
     """移除 FFFD 字元，回傳 (cleaned, count)"""
-    count = text.count('�')
-    return text.replace('�', ''), count
+    fffd = chr(0xFFFD)  # U+FFFD Unicode Replacement Character
+    count = text.count(fffd)
+    return text.replace(fffd, ''), count
 
 
 def split_into_paragraphs(text: str) -> str:
