@@ -20,6 +20,8 @@ import json
 import argparse
 import subprocess
 import tempfile
+import time
+import random
 from pathlib import Path
 
 # Windows：預載 Ollama 附帶的 CUDA v12 DLL，讓 ctranslate2 能找到
@@ -72,10 +74,17 @@ def fetch_youtube_metadata(url):
     print(' 取得影片資訊...')
     result = subprocess.run(
         [YTDLP_PATH, '--dump-json', '--no-playlist',
-         '--cookies-from-browser', 'chrome', url],
-        capture_output=True, text=True, check=True, encoding='utf-8'
+         '--sleep-requests', '3', '--min-sleep-interval', '2',
+         *_cookie_args(), url],
+        capture_output=True,
     )
-    data = json.loads(result.stdout)
+    stdout = result.stdout.decode('utf-8', errors='replace')
+    stderr = result.stderr.decode('utf-8', errors='replace')
+    if result.returncode != 0:
+        print(f'  [yt-dlp ERROR] {stderr[-800:].strip()}')
+        raise subprocess.CalledProcessError(result.returncode, result.args,
+                                            stdout, stderr)
+    data = json.loads(stdout)
     upload_raw = data.get('upload_date', '')  # YYYYMMDD
     upload_date = (
         f"{upload_raw[:4]}-{upload_raw[4:6]}-{upload_raw[6:]}"
@@ -90,8 +99,17 @@ def fetch_youtube_metadata(url):
     }
 
 
-FFMPEG_PATH = r'C:\Users\user\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1-full_build\bin'
-YTDLP_PATH  = r'C:\Users\user\AppData\Local\Python\pythoncore-3.14-64\Scripts\yt-dlp.exe'
+FFMPEG_PATH  = r'C:\Users\user\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.1-full_build\bin'
+YTDLP_PATH   = r'C:\Users\user\AppData\Local\Python\pythoncore-3.14-64\Scripts\yt-dlp.exe'
+COOKIES_FILE = str(Path(__file__).parent.parent / 'cookies.txt')
+
+def _cookie_args():
+    """優先用 cookies.txt，備援 Chrome，最後無 cookies"""
+    if os.path.exists(COOKIES_FILE):
+        print(f'  [cookies] 使用 {COOKIES_FILE}')
+        return ['--cookies', COOKIES_FILE]
+    print('  [cookies] 找不到 cookies.txt，嘗試 Chrome...')
+    return ['--cookies-from-browser', 'chrome']
 
 def download_audio(url, output_path):
     print('  下載音訊中...')
@@ -99,7 +117,7 @@ def download_audio(url, output_path):
         YTDLP_PATH, '-x', '--audio-format', 'mp3',
         '--audio-quality', '0',
         '--ffmpeg-location', FFMPEG_PATH,
-        '--cookies-from-browser', 'chrome',
+        *_cookie_args(),
         '-o', str(output_path),
         '--no-playlist', url
     ], check=True)
@@ -118,17 +136,68 @@ def get_whisper_model():
         print('  模型就緒')
     return _whisper_model
 
+CHUNK_MINUTES = 20  # 長音訊切段上限（分鐘）
+
+def _audio_duration_sec(audio_path):
+    """用 ffprobe 取得音訊秒數"""
+    ffprobe_exe = os.path.join(FFMPEG_PATH, 'ffprobe.exe')
+    r = subprocess.run(
+        [ffprobe_exe, '-v', 'error', '-show_entries', 'format=duration',
+         '-of', 'default=noprint_wrappers=1:nokey=1', str(audio_path)],
+        capture_output=True, text=True,
+    )
+    try:
+        sec = float(r.stdout.strip())
+        print(f'  音訊長度：{sec/60:.1f} 分鐘')
+        return sec
+    except ValueError:
+        print(f'  [警告] ffprobe 無法取得時長，改用分段保守值')
+        return 9999.0   # 保守：總是切段
+
+
+def _split_audio(audio_path, chunk_sec, tmpdir):
+    """用 ffmpeg 把音訊切成 chunk_sec 秒的段落，回傳路徑列表"""
+    ffmpeg_exe = os.path.join(FFMPEG_PATH, 'ffmpeg.exe')
+    out_pattern = str(Path(tmpdir) / 'chunk_%03d.mp3')
+    subprocess.run([
+        ffmpeg_exe, '-y', '-i', str(audio_path),
+        '-f', 'segment', '-segment_time', str(chunk_sec),
+        '-c', 'copy', out_pattern,
+    ], check=True, capture_output=True)
+    chunks = sorted(Path(tmpdir).glob('chunk_*.mp3'))
+    return chunks
+
+
 def transcribe(audio_path, lang):
     label = lang if lang != 'auto' else '自動偵測'
-    print(f'  轉錄中（RTX 4050 GPU large-v3-turbo int8_float16，語言：{label}）...')
     model = get_whisper_model()
-    segments, _ = model.transcribe(
-        str(audio_path),
-        language=lang if lang != 'auto' else None,
-        beam_size=5,
-    )
-    lines = [seg.text.strip() for seg in segments if seg.text.strip()]
-    transcript = '\n'.join(lines)
+
+    duration = _audio_duration_sec(audio_path)
+    chunk_sec = CHUNK_MINUTES * 60
+    if duration > chunk_sec:
+        print(f'  音訊長度 {duration/60:.0f} 分鐘，切成 {CHUNK_MINUTES} 分鐘段落轉錄...')
+        tmpdir = str(audio_path.parent)
+        chunks = _split_audio(audio_path, chunk_sec, tmpdir)
+        all_lines = []
+        for i, chunk in enumerate(chunks, 1):
+            print(f'  轉錄第 {i}/{len(chunks)} 段（RTX 4050 GPU large-v3-turbo int8_float16，語言：{label}）...')
+            segs, _ = model.transcribe(
+                str(chunk), language=lang if lang != 'auto' else None,
+                beam_size=5, vad_filter=True,
+                vad_parameters=dict(min_silence_duration_ms=500),
+            )
+            all_lines.extend(seg.text.strip() for seg in segs if seg.text.strip())
+        transcript = '\n'.join(all_lines)
+    else:
+        print(f'  轉錄中（RTX 4050 GPU large-v3-turbo int8_float16，語言：{label}）...')
+        segments, _ = model.transcribe(
+            str(audio_path),
+            language=lang if lang != 'auto' else None,
+            beam_size=5, vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500),
+        )
+        transcript = '\n'.join(seg.text.strip() for seg in segments if seg.text.strip())
+
     print(f' 轉錄完成，共 {len(transcript)} 字')
     return transcript
 
@@ -374,6 +443,12 @@ def main():
                 print('[SKIP] 非龐牧師講道，跳過。')
                 skipped += 1
                 continue
+            # 先查資料庫，若已有 media_id 直接跳過（不呼叫 yt-dlp）
+            existing = find_sermon_by_date(entry['date'])
+            if existing and existing.get('media_id'):
+                print(f'[SKIP] {entry["date"]} 已有 media_id={existing["media_id"]}，略過。')
+                skipped += 1
+                continue
             try:
                 result = process_single(
                     url=entry['url'],
@@ -389,6 +464,10 @@ def main():
             except Exception as e:
                 print(f'[ERROR] {entry["date"]} 失敗：{e}')
                 failed += 1
+            # 每筆完成後等一段時間，像人類一樣
+            wait = random.uniform(15, 35)
+            print(f'  [等待 {wait:.0f} 秒再處理下一筆...]')
+            time.sleep(wait)
         print(f'\n[批次完成] 成功={ok} 跳過={skipped} 失敗={failed}')
 
     elif args.url:
