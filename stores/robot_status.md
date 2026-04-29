@@ -5,14 +5,49 @@
 
 ---
 
-## 一、核心流程
+## 一、AI 後端說明（Gemini vs 本地 Ollama）
+
+逐字稿**轉錄**用 faster-whisper（本機 CUDA），不走 AI API。
+逐字稿**裁切**（去掉敬拜、讀經等非講道部分）才呼叫 AI，優先序如下：
+
+| 順序 | AI 後端 | 設定方式 | 限制 |
+|------|---------|----------|------|
+| 1 | Gemini（雲端） | `.env` 的 `VITE_GEMINI_API_KEY` | 免費版容易 429 |
+| 2 | 本地 Ollama（自動 fallback） | 安裝後直接可用，**不需要 API key** | 需先安裝模型 |
+
+### 安裝本地模型（一次性，Ollama 已裝）
 
 ```bash
-# 單筆
+ollama pull qwen2.5:14b   # 裁切任務建議（~9GB，中文理解佳）
+# 或輕量版（較快但較易出錯）：
+ollama pull qwen2.5:7b
+```
+
+> Ollama 本地 HTTP server：`http://localhost:11434`，Python 直接 `requests.post`，**無需 API key、無限額**。
+
+### 使用方式
+
+```bash
+# 預設：Gemini 優先，429 後自動 fallback 到 Ollama
+PYTHONIOENCODING=utf-8 python scripts/pong_fix_2013_transcripts.py --force --year YYYY
+
+# 強制全程使用本地 Ollama（Gemini quota 耗盡時用這個）
+PYTHONIOENCODING=utf-8 python scripts/pong_fix_2013_transcripts.py --force --year YYYY --local
+
+# 指定不同本地模型
+PYTHONIOENCODING=utf-8 python scripts/pong_fix_2013_transcripts.py --force --year YYYY --local --model qwen2.5:14b
+```
+
+---
+
+## 二、核心流程
+
+```bash
+# 單筆轉錄
 PYTHONIOENCODING=utf-8 python -u scripts/pong_sermon_pipeline.py \
   "URL" --date YYYY-MM-DD --title "標題" --yes >> /tmp/p2015_all.log 2>&1
 
-# 轉錄完後整理逐字稿
+# 轉錄完後整理逐字稿（AI 裁切）
 PYTHONIOENCODING=utf-8 python scripts/pong_fix_2013_transcripts.py --force --year YYYY
 ```
 
@@ -24,19 +59,19 @@ PYTHONIOENCODING=utf-8 python scripts/pong_fix_2013_transcripts.py --force --yea
 
 ---
 
-## 二、逐字稿裁切規則
+## 三、逐字稿裁切規則
 
 - **去掉**：講道前的敬拜詩歌、讀經、司會禱告、奉獻禱告、閉幕詩歌
 - **保留**：講道正文 + 結尾禱告
 - 標題含 `(別人)` / `來賓` / `特別講員` → 直接跳過，不下載
 
-### year ≥ 2014：全自動 Gemini AI 裁切
+### year ≥ 2014：全自動 AI 裁切（Gemini 優先，Ollama 備援）
 
-`pong_fix_2013_transcripts.py` 對 year ≥ 2014 自動啟用 Gemini 裁切，去除崇拜非講道部分。AI 失敗時 fallback 原始全文，不中斷批次。
+`pong_fix_2013_transcripts.py` 對 year ≥ 2014 自動啟用 AI 裁切，去除崇拜非講道部分。Gemini 429 後自動切換本地 Ollama（`qwen2.5:14b`）；兩者均失敗時 fallback 原始全文，不中斷批次。
 
 ---
 
-## 三、已完成年份
+## 四、已完成年份
 
 | 年份               | 結果                                                                                       |
 | ------------------ | ------------------------------------------------------------------------------------------ |
@@ -46,7 +81,7 @@ PYTHONIOENCODING=utf-8 python scripts/pong_fix_2013_transcripts.py --force --yea
 
 ---
 
-## 四、城中教會 2015 系列（🔄 轉錄進行中）
+## 五、城中教會 2015 系列（🔄 轉錄進行中）
 
 來源：`stores/城中教會講道清單/城中教會講道_2015.txt`（36 筆龐牧師 / 8 筆別人跳過）
 
