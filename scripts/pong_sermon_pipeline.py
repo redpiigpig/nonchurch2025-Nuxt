@@ -71,7 +71,8 @@ def extract_youtube_id(url):
 def fetch_youtube_metadata(url):
     print(' 取得影片資訊...')
     result = subprocess.run(
-        [YTDLP_PATH, '--dump-json', '--no-playlist', url],
+        [YTDLP_PATH, '--dump-json', '--no-playlist',
+         '--cookies-from-browser', 'chrome', url],
         capture_output=True, text=True, check=True, encoding='utf-8'
     )
     data = json.loads(result.stdout)
@@ -98,6 +99,7 @@ def download_audio(url, output_path):
         YTDLP_PATH, '-x', '--audio-format', 'mp3',
         '--audio-quality', '0',
         '--ffmpeg-location', FFMPEG_PATH,
+        '--cookies-from-browser', 'chrome',
         '-o', str(output_path),
         '--no-playlist', url
     ], check=True)
