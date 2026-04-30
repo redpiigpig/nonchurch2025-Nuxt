@@ -59,8 +59,14 @@
                 <span v-for="tag in item.tags" :key="tag" class="wr-tag">{{ tag }}</span>
               </div>
 
-              <!-- 下載 / 連結 -->
+              <!-- 按鈕列 -->
               <div class="wr-card-footer">
+                <NuxtLink
+                  :to="`/pong-archive/writings/${item.id}`"
+                  class="wr-card-btn wr-card-btn--read"
+                >
+                  閱讀全文 →
+                </NuxtLink>
                 <a
                   v-if="item.cloudinary_urls && item.cloudinary_urls.length"
                   :href="item.cloudinary_urls[0]"
@@ -74,16 +80,7 @@
                     <line x1="4.5" y1="8"   x2="11.5" y2="8"   stroke="currentColor" stroke-width="1"/>
                     <line x1="4.5" y1="10.5" x2="9"   y2="10.5" stroke="currentColor" stroke-width="1"/>
                   </svg>
-                  下載 PDF
-                </a>
-                <a
-                  v-else-if="item.source_url"
-                  :href="item.source_url"
-                  target="_blank"
-                  rel="noopener"
-                  class="wr-card-btn wr-card-btn--link"
-                >
-                  前往原文 ↗
+                  PDF
                 </a>
               </div>
             </article>
@@ -395,14 +392,12 @@ function formatDate(dateStr, approximate) {
   flex-shrink: 0;
   color: #9A8060;
 }
-.wr-card-btn--link {
-  background: none;
-  border: none;
-  color: #8A7A60;
-  padding-left: 0;
-  padding-right: 0;
+.wr-card-btn--read {
+  background-color: #3A3025;
+  border: 1px solid #3A3025;
+  color: #F9F8F6;
 }
-.wr-card-btn--link:hover { color: #3A3025; }
+.wr-card-btn--read:hover { background-color: #5B4A38; border-color: #5B4A38; }
 
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 760px) {
