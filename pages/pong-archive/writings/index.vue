@@ -14,14 +14,14 @@
     <!-- ── Category Tabs ─────────────────────────────────── -->
     <nav class="wr-tabs" aria-label="文章分類">
       <button
-        v-for="cat in visibleCategories"
+        v-for="cat in CATEGORIES"
         :key="cat.key"
         class="wr-tab"
         :class="{ 'wr-tab--active': activeTab === cat.key }"
         @click="activeTab = cat.key"
       >
         <span class="wr-tab-zh">{{ cat.label }}</span>
-        <span class="wr-tab-count">{{ countByCategory[cat.key] || 0 }}</span>
+        <span v-if="countByCategory[cat.key]" class="wr-tab-count">{{ countByCategory[cat.key] }}</span>
       </button>
     </nav>
 
@@ -128,15 +128,7 @@ const countByCategory = computed(() => {
   return map
 })
 
-const visibleCategories = computed(() =>
-  CATEGORIES.filter(c => (countByCategory.value[c.key] || 0) > 0)
-)
-
-const _activeTab = ref('')
-const activeTab = computed({
-  get: () => _activeTab.value || visibleCategories.value[0]?.key || '',
-  set: (val) => { _activeTab.value = val }
-})
+const activeTab = ref(CATEGORIES[0].key)
 
 const filteredWritings = computed(() =>
   writings.value.filter(w => w.category === activeTab.value)
