@@ -118,6 +118,8 @@ Directory structure:
     │       │   ├── [year].vue
     │       │   └── year/
     │       │       └── [year].vue
+    │       ├── writings/
+    │       │   └── index.vue
     │       └── daily-office/
     │           ├── index.vue
     │           └── [year]/
