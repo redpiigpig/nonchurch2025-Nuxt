@@ -35,9 +35,10 @@
 
         <template v-else-if="filteredWritings.length">
           <div class="wr-grid">
-            <article
+            <NuxtLink
               v-for="item in filteredWritings"
               :key="item.id"
+              :to="`/pong-archive/writings/${item.id}`"
               class="wr-card"
             >
               <!-- 刊物 + 年份 -->
@@ -59,31 +60,8 @@
                 <span v-for="tag in item.tags" :key="tag" class="wr-tag">{{ tag }}</span>
               </div>
 
-              <!-- 按鈕列 -->
-              <div class="wr-card-footer">
-                <NuxtLink
-                  :to="`/pong-archive/writings/${item.id}`"
-                  class="wr-card-btn wr-card-btn--read"
-                >
-                  閱讀全文 →
-                </NuxtLink>
-                <a
-                  v-if="item.cloudinary_urls && item.cloudinary_urls.length"
-                  :href="item.cloudinary_urls[0]"
-                  target="_blank"
-                  rel="noopener"
-                  class="wr-card-btn wr-card-btn--pdf"
-                >
-                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
-                    <line x1="4.5" y1="5.5" x2="11.5" y2="5.5" stroke="currentColor" stroke-width="1"/>
-                    <line x1="4.5" y1="8"   x2="11.5" y2="8"   stroke="currentColor" stroke-width="1"/>
-                    <line x1="4.5" y1="10.5" x2="9"   y2="10.5" stroke="currentColor" stroke-width="1"/>
-                  </svg>
-                  PDF
-                </a>
-              </div>
-            </article>
+              <div class="wr-card-arrow">→</div>
+            </NuxtLink>
           </div>
         </template>
 
@@ -283,11 +261,15 @@ function formatDate(dateStr, approximate) {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
 }
 .wr-card:hover {
   border-color: #C4B89A;
-  box-shadow: 0 4px 16px rgba(60, 50, 35, 0.07);
+  box-shadow: 0 4px 16px rgba(60, 50, 35, 0.08);
+  transform: translateY(-2px);
 }
 
 .wr-card-meta {
@@ -332,15 +314,6 @@ function formatDate(dateStr, approximate) {
   margin: 0;
 }
 
-.wr-card-desc {
-  font-size: 0.85rem;
-  font-weight: 300;
-  color: #5A5550;
-  line-height: 1.85;
-  letter-spacing: 0.04em;
-  margin: 0;
-  flex: 1;
-}
 
 .wr-card-tags {
   display: flex;
@@ -358,46 +331,19 @@ function formatDate(dateStr, approximate) {
   letter-spacing: 0.05em;
 }
 
-/* ── Card Footer ─────────────────────────────────────────── */
-.wr-card-footer {
-  margin-top: 6px;
-  padding-top: 14px;
-  border-top: 1px solid #EDE8DF;
+/* ── Card Arrow ──────────────────────────────────────────── */
+.wr-card-arrow {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 1rem;
+  color: #C4B89A;
+  text-align: right;
+  transition: color 0.18s, transform 0.18s;
 }
-.wr-card-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 3px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.07em;
-  text-decoration: none;
-  transition: background-color 0.18s, color 0.18s;
-}
-.wr-card-btn--pdf {
-  background-color: #F2EFE9;
-  border: 1px solid #DDD8CF;
-  color: #6A6050;
-}
-.wr-card-btn--pdf:hover {
-  background-color: #EAE4D8;
-  border-color: #C4B89A;
-  color: #3A3025;
-}
-.wr-card-btn--pdf svg {
-  width: 13px;
-  height: 13px;
-  flex-shrink: 0;
+.wr-card:hover .wr-card-arrow {
   color: #9A8060;
+  transform: translateX(4px);
 }
-.wr-card-btn--read {
-  background-color: #3A3025;
-  border: 1px solid #3A3025;
-  color: #F9F8F6;
-}
-.wr-card-btn--read:hover { background-color: #5B4A38; border-color: #5B4A38; }
 
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 760px) {
