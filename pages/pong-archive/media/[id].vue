@@ -342,18 +342,18 @@ const parsedTranscript = computed(() => {
       continue
     }
 
-    // speaker line  "龐君華牧師：blah" — name ≤ 12 chars, no sentence punctuation
-    const m = l.match(/^(.{1,12}?)(?:（[^）]*）)?\s*：\s*(.*)$/)
-    if (m && m[1].length <= 10 && !/[，。？！]/.test(m[1])) {
+    // under a speech block — add to current speaker's paragraphs
+    if (curSpeaker !== null) {
+      curParas.push(l); continue
+    }
+
+    // speaker line (block mode only) "龐君華牧師：blah" — name ≤ 10 chars, no sentence punctuation
+    const m = l.match(/^(.{1,10}?)(?:（[^）]*）)?\s*：\s*(.*)$/)
+    if (m && m[1].length <= 10 && !/[，。？！、]/.test(m[1])) {
       flushBlock(); flushSpeech()
       curSpeaker = m[1].trim()
       if (m[2].trim()) curParas.push(m[2].trim())
       continue
-    }
-
-    // under a speech block
-    if (curSpeaker !== null) {
-      curParas.push(l); continue
     }
 
     // plain text line → accumulate into current paragraph
