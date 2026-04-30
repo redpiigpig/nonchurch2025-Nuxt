@@ -96,14 +96,7 @@
 </template>
 
 <script setup>
-import { createClient } from '@supabase/supabase-js'
-
 definePageMeta({ layout: 'pong-archive' })
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_KEY
-)
 
 const CATEGORIES = [
   { key: 'thesis',       label: '學位論文', en: 'Thesis' },
@@ -113,19 +106,23 @@ const CATEGORIES = [
   { key: 'web',          label: '網站文章', en: 'Web Articles' },
 ]
 
-const { data: writings, pending } = await useAsyncData('pong-writings-list', async () => {
+const writings = ref([])
+const pending  = ref(true)
+
+onMounted(async () => {
+  const supabase = useSupabaseClient()
   const { data, error } = await supabase
     .from('pong_writings')
     .select('id, title, title_en, category, publication, published_date, date_approximate, source_url, cloudinary_urls, tags, description')
     .eq('is_published', true)
     .order('sort_order', { ascending: true })
-  if (error) return []
-  return data || []
+  if (!error && data) writings.value = data
+  pending.value = false
 })
 
 const countByCategory = computed(() => {
   const map = {}
-  for (const w of (writings.value || [])) {
+  for (const w of writings.value) {
     map[w.category] = (map[w.category] || 0) + 1
   }
   return map
@@ -142,7 +139,7 @@ const activeTab = computed({
 })
 
 const filteredWritings = computed(() =>
-  (writings.value || []).filter(w => w.category === activeTab.value)
+  writings.value.filter(w => w.category === activeTab.value)
 )
 
 function formatDate(dateStr, approximate) {
