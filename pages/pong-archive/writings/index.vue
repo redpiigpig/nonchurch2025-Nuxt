@@ -54,9 +54,6 @@
               <!-- 英文標題 -->
               <p v-if="item.title_en" class="wr-card-en">{{ item.title_en }}</p>
 
-              <!-- 簡介 -->
-              <p v-if="item.description" class="wr-card-desc">{{ item.description }}</p>
-
               <!-- 標籤 -->
               <div v-if="item.tags && item.tags.length" class="wr-card-tags">
                 <span v-for="tag in item.tags" :key="tag" class="wr-tag">{{ tag }}</span>
