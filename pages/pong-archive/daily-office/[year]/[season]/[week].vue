@@ -241,12 +241,10 @@
     <footer class="wk-credits">
       <div class="wk-credits-inner">
         <div class="wk-credits-grid">
-          <div class="wk-credit-row"><span class="wk-credit-role">內容原稿</span><span class="wk-credit-names">龐君華</span></div>
-          <div class="wk-credit-row"><span class="wk-credit-role">文字工作</span><span class="wk-credit-names">邱泰耀、褚秀玲、鄭沂珊</span></div>
-          <div class="wk-credit-row"><span class="wk-credit-role">影音工作</span><span class="wk-credit-names">蕭曉玲、呂華光、褚秀玲</span></div>
-          <div class="wk-credit-row"><span class="wk-credit-role">後勤協作</span><span class="wk-credit-names">蕭毓蓉</span></div>
-          <div class="wk-credit-row"><span class="wk-credit-role">封面設計</span><span class="wk-credit-names">王柏欽</span></div>
-          <div class="wk-credit-row"><span class="wk-credit-role">整合執行</span><span class="wk-credit-names">陳繼賢、張芝嘉</span></div>
+          <div v-for="c in (weekData?.team_credits || [])" :key="c.role" class="wk-credit-row">
+            <span class="wk-credit-role">{{ c.role }}</span>
+            <span class="wk-credit-names">{{ c.names }}</span>
+          </div>
         </div>
         <p class="wk-credits-site-label">官方網站</p>
         <a href="https://www.1day3read3pray.com/" target="_blank" rel="noopener" class="wk-credits-link">www.1day3read3pray.com</a>

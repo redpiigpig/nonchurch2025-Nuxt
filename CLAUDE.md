@@ -5,6 +5,15 @@
 
 ---
 
+## ⚠️ 絕對禁止：不得將 .env 或任何 secret 提交進 Git
+
+- **絕對不能**把 `.env` 裡的任何值（API key、密碼、token）硬編碼進任何腳本或程式碼
+- 所有 secret 一律從 `process.env.XXX` 讀取，腳本本身只寫變數名稱，不寫值
+- 提交前必須確認沒有任何 key 字串（`AIzaSy...`、`sk-...` 等格式）出現在程式碼中
+- 違反此規則會導致 GitHub secret scanning 警報、key 洩漏，必須立即 rotate 所有受影響的 key
+
+---
+
 ## 一、必讀參考檔案
 
 | 檔案 | 內容 |

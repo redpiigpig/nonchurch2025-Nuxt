@@ -92,12 +92,10 @@
     <footer class="do-credits">
       <div class="do-credits-inner">
         <div class="do-credits-grid">
-          <div class="do-credit-row"><span class="do-credit-role">內容原稿</span><span class="do-credit-names">龐君華</span></div>
-          <div class="do-credit-row"><span class="do-credit-role">文字工作</span><span class="do-credit-names">邱泰耀、褚秀玲、鄭沂珊</span></div>
-          <div class="do-credit-row"><span class="do-credit-role">影音工作</span><span class="do-credit-names">蕭曉玲、呂華光、褚秀玲</span></div>
-          <div class="do-credit-row"><span class="do-credit-role">後勤協作</span><span class="do-credit-names">蕭毓蓉</span></div>
-          <div class="do-credit-row"><span class="do-credit-role">封面設計</span><span class="do-credit-names">王柏欽</span></div>
-          <div class="do-credit-row"><span class="do-credit-role">整合執行</span><span class="do-credit-names">陳繼賢、張芝嘉</span></div>
+          <div v-for="c in TEAM_CREDITS" :key="c.role" class="do-credit-row">
+            <span class="do-credit-role">{{ c.role }}</span>
+            <span class="do-credit-names">{{ c.names }}</span>
+          </div>
         </div>
         <p class="do-credits-site-label">官方網站</p>
         <a href="https://www.1day3read3pray.com/" target="_blank" rel="noopener" class="do-credits-link">www.1day3read3pray.com</a>
@@ -119,6 +117,16 @@ import {
 } from '~/composables/useChurchCalendar.js'
 
 definePageMeta({ layout: 'pong-archive' })
+
+// 典藏總覽頁顯示最新版工作團隊（逐週精確版見各週頁面 weekData.team_credits）
+const TEAM_CREDITS = [
+  { role: '內容原稿', names: '龐君華' },
+  { role: '文字工作', names: '邱泰耀、褚秀玲、鄭沂珊' },
+  { role: '影音工作', names: '蕭曉玲、呂華光、褚秀玲' },
+  { role: '後勤協作', names: '蕭毓蓉' },
+  { role: '封面設計', names: '王柏欽' },
+  { role: '整合執行', names: '陳繼賢、張芝嘉' },
+]
 
 // ── 今日資訊 ──────────────────────────────────────────────
 const today = new Date()

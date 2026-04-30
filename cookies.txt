@@ -39,16 +39,6 @@
 .68547f8f-2fd8-4ff3-9b63-51e86e2edee8.prmutv.co	TRUE	/	TRUE	1778745457	pxid	
 .7-11.com.tw	TRUE	/	TRUE	1785380412	__eoi	
 .7-11.com.tw	TRUE	/	TRUE	1803524412	__gads	
-.a-mo.net	TRUE	/	TRUE	1777521612	_sv3_0	
-.a-mo.net	TRUE	/	TRUE	1777521612	_sv3_11	
-.a-mo.net	TRUE	/	TRUE	1777521612	_sv3_13	
-.a-mo.net	TRUE	/	TRUE	1777521612	_sv3_14	
-.a-mo.net	TRUE	/	TRUE	1777521605	_sv3_15	
-.a-mo.net	TRUE	/	TRUE	1777521605	_sv3_17	
-.a-mo.net	TRUE	/	TRUE	1777521613	_sv3_3	
-.a-mo.net	TRUE	/	TRUE	1777521612	_sv3_4	
-.a-mo.net	TRUE	/	TRUE	1777522805	_sv3_7	
-.a-mo.net	TRUE	/	TRUE	1777521612	_sv3_8	
 .a-mo.net	TRUE	/	TRUE	1808972405	amuid2	
 .a-mo.net	TRUE	/	TRUE	1806251083	pamuid2	
 .a-mx.com	TRUE	/	TRUE	1802591871	amdt_t	
@@ -124,7 +114,6 @@
 .adroll.com	TRUE	/	TRUE	1811564403	receive-cookie-deprecation	
 .adrta.com	TRUE	/	TRUE	1803970870	__aavi	
 .adrta.com	TRUE	/	TRUE	1803970870	__aavt	
-.ads.pubmatic.com	TRUE	/	TRUE	1777521590	pubsyncexp	
 .ads.yieldmo.com	TRUE	/	TRUE	1802591823	re_sync	
 .adscale.de	TRUE	/	TRUE	1806354471	cct	
 .adscale.de	TRUE	/	TRUE	1806554471	uu	
@@ -175,7 +164,6 @@
 .amazon.com	TRUE	/	TRUE	1806554466	ubid-main	
 .ambassador.com.tw	TRUE	/	FALSE	1808986932	_ga	
 .ambassador.com.tw	TRUE	/	FALSE	1809053079	_ga_0XNCKP2G1J	
-.ambientdsp.com	TRUE	/	TRUE	1777521600	_aGeoIp	
 .ambientdsp.com	TRUE	/	TRUE	1811995200	_aUID	
 .amnet.tw	TRUE	/	TRUE	1805783390	__fpid	
 .amnet.tw	TRUE	/	TRUE	1805783390	__retuid	
@@ -370,7 +358,6 @@
 .c.appier.net	TRUE	/web2/WqIToAlvgMEPN04/	TRUE	1779506971	_vs	
 .c.appier.net	TRUE	/web2/WqIToAlvgMEPN04/	TRUE	1779506971	_vst	
 .c.bing.com	TRUE	/	TRUE	1811122410	SRM_B	
-.c.clarity.ms	TRUE	/	TRUE	1777477422	MR	
 .calameo.com	TRUE	/	TRUE	1808986336	_ga	
 .cambridge.org	TRUE	/	TRUE	1790631763	__eoi	
 .cambridge.org	TRUE	/	TRUE	1808775763	__gads	
@@ -925,17 +912,13 @@
 .go.sonobi.com	TRUE	/	TRUE	1807341043	__uin_td	
 .go.sonobi.com	TRUE	/	TRUE	1807341044	__uin_tu	
 .go.sonobi.com	TRUE	/	TRUE	1807341043	__uin_zt	
-.go.sonobi.com	TRUE	/	TRUE	1777523076	__uir_an	
 .go.sonobi.com	TRUE	/	TRUE	1778613045	__uir_bs	
 .go.sonobi.com	TRUE	/	TRUE	1783581044	__uir_bw	
 .go.sonobi.com	TRUE	/	TRUE	1778613044	__uir_if	
 .go.sonobi.com	TRUE	/	TRUE	1778613045	__uir_kr	
 .go.sonobi.com	TRUE	/	TRUE	1778613045	__uir_pm	
-.go.sonobi.com	TRUE	/	TRUE	1777523077	__uir_rh	
-.go.sonobi.com	TRUE	/	TRUE	1777523106	__uir_st	
 .go.sonobi.com	TRUE	/	TRUE	1783581043	__uir_td	
 .go.sonobi.com	TRUE	/	TRUE	1778613044	__uir_tu	
-.go.sonobi.com	TRUE	/	TRUE	1777523070	__uir_zt	
 .go.sonobi.com	TRUE	/	TRUE	1808971210	__uis	
 .godaddy.com	TRUE	/	TRUE	1811348766	FPID	
 .godaddy.com	TRUE	/	FALSE	1808324701	LPVID	
@@ -1066,7 +1049,6 @@
 .hcu.edu.tw	TRUE	/	FALSE	1811840990	_ga_QMJDXMRE8B	
 .hcu.edu.tw	TRUE	/	FALSE	1809143386	_ga_RCXDNV8TBY	
 .hcu.edu.tw	TRUE	/	FALSE	1811840572	_ga_XMQVT8NW6B	
-.hcu.edu.tw	TRUE	/	FALSE	1777512089	_gid	
 .helloyishi.com.tw	TRUE	/	TRUE	1804135371	FPID	
 .helloyishi.com.tw	TRUE	/	TRUE	1785127372	__eoi	
 .helloyishi.com.tw	TRUE	/	TRUE	1803271372	__gads	
@@ -1255,7 +1237,6 @@
 .linkedin.com	TRUE	/	TRUE	1780018385	UserMatchHistory	
 .linkedin.com	TRUE	/	TRUE	1808962406	bcookie	
 .linkedin.com	TRUE	/	TRUE	1785202405	li_sugr	
-.linkedin.com	TRUE	/	TRUE	1777512786	lidc	
 .linkingbooks.com.tw	TRUE	/	FALSE	1782194759	_fbp	
 .linkingbooks.com.tw	TRUE	/	FALSE	1808978758	_ga	
 .linkingbooks.com.tw	TRUE	/	FALSE	1808978763	_ga_P1SB9ZG27R	
@@ -1338,12 +1319,10 @@
 .mcdonalds.com	TRUE	/	TRUE	1808987475	_abck	
 .mcdonalds.com	TRUE	/	FALSE	1808293864	_atrk_siteuid	
 .mcdonalds.com	TRUE	/	FALSE	1808987474	_clck	
-.mcdonalds.com	TRUE	/	FALSE	1777537876	_clsk	
 .mcdonalds.com	TRUE	/	FALSE	1785227473	_fbp	
 .mcdonalds.com	TRUE	/	FALSE	1812011475	_ga	
 .mcdonalds.com	TRUE	/	FALSE	1812011715	_ga_R581W7LRYF	
 .mcdonalds.com	TRUE	/	FALSE	1784533862	_gcl_au	
-.mcdonalds.com	TRUE	/	FALSE	1777537874	_gid	
 .mcdonalds.com.tw	TRUE	/	TRUE	1808987463	cf_clearance	
 .media.net	TRUE	/	TRUE	1804652473	data-ap	
 .media.net	TRUE	/	TRUE	1800946872	data-axm	
@@ -1743,7 +1722,6 @@
 .ptsplus.tv	TRUE	/	FALSE	1812013518	_ga_RLWV1ZG0TS	
 .ptsplus.tv	TRUE	/	FALSE	1812013509	_ga_RWKR42WR1Q	
 .ptsplus.tv	TRUE	/	FALSE	1785229509	_gcl_au	
-.ptsplus.tv	TRUE	/	FALSE	1777539909	_gid	
 .pubmatic.com	TRUE	/	TRUE	1785211169	DPSync4	
 .pubmatic.com	TRUE	/	TRUE	1808971212	KADUSERCOOKIE	
 .pubmatic.com	TRUE	/	TRUE	1784441536	KRTBCOOKIE_10	
@@ -1793,8 +1771,6 @@
 .railway.gov.tw	TRUE	/	FALSE	1811305347	_ga_9P3LQ5F3SZ	
 .rakuten.co.jp	TRUE	/	TRUE	1805732797	Rp	
 .rbstsystems.live	TRUE	/	TRUE	1808971185	xeroid	
-.rbstsystems.live	TRUE	/	TRUE	1777521573	xeroid_238	
-.rbstsystems.live	TRUE	/	TRUE	1777521585	xeroid_238214	
 .readmoo.com	TRUE	/	FALSE	1808067321	QGUserId	
 .readmoo.com	TRUE	/	TRUE	1789970779	__eoi	
 .readmoo.com	TRUE	/	TRUE	1808114779	__gads	
@@ -1914,7 +1890,6 @@
 .servenobid.com	TRUE	/	TRUE	1778040007	pid_351	
 .servenobid.com	TRUE	/	TRUE	1778039990	pid_352	
 .server.cpmstar.com	TRUE	/	TRUE	1806812481	USER_ID	
-.serverbid.com	TRUE	/	TRUE	1777549761	CONSUMABLEID	
 .share.readmoo.com	TRUE	/	FALSE	1808978779	_ga	
 .share.readmoo.com	TRUE	/	FALSE	1808978780	_ga_YW3Q0ZF1DF	
 .shareaholic.com	TRUE	/	TRUE	1806563845	c_id	
@@ -2576,8 +2551,8 @@
 .ynuf.aliapp.org	TRUE	/	TRUE	1807137379	cbc	
 .youtube.com	TRUE	/	FALSE	0	PREF	hl=en&tz=UTC
 .youtube.com	TRUE	/	FALSE	1808925220	SIDCC	
-.youtube.com	TRUE	/	TRUE	1793023060	VISITOR_INFO1_LIVE	4Zu54NmgiBg
-.youtube.com	TRUE	/	TRUE	1793023060	VISITOR_PRIVACY_METADATA	CgJUVxIEGgAgDQ%3D%3D
+.youtube.com	TRUE	/	TRUE	1793104157	VISITOR_INFO1_LIVE	4Zu54NmgiBg
+.youtube.com	TRUE	/	TRUE	1793104157	VISITOR_PRIVACY_METADATA	CgJUVxIEGgAgDQ%3D%3D
 .youtube.com	TRUE	/	TRUE	1808925220	__Secure-1PSIDCC	
 .youtube.com	TRUE	/	TRUE	1808925220	__Secure-1PSIDTS	
 .youtube.com	TRUE	/	TRUE	1811640382	__Secure-3PAPISID	
@@ -2585,10 +2560,10 @@
 .youtube.com	TRUE	/	TRUE	1808989529	__Secure-3PSIDCC	
 .youtube.com	TRUE	/	TRUE	1808925220	__Secure-3PSIDTS	
 .youtube.com	TRUE	/	TRUE	1791279325	__Secure-BUCKET	
-.youtube.com	TRUE	/	TRUE	1793009028	__Secure-ROLLOUT_TOKEN	GLKMlbbnkpQD
+.youtube.com	TRUE	/	TRUE	1793103375	__Secure-ROLLOUT_TOKEN	GL-_yfLGlZQD
 .youtube.com	TRUE	/	TRUE	1792930043	__Secure-YNID	
 .youtube.com	TRUE	/	TRUE	0	SOCS	CAI
-.youtube.com	TRUE	/	TRUE	1777472860	GPS	1
+.youtube.com	TRUE	/	TRUE	1777553175	GPS	1
 .yudian.org	TRUE	/	FALSE	1781598240	_fbc	
 .yudian.org	TRUE	/	FALSE	1781598240	_fbp	
 .yudian.org	TRUE	/	FALSE	1808382240	_ga	
@@ -2603,7 +2578,6 @@
 .zdic.net	TRUE	/	FALSE	1805614526	_ga_G8PX9JTXGL	
 .zeabur.com	TRUE	/	TRUE	1808962427	__stripe_mid	
 .zeabur.com	TRUE	/	FALSE	1808962406	_clck	
-.zeabur.com	TRUE	/	FALSE	1777512823	_clsk	
 .zeabur.com	TRUE	/	FALSE	1811986404	_ga	
 .zeabur.com	TRUE	/	FALSE	1811986423	_ga_F0FE9EJZ4E	
 .zeabur.com	TRUE	/	FALSE	1782905533	_gcl_au	
@@ -2687,7 +2661,6 @@ cava.tw	FALSE	/	TRUE	1805783390	oid
 cdn-news.org	FALSE	/	FALSE	1800369442	CDN-NEWS	
 chatgpt.com	FALSE	/	FALSE	1785207595	_account_is_fedramp	
 chatgpt.com	FALSE	/	FALSE	1808987699	_dd_s	
-chatgpt.com	FALSE	/	FALSE	1777517992	gclid	
 chatgpt.com	FALSE	/	FALSE	1778036390	oai-chat-web-route	
 chatgpt.com	FALSE	/	FALSE	1780023594	oai-client-auth-info	
 chatgpt.com	FALSE	/	FALSE	1799309571	oai-hlib	
@@ -2826,8 +2799,6 @@ login.taobao.com	FALSE	/member	FALSE	1808735501	_uab_collina
 login.taobao.com	FALSE	/	TRUE	1789727491	arms_uid	
 longzhen0707.weebly.com	FALSE	/	FALSE	1807593774	_snow_id.16f6	
 m.ntesgsght.com	FALSE	/	TRUE	1808972824	session_id	
-m.ntesgsght.com	FALSE	/	TRUE	1777522563	session_id_r1uon5_impression	
-m.ntesgsght.com	FALSE	/	TRUE	1777523224	session_id_wniq6u_impression	
 m.stripe.com	FALSE	/	TRUE	1811986427	m	
 mail-attachment.googleusercontent.com	FALSE	/attachment/u/0	TRUE	1777883460	COMPASS	
 mail-attachment.googleusercontent.com	FALSE	/attachment/u/1	TRUE	1777648977	COMPASS	
@@ -3052,7 +3023,6 @@ www.aroak.com.tw	FALSE	/	FALSE	1809401678	__ocutm
 www.aroak.com.tw	FALSE	/	TRUE	1806377673	_shopify_analytics	
 www.aroak.com.tw	FALSE	/	TRUE	1806377677	_shopify_essential	
 www.aroak.com.tw	FALSE	/	TRUE	1806377675	_shopify_marketing	
-www.aroak.com.tw	FALSE	/	FALSE	1777520073	cart	
 www.aroak.com.tw	FALSE	/	FALSE	1809401676	ec-pixel-config	
 www.aroak.com.tw	FALSE	/	FALSE	1809401676	ec-token	
 www.aroak.com.tw	FALSE	/	FALSE	1806377672	localization	
@@ -3093,7 +3063,6 @@ www.goodreads.com	FALSE	/	FALSE	1810957105	ccsid
 www.goodreads.com	FALSE	/	FALSE	1778763875	csm-sid	
 www.goodreads.com	FALSE	/	FALSE	1810957112	logged_out_browsing_page_count	
 www.google.com	FALSE	/	TRUE	1777674151	OTZ	
-www.google.com	FALSE	/	TRUE	1777475399	UULE	
 www.googleadservices.com	FALSE	/pagead/conversion/1040394492/	TRUE	1782194426	Conversion	
 www.googleadservices.com	FALSE	/pagead/conversion/1069554140/	TRUE	1784564665	Conversion	
 www.googleadservices.com	FALSE	/pagead/conversion/11076621483/	TRUE	1784964689	Conversion	
@@ -3127,7 +3096,6 @@ www.gov.tw	FALSE	/	TRUE	1800751591	list-text%20share
 www.gq.com.tw	FALSE	/	TRUE	1805442537	sailthru_content	
 www.gq.com.tw	FALSE	/	TRUE	1805442537	sailthru_visitor	
 www.gq.com.tw	FALSE	/	TRUE	1805443162	sp_client	
-www.hcu.edu.tw	FALSE	/	TRUE	1777511915	view	
 www.istockphoto.com	FALSE	/	TRUE	1803364545	csrf	
 www.istockphoto.com	FALSE	/	TRUE	1803364542	giu	
 www.istockphoto.com	FALSE	/	TRUE	1800361494	lsp	
@@ -3139,7 +3107,6 @@ www.klook.com	FALSE	/	TRUE	1801123325	clientside-cookie
 www.kobo.com	FALSE	/	FALSE	1805732795	_mall_uuid	
 www.logos.com.hk	FALSE	/	FALSE	1778484818	Logos%5Fapp	
 www.logos.com.hk	FALSE	/	FALSE	1778484818	Logos%5Fmobile	
-www.mcdonalds.com	FALSE	/	FALSE	1777537874	locationpopup	
 www.mirrormedia.mg	FALSE	/	FALSE	1800333117	jiyakeji_uuid	
 www.mirrormedia.mg	FALSE	/	FALSE	1800333112	miso_anonymous_id	
 www.mofa.go.jp	FALSE	/	FALSE	1802596552	style_mofa	

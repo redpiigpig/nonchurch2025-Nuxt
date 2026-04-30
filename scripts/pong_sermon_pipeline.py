@@ -24,6 +24,10 @@ import time
 import random
 from pathlib import Path
 
+# Windows nohup 環境下 stdout 預設 cp950，強制 UTF-8 避免印出中文/� 時崩潰
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 # Windows：預載 Ollama 附帶的 CUDA v12 DLL，讓 ctranslate2 能找到
 import ctypes as _ctypes
 _CUDA_DLL_PATH = r'C:\Users\user\AppData\Local\Programs\Ollama\lib\ollama\cuda_v12'
@@ -104,12 +108,9 @@ YTDLP_PATH   = r'C:\Users\user\AppData\Local\Python\pythoncore-3.14-64\Scripts\y
 COOKIES_FILE = str(Path(__file__).parent.parent / 'cookies.txt')
 
 def _cookie_args():
-    """優先用 cookies.txt，備援 Chrome，最後無 cookies"""
-    if os.path.exists(COOKIES_FILE):
-        print(f'  [cookies] 使用 {COOKIES_FILE}')
-        return ['--cookies', COOKIES_FILE]
-    print('  [cookies] 找不到 cookies.txt，嘗試 Chrome...')
-    return ['--cookies-from-browser', 'chrome']
+    """Firefox 優先（無 v20 加密問題），備援 cookies.txt"""
+    # Firefox 使用標準 DPAPI，yt-dlp 可直接讀取，不需要 Chrome 關閉
+    return ['--cookies-from-browser', 'firefox']
 
 def download_audio(url, output_path):
     print('  下載音訊中...')
