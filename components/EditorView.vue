@@ -1785,7 +1785,7 @@ const colorLabel = (color) => {
             <button
               type="button"
               class="tool-btn"
-              @click="editor?.chain().focus().setHorizontalRule().run()"
+              @click="insertRaw('<div class=\'custom-divider\'></div>')"
               title="分隔線"
             >—</button>
             <button
@@ -2682,6 +2682,10 @@ const colorLabel = (color) => {
 :deep(.raw-block-wrapper) {
   position: relative;
   margin: 12px 0;
+}
+
+:deep(.raw-block-view .custom-divider) {
+  margin: 8px auto;
 }
 
 :deep(.raw-block-view) {
