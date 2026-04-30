@@ -12,7 +12,7 @@
     </header>
 
     <!-- ── Category Tabs ─────────────────────────────────── -->
-    <nav class="wr-tabs" aria-label="文章分類">
+    <nav class="wr-tabs">
       <button
         v-for="cat in CATEGORIES"
         :key="cat.key"
@@ -20,74 +20,80 @@
         :class="{ 'wr-tab--active': activeTab === cat.key }"
         @click="activeTab = cat.key"
       >
-        <span class="wr-tab-zh">{{ cat.label }}</span>
-        <span v-if="countByCategory[cat.key]" class="wr-tab-count">{{ countByCategory[cat.key] }}</span>
+        {{ cat.label }}
+        <span v-if="countByCategory[cat.key]" class="wr-tab-badge">
+          {{ countByCategory[cat.key] }}
+        </span>
       </button>
     </nav>
 
-    <!-- ── Article List ──────────────────────────────────── -->
-    <section class="wr-list">
-      <div class="wr-list-inner">
+    <!-- ── Card Grid ─────────────────────────────────────── -->
+    <section class="wr-section">
+      <div class="wr-section-inner">
 
-        <div v-if="pending" class="wr-loading">載入中…</div>
+        <div v-if="pending" class="wr-status">載入中…</div>
 
         <template v-else-if="filteredWritings.length">
-          <article
-            v-for="item in filteredWritings"
-            :key="item.id"
-            class="wr-item"
-          >
-            <div class="wr-item-meta">
-              <span v-if="item.publication" class="wr-item-pub">{{ item.publication }}</span>
-              <span v-if="item.published_date" class="wr-item-date">{{ formatDate(item.published_date, item.date_approximate) }}</span>
-            </div>
+          <div class="wr-grid">
+            <article
+              v-for="item in filteredWritings"
+              :key="item.id"
+              class="wr-card"
+            >
+              <!-- 刊物 + 年份 -->
+              <div class="wr-card-meta">
+                <span v-if="item.publication" class="wr-card-pub">{{ item.publication }}</span>
+                <span v-if="item.published_date" class="wr-card-year">
+                  {{ formatDate(item.published_date, item.date_approximate) }}
+                </span>
+              </div>
 
-            <h2 class="wr-item-title">
-              <a
-                v-if="item.source_url"
-                :href="item.source_url"
-                target="_blank"
-                rel="noopener"
-                class="wr-item-link"
-              >
-                {{ item.title }}
-                <span class="wr-ext-icon">↗</span>
-              </a>
-              <span v-else class="wr-item-link wr-item-link--plain">{{ item.title }}</span>
-            </h2>
+              <!-- 標題 -->
+              <h2 class="wr-card-title">{{ item.title }}</h2>
 
-            <p v-if="item.title_en" class="wr-item-en">{{ item.title_en }}</p>
+              <!-- 英文標題 -->
+              <p v-if="item.title_en" class="wr-card-en">{{ item.title_en }}</p>
 
-            <p v-if="item.description" class="wr-item-desc">{{ item.description }}</p>
+              <!-- 簡介 -->
+              <p v-if="item.description" class="wr-card-desc">{{ item.description }}</p>
 
-            <div v-if="item.cloudinary_urls && item.cloudinary_urls.length" class="wr-item-files">
-              <a
-                v-for="(url, i) in item.cloudinary_urls"
-                :key="i"
-                :href="url"
-                target="_blank"
-                rel="noopener"
-                class="wr-item-pdf"
-              >
-                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                  <rect x="3" y="1" width="14" height="18" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/>
-                  <line x1="6" y1="7" x2="14" y2="7" stroke="currentColor" stroke-width="1"/>
-                  <line x1="6" y1="10" x2="14" y2="10" stroke="currentColor" stroke-width="1"/>
-                  <line x1="6" y1="13" x2="11" y2="13" stroke="currentColor" stroke-width="1"/>
-                </svg>
-                下載 PDF{{ item.cloudinary_urls.length > 1 ? ` (${i + 1})` : '' }}
-              </a>
-            </div>
+              <!-- 標籤 -->
+              <div v-if="item.tags && item.tags.length" class="wr-card-tags">
+                <span v-for="tag in item.tags" :key="tag" class="wr-tag">{{ tag }}</span>
+              </div>
 
-            <div v-if="item.tags && item.tags.length" class="wr-item-tags">
-              <span v-for="tag in item.tags" :key="tag" class="wr-tag">{{ tag }}</span>
-            </div>
-          </article>
+              <!-- 下載 / 連結 -->
+              <div class="wr-card-footer">
+                <a
+                  v-if="item.cloudinary_urls && item.cloudinary_urls.length"
+                  :href="item.cloudinary_urls[0]"
+                  target="_blank"
+                  rel="noopener"
+                  class="wr-card-btn wr-card-btn--pdf"
+                >
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+                    <line x1="4.5" y1="5.5" x2="11.5" y2="5.5" stroke="currentColor" stroke-width="1"/>
+                    <line x1="4.5" y1="8"   x2="11.5" y2="8"   stroke="currentColor" stroke-width="1"/>
+                    <line x1="4.5" y1="10.5" x2="9"   y2="10.5" stroke="currentColor" stroke-width="1"/>
+                  </svg>
+                  下載 PDF
+                </a>
+                <a
+                  v-else-if="item.source_url"
+                  :href="item.source_url"
+                  target="_blank"
+                  rel="noopener"
+                  class="wr-card-btn wr-card-btn--link"
+                >
+                  前往原文 ↗
+                </a>
+              </div>
+            </article>
+          </div>
         </template>
 
-        <div v-else class="wr-empty">
-          <p>此分類尚無收錄文章。</p>
-        </div>
+        <div v-else class="wr-status">此分類尚無收錄文章。</div>
 
       </div>
     </section>
@@ -99,25 +105,26 @@
 definePageMeta({ layout: 'pong-archive' })
 
 const CATEGORIES = [
-  { key: 'thesis',       label: '學位論文', en: 'Thesis' },
-  { key: 'book_chapter', label: '專書文章', en: 'Book Chapters' },
-  { key: 'journal',      label: '期刊文章', en: 'Journal Articles' },
-  { key: 'conference',   label: '會議文章', en: 'Conference Papers' },
-  { key: 'web',          label: '網站文章', en: 'Web Articles' },
+  { key: 'thesis',       label: '學位論文' },
+  { key: 'book_chapter', label: '專書文章' },
+  { key: 'journal',      label: '期刊文章' },
+  { key: 'conference',   label: '會議文章' },
+  { key: 'web',          label: '網站文章' },
 ]
 
 const writings = ref([])
 const pending  = ref(true)
+const activeTab = ref('thesis')
 
 onMounted(async () => {
-  const supabase = useSupabaseClient()
-  const { data, error } = await supabase
-    .from('pong_writings')
-    .select('id, title, title_en, category, publication, published_date, date_approximate, source_url, cloudinary_urls, tags, description')
-    .eq('is_published', true)
-    .order('sort_order', { ascending: true })
-  if (!error && data) writings.value = data
-  pending.value = false
+  try {
+    const data = await $fetch('/api/pong-writings')
+    writings.value = data
+  } catch (e) {
+    console.error('[writings]', e)
+  } finally {
+    pending.value = false
+  }
 })
 
 const countByCategory = computed(() => {
@@ -128,8 +135,6 @@ const countByCategory = computed(() => {
   return map
 })
 
-const activeTab = ref(CATEGORIES[0].key)
-
 const filteredWritings = computed(() =>
   writings.value.filter(w => w.category === activeTab.value)
 )
@@ -139,8 +144,7 @@ function formatDate(dateStr, approximate) {
   const d = new Date(dateStr)
   const y = d.getFullYear()
   const m = d.getMonth() + 1
-  if (approximate) return `${y} 年`
-  return `${y} 年 ${m} 月`
+  return approximate ? `${y} 年` : `${y} 年 ${m} 月`
 }
 </script>
 
@@ -202,32 +206,32 @@ function formatDate(dateStr, approximate) {
 /* ── Tabs ────────────────────────────────────────────────── */
 .wr-tabs {
   display: flex;
-  gap: 0;
-  border-bottom: 2px solid #E8E4DC;
-  background-color: #F4F1EC;
   padding: 0 48px;
+  background-color: #F4F1EC;
+  border-bottom: 2px solid #E8E4DC;
   overflow-x: auto;
   scrollbar-width: none;
+  gap: 0;
 }
 .wr-tabs::-webkit-scrollbar { display: none; }
 
 .wr-tab {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 16px 24px;
+  gap: 7px;
+  padding: 15px 22px;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
   cursor: pointer;
-  color: #7A7268;
   font-family: 'Noto Sans TC', sans-serif;
   font-size: 0.88rem;
   font-weight: 300;
+  color: #7A7268;
   letter-spacing: 0.06em;
   white-space: nowrap;
-  transition: color 0.2s, border-color 0.2s;
+  transition: color 0.18s, border-color 0.18s;
 }
 .wr-tab:hover { color: #3A3025; }
 .wr-tab--active {
@@ -236,170 +240,181 @@ function formatDate(dateStr, approximate) {
   border-bottom-color: #9A8060;
 }
 
-.wr-tab-zh { }
-.wr-tab-count {
+.wr-tab-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
+  min-width: 18px;
   height: 18px;
-  padding: 0 6px;
-  background-color: #E8E4DC;
-  border-radius: 9px;
-  font-size: 0.65rem;
-  font-weight: 400;
-  color: #9A8E7E;
-  letter-spacing: 0;
-}
-.wr-tab--active .wr-tab-count {
+  padding: 0 5px;
   background-color: #9A8060;
   color: #FFF;
+  border-radius: 9px;
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
-/* ── List ─────────────────────────────────────────────────── */
-.wr-list {
+/* ── Section ─────────────────────────────────────────────── */
+.wr-section {
   padding: 48px 40px 80px;
 }
-.wr-list-inner {
-  max-width: 800px;
+.wr-section-inner {
+  max-width: 1080px;
   margin: 0 auto;
 }
-.wr-loading,
-.wr-empty {
+
+.wr-status {
   text-align: center;
   color: #A09280;
   font-size: 0.9rem;
-  padding: 80px 0;
+  font-weight: 300;
   letter-spacing: 0.06em;
+  padding: 80px 0;
 }
-.wr-empty p { margin: 0; }
 
-/* ── Article item ─────────────────────────────────────────── */
-.wr-item {
-  padding: 36px 0;
-  border-bottom: 1px solid #E8E4DC;
+/* ── Card Grid ───────────────────────────────────────────── */
+.wr-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
 }
-.wr-item:first-child { border-top: 1px solid #E8E4DC; }
 
-.wr-item-meta {
+/* ── Card ────────────────────────────────────────────────── */
+.wr-card {
+  background-color: #FDFCFA;
+  border: 1px solid #DDD8CF;
+  border-radius: 4px;
+  padding: 28px 28px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.wr-card:hover {
+  border-color: #C4B89A;
+  box-shadow: 0 4px 16px rgba(60, 50, 35, 0.07);
+}
+
+.wr-card-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
-.wr-item-pub {
+.wr-card-pub {
   font-size: 0.68rem;
   font-weight: 500;
   color: #9A8E7E;
-  letter-spacing: 0.12em;
-  background: #EEE8DC;
-  padding: 3px 10px;
+  background-color: #EEE8DC;
+  padding: 3px 9px;
   border-radius: 2px;
+  letter-spacing: 0.1em;
 }
-.wr-item-date {
+.wr-card-year {
   font-size: 0.72rem;
   font-weight: 300;
   color: #A09280;
   letter-spacing: 0.06em;
 }
 
-.wr-item-title {
-  margin: 0 0 8px;
-  line-height: 1.6;
-}
-.wr-item-link {
+.wr-card-title {
   font-family: 'Noto Serif TC', serif;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 500;
   color: #2C2C2C;
-  text-decoration: none;
-  letter-spacing: 0.04em;
-  transition: color 0.2s;
+  letter-spacing: 0.05em;
+  line-height: 1.7;
+  margin: 0;
 }
-.wr-item-link:hover { color: #7A6E5A; }
-.wr-item-link--plain { cursor: default; }
-.wr-item-link--plain:hover { color: #2C2C2C; }
-.wr-ext-icon { font-size: 0.8em; margin-left: 4px; opacity: 0.55; }
 
-.wr-item-en {
-  font-size: 0.82rem;
+.wr-card-en {
+  font-size: 0.8rem;
   font-weight: 300;
   color: #8A8278;
-  letter-spacing: 0.04em;
   font-style: italic;
-  margin: 0 0 14px;
+  letter-spacing: 0.03em;
   line-height: 1.6;
+  margin: 0;
 }
 
-.wr-item-desc {
-  font-size: 0.88rem;
+.wr-card-desc {
+  font-size: 0.85rem;
   font-weight: 300;
   color: #5A5550;
-  line-height: 1.9;
+  line-height: 1.85;
   letter-spacing: 0.04em;
-  margin: 0 0 20px;
+  margin: 0;
+  flex: 1;
 }
 
-/* ── PDF button ───────────────────────────────────────────── */
-.wr-item-files {
+.wr-card-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin: 16px 0 0;
+  gap: 5px;
 }
-.wr-item-pdf {
+.wr-tag {
+  font-size: 0.62rem;
+  font-weight: 300;
+  color: #9A9080;
+  background-color: #F0EDE8;
+  border: 1px solid #E0DBD4;
+  border-radius: 2px;
+  padding: 2px 7px;
+  letter-spacing: 0.05em;
+}
+
+/* ── Card Footer ─────────────────────────────────────────── */
+.wr-card-footer {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid #EDE8DF;
+}
+.wr-card-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 7px 14px;
-  background-color: #F2EFE9;
-  border: 1px solid #DDD8CF;
   border-radius: 3px;
   font-size: 0.75rem;
   font-weight: 500;
-  color: #6A6050;
+  letter-spacing: 0.07em;
   text-decoration: none;
-  letter-spacing: 0.06em;
-  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+  transition: background-color 0.18s, color 0.18s;
 }
-.wr-item-pdf:hover {
+.wr-card-btn--pdf {
+  background-color: #F2EFE9;
+  border: 1px solid #DDD8CF;
+  color: #6A6050;
+}
+.wr-card-btn--pdf:hover {
   background-color: #EAE4D8;
   border-color: #C4B89A;
   color: #3A3025;
 }
-.wr-item-pdf svg {
-  width: 14px;
-  height: 14px;
+.wr-card-btn--pdf svg {
+  width: 13px;
+  height: 13px;
   flex-shrink: 0;
   color: #9A8060;
 }
-
-/* ── Tags ─────────────────────────────────────────────────── */
-.wr-item-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 16px;
+.wr-card-btn--link {
+  background: none;
+  border: none;
+  color: #8A7A60;
+  padding-left: 0;
+  padding-right: 0;
 }
-.wr-tag {
-  font-size: 0.65rem;
-  font-weight: 300;
-  color: #9A9080;
-  background-color: #F0EDE8;
-  border: 1px solid #DDD8CF;
-  border-radius: 2px;
-  padding: 2px 8px;
-  letter-spacing: 0.06em;
-}
+.wr-card-btn--link:hover { color: #3A3025; }
 
 /* ── Responsive ───────────────────────────────────────────── */
-@media (max-width: 640px) {
-  .wr-topbar  { padding: 16px 20px; }
-  .wr-header  { padding: 40px 20px 32px; }
-  .wr-tabs    { padding: 0 20px; }
-  .wr-tab     { padding: 14px 16px; font-size: 0.82rem; }
-  .wr-list    { padding: 32px 20px 60px; }
-  .wr-item-link { font-size: 1.05rem; }
+@media (max-width: 760px) {
+  .wr-topbar { padding: 16px 20px; }
+  .wr-header { padding: 40px 20px 32px; }
+  .wr-tabs   { padding: 0 20px; }
+  .wr-tab    { padding: 12px 14px; font-size: 0.82rem; }
+  .wr-section { padding: 32px 20px 60px; }
+  .wr-grid   { grid-template-columns: 1fr; gap: 16px; }
+  .wr-card   { padding: 22px 20px 18px; }
 }
 </style>
