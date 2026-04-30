@@ -135,11 +135,11 @@ const visibleCategories = computed(() =>
   CATEGORIES.filter(c => (countByCategory.value[c.key] || 0) > 0)
 )
 
-const activeTab = ref('')
-
-watch(visibleCategories, (cats) => {
-  if (!activeTab.value && cats.length) activeTab.value = cats[0].key
-}, { immediate: true })
+const _activeTab = ref('')
+const activeTab = computed({
+  get: () => _activeTab.value || visibleCategories.value[0]?.key || '',
+  set: (val) => { _activeTab.value = val }
+})
 
 const filteredWritings = computed(() =>
   (writings.value || []).filter(w => w.category === activeTab.value)
