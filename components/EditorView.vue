@@ -2915,11 +2915,17 @@ const colorLabel = (color) => {
   color: #444;
   resize: vertical;
   white-space: pre-wrap;
+  min-height: 30px;
+  max-height: 400px;
+  overflow-y: auto;
+  transition: all 0.2s ease;
 }
 
 .mini-editor-field:focus {
   border-color: #6366f1;
   box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
+  min-height: 120px;
+  /* Focus 時展開到能容納 4-5 行文字的高度 */
 }
 
 
