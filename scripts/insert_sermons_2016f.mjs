@@ -4,11 +4,11 @@ import pg from 'pg';
 const { Client } = pg;
 
 const client = new Client({
-  host:     'db.pottupypvdzamztdhsah.supabase.co',
-  port:     5432,
-  user:     'postgres',
-  password: '',
-  database: 'postgres',
+  host:     process.env.SUPABASE_DB_HOST,
+  port:     process.env.SUPABASE_DB_PORT || 5432,
+  user:     process.env.SUPABASE_DB_USER,
+  password: process.env.SUPABASE_DB_PASSWORD,
+  database: process.env.SUPABASE_DB_NAME || 'postgres',
   ssl:      { rejectUnauthorized: false }
 });
 

@@ -36,3 +36,6 @@ supabase/.temp/
 .env.*
 !.env.example
 .claude/settings.local.json
+
+# Browser cookies / sensitive browser data
+cookies.txt
