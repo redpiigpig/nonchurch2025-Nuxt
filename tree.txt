@@ -95,8 +95,11 @@ Directory structure:
     │   │   │   └── [id].vue
     │   │   ├── toc-editor/
     │   │   │   └── [id].vue
-    │   │   └── proofread/
-    │   │       └── [id].vue
+    │   │   ├── proofread/
+    │   │   │   └── [id].vue
+    │   │   └── submit/
+    │   │       └── issue/
+    │   │           └── [issueNumber].vue
     │   ├── articles/
     │   │   ├── [id].vue
     │   │   └── index.vue
@@ -104,6 +107,9 @@ Directory structure:
     │   │   ├── [name].vue
     │   │   └── index.vue
     │   ├── home/
+    │   │   └── issue/
+    │   │       └── [issueNumber].vue
+    │   ├── submit/
     │   │   └── issue/
     │   │       └── [issueNumber].vue
     │   └── pong-archive/

@@ -37,6 +37,7 @@ const uploadIssuePdf = async (file, field) => {
     const formData = new FormData();
     formData.append("file", renamedFile);
     formData.append("path", "covers");
+    formData.append("filename", newFileName.replace(/\.pdf$/i, ""));
 
     const response = await $fetch("/api/media", { method: "POST", body: formData });
     if (!response.success) throw new Error(response.error);
@@ -59,6 +60,10 @@ const handleBackCoverPdfUpload = (e) => {
   const file = e.target.files[0];
   if (file) uploadIssuePdf(file, "back_cover_pdf");
   e.target.value = "";
+};
+
+const clearPdfField = (field) => {
+  editingIssue.value[field] = null;
 };
 
 // 1. 讀取列表
@@ -288,6 +293,12 @@ onMounted(() => {
                     target="_blank"
                     class="btn-preview-pdf"
                   >👀</a>
+                  <button
+                    v-if="editingIssue.cover_pdf"
+                    class="btn-clear-pdf"
+                    @click="clearPdfField('cover_pdf')"
+                    title="清除連結"
+                  >🗑️</button>
                 </div>
               </div>
               <div class="form-group half">
@@ -312,6 +323,12 @@ onMounted(() => {
                     target="_blank"
                     class="btn-preview-pdf"
                   >👀</a>
+                  <button
+                    v-if="editingIssue.back_cover_pdf"
+                    class="btn-clear-pdf"
+                    @click="clearPdfField('back_cover_pdf')"
+                    title="清除連結"
+                  >🗑️</button>
                 </div>
               </div>
             </div>
@@ -648,6 +665,20 @@ label {
   font-size: 1.2rem;
   text-decoration: none;
   padding: 4px 6px;
+}
+.btn-clear-pdf {
+  font-size: 1.1rem;
+  padding: 4px 6px;
+  background: none;
+  border: 1px solid #e74c3c;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #e74c3c;
+  line-height: 1;
+  transition: 0.2s;
+}
+.btn-clear-pdf:hover {
+  background: #fdf0ef;
 }
 
 .preview-box {

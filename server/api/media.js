@@ -88,8 +88,10 @@ export default defineEventHandler(async (event) => {
 
       const uploadOptions = { resource_type: "auto" };
       if (customFilename) {
-        // 完整指定 public_id（含資料夾路徑），精確命名
+        // 完整指定 public_id（含資料夾路徑），精確命名，強制覆蓋同名檔案
         uploadOptions.public_id = folderPath ? `${folderPath}/${customFilename}` : customFilename;
+        uploadOptions.overwrite = true;
+        uploadOptions.invalidate = true;
       } else {
         uploadOptions.folder = folderPath;
         uploadOptions.use_filename = true;
