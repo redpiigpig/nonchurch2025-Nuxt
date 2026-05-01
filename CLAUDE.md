@@ -11,6 +11,18 @@
 - 所有 secret 一律從 `process.env.XXX` 讀取，腳本本身只寫變數名稱，不寫值
 - 提交前必須確認沒有任何 key 字串（`AIzaSy...`、`sk-...` 等格式）出現在程式碼中
 - 違反此規則會導致 GitHub secret scanning 警報、key 洩漏，必須立即 rotate 所有受影響的 key
+- **這不是玩笑，也不是選項！** 此規則已於 2026-05-01 因硬編碼 Supabase 密碼而被 GitGuardian 觸發，必須立即旋轉所有受影響的憑證
+
+### 授權操作：Supabase / Cloudinary 直連
+
+AI 獲得**明確授權**可以直接讀取 `.env` 並操作下列資源（登入、寫入、修改、刪除）：
+
+| 服務 | 權限 | 使用方式 |
+|------|------|--------|
+| **Supabase** | 讀取表格、執行 DDL、INSERT/UPDATE/DELETE | Node.js `pg` 模組 + `.env` 中的 `SUPABASE_DB_*` 變數 |
+| **Cloudinary** | 上傳、刪除、改名、列表檔案 | `cloudinary` npm 套件 + `.env` 中的 `CLOUDINARY_*` 變數 |
+
+**但是千萬不要把這些 secret 值洩漏出去！** 操作完畢後，驗證結果但不要在回報或代碼中摻帶任何 key 值、密碼、token。
 
 ---
 
