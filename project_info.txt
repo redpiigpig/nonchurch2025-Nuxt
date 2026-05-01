@@ -74,23 +74,25 @@
 | real_name | text | YES | | 真實姓名（投稿查詢比對用，不對外顯示） |
 
 ## Table: issues
-| 欄位 | 類型 | 可空 | 預設 |
-|------|------|------|------|
-| id | bigint | NO | |
-| title | text | YES | |
-| date | text | YES | |
-| cover_img | text | YES | |
-| pdf_link | text | YES | |
-| intro_home | text | YES | |
-| intro_cfp | text | YES | |
-| cfp_theme | text | YES | |
-| is_published | boolean | YES | false |
-| created_at | timestamptz | YES | now() |
-| author_order | ARRAY | YES | |
-| cfp_title | text | YES | |
-| cfp_deadline | text | YES | |
-| cfp_image | text | YES | |
-| translations | jsonb | YES | {} |
+| 欄位 | 類型 | 可空 | 預設 | 說明 |
+|------|------|------|------|------|
+| id | bigint | NO | | 期數 |
+| title | text | YES | | 期刊主題 |
+| date | text | YES | | 發刊日期（例如：2026年5月號） |
+| cover_img | text | YES | | 封面圖片 URL |
+| pdf_link | text | YES | | 整期 PDF 連結 |
+| cover_pdf | text | YES | | 封面 PDF（供合併用） |
+| back_cover_pdf | text | YES | | 封底 PDF（供合併用） |
+| intro_home | text | YES | | 首頁本期簡介 |
+| intro_cfp | text | YES | | 下期預告文字（出現在首頁） |
+| cfp_theme | text | YES | | 下期主題完整說明（投稿頁面顯示） |
+| cfp_title | text | YES | | 下期主題標題 |
+| cfp_deadline | text | YES | | 截稿日期 |
+| cfp_image | text | YES | | 下期預告圖片 URL |
+| is_published | boolean | YES | false | 是否發布 |
+| created_at | timestamptz | YES | now() | 建立時間 |
+| author_order | ARRAY | YES | | 專欄作者順序 |
+| translations | jsonb | YES | {} | 翻譯資料 |
 
 ## Table: media_assets
 | 欄位 | 類型 | 可空 | 預設 |
