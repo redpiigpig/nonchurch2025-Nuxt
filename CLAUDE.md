@@ -26,6 +26,40 @@ AI 獲得**明確授權**可以直接讀取 `.env` 並操作下列資源（登�
 
 ---
 
+## ⚠️ 專案分離計畫
+
+本專案包含 **兩個獨立的子專案**，目前暫時共用一個 Nuxt 4 repo，但未來必須分離：
+
+### 1. **無境界者雜誌**（nonchurch Magazine）
+- 路由：`/` 、`/issues/`、`/articles/`、`/submit/`
+- 核心頁面：期刊瀏覽、文章閱讀、投稿系統
+- 管理後台：`/admin/`、`/admin/editor/`、`/admin/submissions_manager/` 等
+
+### 2. **龐君華會督記念文集典藏**（Pong Archive）
+- 路由：`/pong-archive/`、`/pong-archive/writings/`、`/pong-archive/daily-office/`
+- 核心頁面：著作列表、演講稿、晨禱經課
+
+### 🚫 **分離規則（必須遵守）**
+
+| 項目 | 說明 |
+|-----|------|
+| **CSS** | ❌ 絕對不共用。每個子專案應有獨立的 `assets/` 與 scoped styles |
+| **Vue 元件** | ❌ 絕對不共用。各自的 `components/` 目錄 |
+| **Store** | ⚠️ 儘量不共用，若共用則明確標註 `// shared` |
+| **API Route** | ⚠️ 可共用基礎工具函數，但業務邏輯分離 |
+
+### 未來分離方案
+
+當時機成熟（預計 2026 Q3 以後）：
+```
+nonchurch-nuxt/       ← 保留雜誌部分
+pong-archive-nuxt/    ← 獨立新 repo（複製當前 pong-archive/ 下所有代碼）
+```
+
+**修改前確認：** 你在修改 `/pong-archive/` 下的代碼時，不要引入 nonchurch magazine 的 CSS 或元件；反之亦然。
+
+---
+
 ## 一、必讀參考檔案
 
 | 檔案 | 內容 |
