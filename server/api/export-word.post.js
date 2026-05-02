@@ -25,23 +25,51 @@ function getWordExportMode(config) {
   return String(config.wordExportMode || "disabled").trim().toLowerCase();
 }
 
-async function exportByLocalPython(articleData) {
+const META_TYPES = new Set(["submission_info", "editorial_info"]);
+
+async function runPythonScript(scriptName, inputObj, safeId) {
   const tempDir = path.join(process.cwd(), "temp");
-  const safeId = String(articleData?.id || `article-${Date.now()}`);
   const tempJsonPath = path.join(tempDir, `${safeId}.json`);
   const outputPath = path.join(tempDir, `${safeId}.docx`);
 
   await fs.mkdir(tempDir, { recursive: true });
-  await fs.writeFile(tempJsonPath, JSON.stringify(articleData, null, 2), "utf-8");
+  await fs.writeFile(tempJsonPath, JSON.stringify(inputObj, null, 2), "utf-8");
 
-  const pythonScript = path.join(process.cwd(), "scripts", "generate_docx.py");
+  const pythonScript = path.join(process.cwd(), "scripts", scriptName);
   const pythonBin = process.platform === "win32" ? "python" : "python3";
   const command = `${pythonBin} "${pythonScript}" "${tempJsonPath}" "${outputPath}"`;
   await execAsync(command);
 
   const fileBuffer = await fs.readFile(outputPath);
   await Promise.allSettled([fs.unlink(tempJsonPath), fs.unlink(outputPath)]);
+  return fileBuffer;
+}
 
+async function exportByLocalPython(articleData) {
+  const safeId = String(articleData?.id || `article-${Date.now()}`);
+
+  // meta 文章（投稿資訊／編輯資訊）走 template 替換流程，與範例 docx 1:1 一致
+  if (META_TYPES.has(articleData?.article_type)) {
+    const metaPayload = {
+      type: articleData.article_type,
+      id: articleData.id,
+      issue: articleData.issue || {},
+      finance: articleData.finance || null,
+    };
+    const fileBuffer = await runPythonScript(
+      "render_meta_docx.py",
+      metaPayload,
+      safeId,
+    );
+    return {
+      success: true,
+      file: fileBuffer.toString("base64"),
+      filename: `${safeId}.docx`,
+    };
+  }
+
+  // 一般文章：HTML → Word（generate_docx.py）
+  const fileBuffer = await runPythonScript("generate_docx.py", articleData, safeId);
   return {
     success: true,
     file: fileBuffer.toString("base64"),

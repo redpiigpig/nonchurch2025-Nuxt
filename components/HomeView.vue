@@ -1198,6 +1198,7 @@ h2 {
 .call-for-submission h2 {
   text-align: center;
   margin-bottom: 1.5rem;
+  font-size: 1.6rem;
 }
 .next-issue-text,
 .call-for-submission p {

@@ -5,6 +5,15 @@ import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { useLanguage } from "~/composables/useLanguage";
 
+// 嵌入用 props（被 articles/[id].vue 對 submission_info 嵌入時使用）
+//   hideTitle      隱藏 page-main-title / 主分隔線 / admin-toolbar，
+//                  讓父元件提供自己的標題
+//   forcedIssueId  覆寫期次選擇邏輯，強制 fetch 該期 cfp 資料
+const props = defineProps({
+  hideTitle: { type: Boolean, default: false },
+  forcedIssueId: { type: [String, Number], default: null },
+});
+
 const route = useRoute();
 const router = useRouter();
 const loading = ref(true);
@@ -523,9 +532,14 @@ const fetchThemeData = async () => {
         "id, title, date, cfp_title, cfp_theme, cfp_deadline, cfp_image, translations",
       );
 
-    if (route.params.issueNumber) {
-      query = query.eq("id", route.params.issueNumber);
-      adminSelectedIssue.value = route.params.issueNumber;
+    // 期次決定優先序：
+    //   1. props.forcedIssueId（被 articles/[id].vue 嵌入時傳入）
+    //   2. route.params.issueNumber (/submit/issue/{N})
+    //   3. fallback：最新一期（再依 isEditor 決定是否過濾 is_published）
+    const targetIssueId = props.forcedIssueId ?? route.params.issueNumber;
+    if (targetIssueId != null && targetIssueId !== "") {
+      query = query.eq("id", targetIssueId);
+      adminSelectedIssue.value = targetIssueId;
     } else {
       query = query
         .not("cfp_title", "is", null)
@@ -533,7 +547,12 @@ const fetchThemeData = async () => {
         .order("id", { ascending: false })
         .limit(1);
     }
-    if (!isEditor.value) query = query.eq("is_published", true);
+    // /submit（無指定期次）對非編輯者只顯示已發布期次；
+    // 一旦明確指定期次（forcedIssueId 或 route.params），就強制顯示該期，
+    // 即使尚未發布——這樣 /admin 視角的編輯預覽才看得到草稿。
+    if (!isEditor.value && (targetIssueId == null || targetIssueId === "")) {
+      query = query.eq("is_published", true);
+    }
 
     const { data, error } = await query;
     if (error) throw error;
@@ -561,6 +580,7 @@ const handleAdminIssueChange = () => {
 };
 
 watch(() => route.params.issueNumber, fetchThemeData);
+watch(() => props.forcedIssueId, fetchThemeData);
 watch(isEditor, () => {
   fetchThemeData();
   if (isEditor.value) fetchAllIssues();
@@ -574,12 +594,14 @@ onMounted(() => {
 
 <template>
   <div>
-    <h1 class="page-main-title">
-      <span class="emoji">📬</span>{{ t.title }}<span class="emoji">📬</span>
-    </h1>
-    <div class="main-divider"></div>
+    <template v-if="!hideTitle">
+      <h1 class="page-main-title">
+        <span class="emoji">📬</span>{{ t.title }}<span class="emoji">📬</span>
+      </h1>
+      <div class="main-divider"></div>
+    </template>
 
-    <div v-if="isEditor" class="admin-toolbar">
+    <div v-if="isEditor && !hideTitle" class="admin-toolbar">
       <span class="toolbar-label">🔧 管理員導航：</span>
       <select
         v-model="adminSelectedIssue"

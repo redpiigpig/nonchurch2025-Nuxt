@@ -144,13 +144,36 @@ const saveArticle = async () => {
 const exportToWord = async () => {
   loading.value = true;
   try {
-    const articleData = {
-      id: form.value.id,
-      title: form.value.title,
-      content: form.value.content,
-      page_start: form.value.page_start,
-      issue: form.value.issue,
-    };
+    // meta 文章走 template 替換流程（render_meta_docx.py）：
+    //   payload 含 article_type、當期 issue 完整 cfp 資料、editorial_info 還要附財務
+    let articleData;
+    if (form.value.article_type === "submission_info" || form.value.article_type === "editorial_info") {
+      const { data: issueRow, error: ie } = await supabase
+        .from("issues")
+        .select("id, title, date, cfp_title, cfp_theme, cfp_deadline, cfp_image")
+        .eq("id", form.value.issue)
+        .single();
+      if (ie) throw ie;
+      let finance = null;
+      if (form.value.article_type === "editorial_info") {
+        const { getPeriodByIssue } = await import("~/stores/finance_data");
+        finance = getPeriodByIssue(form.value.issue);
+      }
+      articleData = {
+        id: form.value.id,
+        article_type: form.value.article_type,
+        issue: issueRow,
+        finance,
+      };
+    } else {
+      articleData = {
+        id: form.value.id,
+        title: form.value.title,
+        content: form.value.content,
+        page_start: form.value.page_start,
+        issue: form.value.issue,
+      };
+    }
 
     const response = await fetch("/api/export-word", {
       method: "POST",

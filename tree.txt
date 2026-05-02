@@ -183,6 +183,7 @@ Directory structure:
     │   ├── seed_pong_sermon_20130106.mjs
     │   ├── seed_pong_sermon_20240317.mjs
     │   ├── seed_pong_sermons_2013_batch.mjs
+    │   ├── seed_meta_articles.mjs
     │   ├── setup_pong_auth.mjs
     │   └── update_lectionary_html.mjs
     ├── server/
@@ -211,6 +212,7 @@ Directory structure:
     │   ├── form.md
     │   ├── robot_a_status.md
     │   ├── word_to_sql.md
+    │   ├── finance_data.js
     │   └── tempArticles.js
     ├── composables/
     │   ├── useChurchCalendar.js
@@ -229,4 +231,5 @@ Directory structure:
         ├── contentParser.js
         ├── formatSpecParser.js
         ├── formatSpecWatcher.js
-        └── geminiAPI.js
+        ├── geminiAPI.js
+        └── metaTemplates.js

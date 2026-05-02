@@ -15,7 +15,9 @@ useHead({
   title: computed(() => `編輯文章 ${articleId.value} - 無境界者雜誌`),
 });
 
-// toc 文章不走 EditorView，直接導到專用頁面
+// 特殊類型不走 EditorView，導向專用編輯頁面
+//   toc                                  → /admin/toc-editor
+//   submission_info / editorial_info    → /admin/meta-article
 onMounted(async () => {
   const { data } = await supabase
     .from("articles")
@@ -28,6 +30,11 @@ onMounted(async () => {
     data?.title === "目錄"
   ) {
     router.replace(`/admin/toc-editor/${articleId.value}`);
+  } else if (
+    data?.article_type === "submission_info" ||
+    data?.article_type === "editorial_info"
+  ) {
+    router.replace(`/admin/meta-article/${articleId.value}`);
   }
 });
 </script>

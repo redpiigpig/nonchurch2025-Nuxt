@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { supabase } from "~/supabase";
 import { useRouter, useRoute, onBeforeRouteLeave } from "vue-router";
+import { getPeriodByIssue } from "~/stores/finance_data";
 
 definePageMeta({ layout: "admin", middleware: "auth" });
 useHead({ title: "文章管理 - 無境界者後台" });
@@ -341,12 +342,13 @@ const handlePdfUpload = async (event) => {
 };
 
 // ── 儲存邏輯 ──
+// 比對統一用扁平欄位 seo_image / seo_pdf，避免 orig.seo 物件未同步造成 watch 反覆觸發
 const isChanged = (item, orig) =>
   item.idSuffix !== orig.id.replace(/^\d+-/, "") ||
   item.title !== orig.title ||
   item.author !== orig.author ||
-  item.seo_image !== (orig.seo?.image || "") ||
-  item.seo_pdf !== (orig.seo?.pdf || "") ||
+  item.seo_image !== (orig.seo_image || "") ||
+  item.seo_pdf !== (orig.seo_pdf || "") ||
   item.section !==
     (SECTION_ORDER.includes(orig.section) ? orig.section : "主題介紹") ||
   item.page_start !== (orig.page_start ?? null);
@@ -355,8 +357,8 @@ const isChanged = (item, orig) =>
 const isChangedExcludingId = (item, orig) =>
   item.title !== orig.title ||
   item.author !== orig.author ||
-  item.seo_image !== (orig.seo?.image || "") ||
-  item.seo_pdf !== (orig.seo?.pdf || "") ||
+  item.seo_image !== (orig.seo_image || "") ||
+  item.seo_pdf !== (orig.seo_pdf || "") ||
   item.section !==
     (SECTION_ORDER.includes(orig.section) ? orig.section : "主題介紹") ||
   item.page_start !== (orig.page_start ?? null);
@@ -369,14 +371,16 @@ const performUpdate = async (article) => {
     10,
   );
 
+  const newSeo = {
+    ...(article.seo || {}),
+    image: article.seo_image,
+    pdf: article.seo_pdf,
+  };
+
   const updates = {
     title: article.title,
     author: article.author,
-    seo: {
-      ...(article.seo || {}),
-      image: article.seo_image,
-      pdf: article.seo_pdf,
-    },
+    seo: newSeo,
     section: article.section,
     sort_order: computedSortOrder,
     page_start: article.page_start,
@@ -388,6 +392,7 @@ const performUpdate = async (article) => {
     .eq("id", article.id);
 
   if (error) throw error;
+  article.seo = newSeo;
   article.id = newId;
 };
 
@@ -553,6 +558,23 @@ const buildExportPayloadForArticle = async (article) => {
       remark: "", keyword: "", footnotes: [],
       issue: article.issue, issue_title: "", page_start: null,
       content: generateTocHTML(issueArts || []),
+    };
+  }
+  // meta 類：投稿資訊／編輯資訊 走 template 替換（render_meta_docx.py）
+  if (article.article_type === "submission_info" || article.article_type === "editorial_info") {
+    const { data: issueRow, error: ie } = await supabase
+      .from("issues")
+      .select("id, title, date, cfp_title, cfp_theme, cfp_deadline, cfp_image")
+      .eq("id", article.issue)
+      .single();
+    if (ie) throw ie;
+    return {
+      id: article.id,
+      article_type: article.article_type,
+      issue: issueRow,
+      finance: article.article_type === "editorial_info"
+        ? getPeriodByIssue(article.issue)
+        : null,
     };
   }
   const { data, error } = await supabase
@@ -1133,6 +1155,7 @@ const convertToArticle = async (sub) => {
               </td>
               <td class="proofread-cell">
                 <span
+                  v-if="article.article_type !== 'toc' && article.article_type !== 'submission_info' && article.article_type !== 'editorial_info'"
                   class="proofread-badge"
                   :class="'badge-' + article.proofread_status"
                 >
@@ -1146,6 +1169,7 @@ const convertToArticle = async (sub) => {
                           : "🔴 未完成"
                   }}
                 </span>
+                <span v-else class="proofread-na">—</span>
               </td>
               <td class="actions-cell">
                 <div class="action-buttons">
@@ -1163,7 +1187,6 @@ const convertToArticle = async (sub) => {
                     >🔍</NuxtLink
                   >
                   <button
-                    v-if="article.article_type !== 'submission_info' && article.article_type !== 'editorial_info'"
                     class="btn-word"
                     :disabled="downloadingWord === article.id"
                     @click="downloadWord(article)"
@@ -1966,6 +1989,10 @@ tr.dragging {
 .badge-completed {
   background: #d4edda;
   color: #155724;
+}
+.proofread-na {
+  color: #bbb;
+  font-size: 0.9rem;
 }
 
 /* 操作按鈕 */

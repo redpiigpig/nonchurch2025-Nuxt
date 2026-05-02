@@ -1,6 +1,11 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { supabase } from "~/supabase";
+import {
+  buildSubmissionInfoHtml,
+  buildEditorialInfoHtml,
+} from "~/utils/metaTemplates";
+import { getPeriodByIssue } from "~/stores/finance_data";
 
 definePageMeta({
   layout: "admin",
@@ -35,16 +40,18 @@ const fetchIssues = async () => {
 
     const { data: authorsData, error: authorsError } = await supabase
       .from("authors")
-      .select("name, is_published");
+      .select("name, aliases, is_published");
     if (authorsError) throw authorsError;
 
     issuesList.value = issuesData.map((issue) => {
       const relatedArticles = articlesData.filter((a) => a.issue === issue.id);
       const relatedAuthorNames = [
-        ...new Set(relatedArticles.map((a) => a.author)),
+        ...new Set(relatedArticles.map((a) => a.author).filter(Boolean)),
       ];
       const relatedAuthorsInfo = authorsData.filter((a) =>
-        relatedAuthorNames.includes(a.name)
+        relatedAuthorNames.some(
+          (n) => n === a.name || (a.aliases || []).includes(n),
+        ),
       );
       const hiddenAuthorsCount = relatedAuthorsInfo.filter(
         (a) => !a.is_published
@@ -56,7 +63,7 @@ const fetchIssues = async () => {
         publishedArtCount: relatedArticles.filter((a) => a.is_published).length,
         totalAuthorCount: relatedAuthorsInfo.length,
         hiddenAuthorCount: hiddenAuthorsCount,
-        relatedAuthorNames: relatedAuthorNames,
+        relatedAuthorNames: relatedAuthorsInfo.map((a) => a.name),
       };
     });
   } catch (err) {
@@ -83,22 +90,79 @@ const confirmCreate = async () => {
     .toString()
     .padStart(2, "0")}`;
 
-  const { error } = await supabase.from("issues").insert([
-    {
-      id: newId,
-      title: newIssueTitle.value,
-      date: dateStr,
-      is_published: false,
-    },
-  ]);
+  const issueRow = {
+    id: newId,
+    title: newIssueTitle.value,
+    date: dateStr,
+    is_published: false,
+  };
+
+  const { error } = await supabase.from("issues").insert([issueRow]);
 
   if (error) {
     alert("新增失敗：" + error.message);
-  } else {
-    alert(`第 ${newId} 期《${newIssueTitle.value}》已建立！`);
-    showModal.value = false;
-    fetchIssues();
+    loading.value = false;
+    return;
   }
+
+  // 自動建立三篇 meta 文章：目次（toc）、投稿資訊（19）、編輯資訊（20）
+  // sort_order 用 0/19/20 確保排序：目次最前、投稿倒數第二、編輯資訊最後
+  // 序號之後可在 articles_manager 手動調整為實際的 18/19 等
+  const submissionContent = buildSubmissionInfoHtml({
+    id: newId,
+    cfp_title: null,
+    cfp_theme: null,
+    cfp_deadline: null,
+  });
+  const editorialContent = buildEditorialInfoHtml(
+    { id: newId, title: newIssueTitle.value, date: dateStr },
+    getPeriodByIssue(newId),
+  );
+
+  const metaRows = [
+    {
+      id: `${newId}-0目次`,
+      issue: String(newId),
+      title: "目次",
+      section: "主題介紹",
+      sort_order: 0,
+      article_type: "toc",
+      content: null,
+      is_published: false,
+    },
+    {
+      id: `${newId}-19投稿資訊`,
+      issue: String(newId),
+      title: "投稿資訊",
+      section: "編輯資訊",
+      sort_order: 19,
+      article_type: "submission_info",
+      content: submissionContent,
+      is_published: false,
+    },
+    {
+      id: `${newId}-20編輯資訊`,
+      issue: String(newId),
+      title: "編輯資訊",
+      section: "編輯資訊",
+      sort_order: 20,
+      article_type: "editorial_info",
+      content: editorialContent,
+      is_published: false,
+    },
+  ];
+
+  const { error: metaErr } = await supabase.from("articles").insert(metaRows);
+
+  if (metaErr) {
+    alert(
+      `第 ${newId} 期已建立，但 meta 文章建立失敗：${metaErr.message}\n請至文章管理手動補建。`,
+    );
+  } else {
+    alert(`第 ${newId} 期《${newIssueTitle.value}》已建立！\n已自動新增：目次、投稿資訊、編輯資訊。`);
+  }
+  showModal.value = false;
+  fetchIssues();
   loading.value = false;
 };
 

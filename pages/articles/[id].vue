@@ -6,6 +6,7 @@ import { useTempArticlesStore } from "~/stores/tempArticles";
 import { useLanguage } from "~/composables/useLanguage";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { splitAuthorRemarkLines } from "~/utils/authorRemark";
+import SubmitPage from "~/pages/submit.vue";
 
 const route = useRoute();
 const { currentLang } = useLanguage();
@@ -107,6 +108,14 @@ const isToc = computed(() =>
   article.value?.article_type === "toc" ||
   article.value?.title === "目次" ||
   article.value?.title === "目錄"
+);
+
+// ─── 投稿資訊（編輯端）──────────────────────────────────────────
+// /articles/{N}-{X}投稿資訊 是「該期投稿資訊」的編輯端固定 URL，
+// 標題另作區別（「投稿資訊（編輯預覽）」），內容區嵌入 SubmitPage 與
+// /submit/issue/{N} 同版面；讀者公開連結走 /submit/issue/{N}。
+const isSubmissionInfo = computed(
+  () => article.value?.article_type === "submission_info",
 );
 
 const TOC_SECTION_ORDER = ["主題介紹", "特稿專區", "主題廣場", "多元講堂", "編輯資訊"];
@@ -564,10 +573,10 @@ const keywordContent = computed(() => {
       >
         {{ translatedCategory }}
       </div>
-      <h1
-        class="main-title"
-        v-html="formatTextWithFootnote(displayArticle.title)"
-      ></h1>
+      <h1 class="main-title">
+        <span v-html="formatTextWithFootnote(displayArticle.title)"></span>
+        <span v-if="isSubmissionInfo" class="meta-edit-suffix">（編輯預覽）</span>
+      </h1>
       <h1
         v-if="displayArticle.subtitle"
         class="sub-title"
@@ -583,7 +592,7 @@ const keywordContent = computed(() => {
     <div class="divider-gap"></div>
     <div class="divider-thin"></div>
 
-    <div v-if="!isToc" class="author-info">
+    <div v-if="!isToc && !isSubmissionInfo" class="author-info">
       <div class="author-meta-stack">
         <div
           class="author-line"
@@ -604,7 +613,7 @@ const keywordContent = computed(() => {
     </div>
 
     <div
-      v-if="!isToc && displayArticle.keyword"
+      v-if="!isToc && !isSubmissionInfo && displayArticle.keyword"
       class="keyword-section"
       v-html="keywordContent"
     ></div>
@@ -632,6 +641,12 @@ const keywordContent = computed(() => {
           </li>
         </template>
       </ul>
+    </div>
+
+    <div v-else-if="isSubmissionInfo" class="submission-info-embed">
+      <ClientOnly>
+        <SubmitPage :hide-title="true" :forced-issue-id="article.issue" />
+      </ClientOnly>
     </div>
 
     <div v-else-if="displayArticle.type === 'special' && currentSpecialComponent">
@@ -732,6 +747,16 @@ const keywordContent = computed(() => {
   margin-top: 40px;
   line-height: 1.4;
   padding-left: 2rem;
+}
+.meta-edit-suffix {
+  font-size: 1.2rem;
+  font-weight: normal;
+  color: #b8860b;
+  margin-left: 0.6em;
+  vertical-align: middle;
+}
+.submission-info-embed {
+  margin-top: 1.5rem;
 }
 .sub-title {
   font-family: "Times New Roman", serif;
