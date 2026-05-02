@@ -23,6 +23,7 @@ const currentAuthor = ref({
   bio: "",
   author_image: "",
   years_str: "2025",
+  aliases_str: "",
   is_published: false,
 });
 
@@ -49,6 +50,7 @@ const openAddModal = () => {
     bio: "",
     author_image: "",
     years_str: "2025",
+    aliases_str: "",
     is_published: false,
   };
   showModal.value = true;
@@ -61,6 +63,11 @@ const openEditModal = (author) => {
     temp.years_str = temp.years.join(", ");
   } else {
     temp.years_str = "";
+  }
+  if (Array.isArray(temp.aliases)) {
+    temp.aliases_str = temp.aliases.join(", ");
+  } else {
+    temp.aliases_str = "";
   }
   currentAuthor.value = temp;
   showModal.value = true;
@@ -81,11 +88,20 @@ const saveAuthor = async () => {
         .filter((y) => !isNaN(y));
     }
 
+    let aliasesArray = [];
+    if (currentAuthor.value.aliases_str) {
+      aliasesArray = currentAuthor.value.aliases_str
+        .split(/[、,,，]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+
     const payload = {
       name: currentAuthor.value.name,
       bio: currentAuthor.value.bio,
       author_image: currentAuthor.value.author_image,
       years: yearsArray,
+      aliases: aliasesArray,
       is_published: currentAuthor.value.is_published,
     };
 
@@ -256,6 +272,19 @@ onMounted(() => {
                 />
                 <small class="hint"
                   >請輸入年份數字，若有多個年份請用逗號分隔。</small
+                >
+              </div>
+
+              <div class="form-group">
+                <label>比對別名 (Aliases)</label>
+                <input
+                  type="text"
+                  v-model="currentAuthor.aliases_str"
+                  class="input-text"
+                  placeholder="例如：溫金柯"
+                />
+                <small class="hint"
+                  >若文章 author 欄寫純名字（如「溫金柯」）、但此處姓名含稱謂（如「溫金柯老師」），請把純名字填到這裡，發布中心才能正確算進「本期作者」。多個別名以逗號分隔。</small
                 >
               </div>
 
