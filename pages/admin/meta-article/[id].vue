@@ -346,7 +346,7 @@ onMounted(loadArticle);
             </div>
             <div v-else class="cfp-preview" style="color: #999">
               本期尚無財務明細。請至
-              <NuxtLink to="/admin/finance_ledger" style="color: #3182ce">💰 財務明細</NuxtLink>
+              <NuxtLink to="/admin/finance" style="color: #3182ce">💰 財務管理</NuxtLink>
               填入後再回此頁同步。
             </div>
             <button class="btn-sync-cfp" @click="syncFromFinance">

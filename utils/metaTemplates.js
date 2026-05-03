@@ -179,8 +179,9 @@ export function buildEditorialInfoHtml(issue = {}, financePeriod = null) {
       `<tr><th>編號</th><th>日期</th><th>收入/支出</th><th>項目</th><th>性質</th><th>單價（元）</th><th>數量</th><th>總價（元）</th><th>結餘（元）</th></tr>`,
     );
     for (const r of financePeriod.rows) {
+      const seq = r.display_seq || r.id || "";
       tbl.push(
-        `<tr><td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.item)}</td><td>${escapeHtml(r.category)}</td><td>${escapeHtml(r.unitPrice ?? "")}</td><td>${escapeHtml(r.qty ?? "")}</td><td>${fmtNum(r.total)}</td><td>${fmtNum(r.balance)}</td></tr>`,
+        `<tr><td>${escapeHtml(seq)}</td><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.item)}</td><td>${escapeHtml(r.category)}</td><td>${escapeHtml(r.unitPrice ?? "")}</td><td>${escapeHtml(r.qty ?? "")}</td><td>${fmtNum(r.total)}</td><td>${fmtNum(r.balance)}</td></tr>`,
       );
     }
     tbl.push(`</table>`);

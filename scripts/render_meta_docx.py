@@ -424,8 +424,10 @@ def render_editorial_info(template_path, issue, finance, article_id, output_path
         # 插入新 rows（finance 為空時 docx 表只剩 header）
         finance_rows = (finance or {}).get("rows") or []
         for row_data in finance_rows:
+            # 編號欄用 display_seq（client 計算後傳入），fallback 才用 id
+            seq = row_data.get("display_seq") or row_data.get("id") or ""
             values = [
-                str(row_data.get("id") or ""),
+                str(seq),
                 str(row_data.get("date") or ""),
                 str(row_data.get("type") or ""),
                 str(row_data.get("item") or ""),

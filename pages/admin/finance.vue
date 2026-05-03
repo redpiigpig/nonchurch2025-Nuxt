@@ -1,22 +1,36 @@
 <script setup>
 definePageMeta({ layout: "admin", middleware: "auth" });
 
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { createClient } from "@supabase/supabase-js";
+import {
+  loadPeriod,
+  getEndingBalanceBefore,
+  loadAllEntries,
+  loadIssueYearMap,
+  computeDisplaySeqs,
+  computeDefaultDateRange,
+} from "~/utils/financeDb";
+import { CATEGORY_LIST, getCatColor } from "~/utils/financeCategories";
 
 const config = useRuntimeConfig();
 const supabase = createClient(config.public.supabaseUrl, config.public.supabaseKey);
 
-// ── 資料 ─────────────────────────────────────────────────────────
+// ── 贊助者資料 ───────────────────────────────────────────────────
 const donations = ref([]);
 const loading = ref(true);
 const expandedId = ref(null);
 
-// ── 篩選 ─────────────────────────────────────────────────────────
+// ── 贊助者篩選 ───────────────────────────────────────────────────
 const searchQuery = ref("");
 const filterStatus = ref(""); // "" | "confirmed" | "pending"
 
-onMounted(fetchAll);
+onMounted(async () => {
+  await fetchAll();
+  // fetchIssuesForLedger 會把 issueId 從 null 設成最新一期 → watch 自動觸發 fetchPeriod
+  // 不再 await fetchPeriod()，避免與 watch 並發兩次造成 row reset 的 race condition
+  await fetchIssuesForLedger();
+});
 
 async function fetchAll() {
   loading.value = true;
@@ -142,6 +156,188 @@ function exportCsv() {
 function formatDate(iso) {
   if (!iso) return "—";
   return iso.slice(0, 10);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 財務明細管理（finance_periods + finance_entries）
+// ─────────────────────────────────────────────────────────────────
+const allIssuesLedger = ref([]);
+const issueId = ref(null);
+const dateRange = ref("");
+const rows = ref([]);
+const originalIds = ref(new Set());
+const startBalance = ref(0);
+const ledgerLoading = ref(false);
+const ledgerSaving = ref(false);
+const otherEntries = ref([]); // 跨期：除本期外的所有 entries（給 display_seq 計算用）
+const issueYearMap = ref({});  // issueId → 西元發刊年
+
+// 編輯中的 display_seq map：合併本期 rows + 其他期 entries 即時計算
+const displaySeqMap = computed(() => {
+  const ownAsEntries = rows.value.map((r) => ({
+    id: r.id,
+    issue: issueId.value,
+    date: r.date,
+    sort_order: r.sort_order ?? 0,
+  }));
+  return computeDisplaySeqs(
+    [...otherEntries.value, ...ownAsEntries],
+    issueYearMap.value,
+  );
+});
+
+const fmtNum = (n) => (n == null || n === "" ? "" : Number(n).toLocaleString("zh-TW"));
+
+const computedRows = computed(() => {
+  let bal = startBalance.value;
+  return rows.value.map((r) => {
+    const total = Number(r.total) || 0;
+    bal += r.type === "收入" ? total : -total;
+    return { ...r, balance: bal };
+  });
+});
+
+const totals = computed(() => {
+  let income = 0, expense = 0;
+  for (const r of rows.value) {
+    const t = Number(r.total) || 0;
+    if (r.type === "收入") income += t;
+    else expense += t;
+  }
+  return { income, expense, net: income - expense };
+});
+
+const endingBalance = computed(() => {
+  const list = computedRows.value;
+  return list.length ? list[list.length - 1].balance : startBalance.value;
+});
+
+async function fetchIssuesForLedger() {
+  const { data, error } = await supabase
+    .from("issues")
+    .select("id, title")
+    .order("id", { ascending: true });
+  if (error) {
+    alert("載入期次失敗：" + error.message);
+    return;
+  }
+  allIssuesLedger.value = data || [];
+  if (issueId.value == null && allIssuesLedger.value.length) {
+    issueId.value = allIssuesLedger.value[allIssuesLedger.value.length - 1].id;
+  }
+}
+
+async function fetchPeriod() {
+  if (issueId.value == null) return;
+  ledgerLoading.value = true;
+  try {
+    const [period, all, yearMap, { data: issueRow }] = await Promise.all([
+      loadPeriod(supabase, issueId.value),
+      loadAllEntries(supabase),
+      loadIssueYearMap(supabase),
+      supabase.from("issues").select("date").eq("id", issueId.value).maybeSingle(),
+    ]);
+    rows.value = (period?.rows || []).map((r) => ({ ...r }));
+    originalIds.value = new Set(rows.value.map((r) => r.id));
+    startBalance.value = await getEndingBalanceBefore(supabase, issueId.value);
+    otherEntries.value = all.filter((e) => e.issue !== issueId.value);
+    issueYearMap.value = yearMap;
+
+    // 日期區間：DB 有就用 DB 的；DB 為空就依 issue.date 自動推（前 1 個月 16 日 ~ 結束月 15 日）
+    dateRange.value = period?.dateRange || computeDefaultDateRange(issueRow?.date) || "";
+  } finally {
+    ledgerLoading.value = false;
+  }
+}
+
+watch(issueId, fetchPeriod);
+
+function genStableId() {
+  // 編號（display_seq）動態算，這裡只需要不重複的內部 PK
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return "fe-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function addRow() {
+  rows.value.push({
+    id: genStableId(),
+    date: "",
+    type: "支出",
+    item: "",
+    category: "",
+    unitPrice: "",
+    qty: null,
+    total: 0,
+    note: "",
+  });
+}
+
+function deleteRow(i) {
+  if (!confirm("確定刪除這筆明細？（按下儲存後才會真的從資料庫移除）")) return;
+  rows.value.splice(i, 1);
+}
+
+function moveUp(i) {
+  if (i === 0) return;
+  const arr = rows.value;
+  [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
+}
+
+function moveDown(i) {
+  if (i === rows.value.length - 1) return;
+  const arr = rows.value;
+  [arr[i], arr[i + 1]] = [arr[i + 1], arr[i]];
+}
+
+async function saveAll() {
+  if (issueId.value == null) return;
+  const missing = rows.value.findIndex((r) => !r.date?.trim());
+  if (missing !== -1) {
+    alert(`第 ${missing + 1} 筆缺少日期`);
+    return;
+  }
+
+  ledgerSaving.value = true;
+  try {
+    {
+      const { error } = await supabase.from("finance_periods").upsert({
+        issue: issueId.value,
+        date_range: dateRange.value || "",
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+    }
+    const currentIds = new Set(rows.value.map((r) => r.id));
+    const toDelete = [...originalIds.value].filter((id) => !currentIds.has(id));
+    if (toDelete.length) {
+      const { error } = await supabase.from("finance_entries").delete().in("id", toDelete);
+      if (error) throw error;
+    }
+    const upserts = rows.value.map((r, i) => ({
+      id: r.id,
+      issue: issueId.value,
+      entry_date: r.date || null,
+      entry_type: r.type || null,
+      item: r.item || null,
+      category: r.category || null,
+      unit_price: r.unitPrice == null || r.unitPrice === "" ? null : String(r.unitPrice),
+      qty: r.qty == null || r.qty === "" ? null : Number(r.qty),
+      total: r.total == null || r.total === "" ? null : Number(r.total),
+      note: r.note || null,
+      sort_order: i,
+      updated_at: new Date().toISOString(),
+    }));
+    if (upserts.length) {
+      const { error } = await supabase.from("finance_entries").upsert(upserts);
+      if (error) throw error;
+    }
+    alert("✅ 已儲存");
+    await fetchPeriod();
+  } catch (err) {
+    alert("儲存失敗：" + (err.message || err));
+  } finally {
+    ledgerSaving.value = false;
+  }
 }
 </script>
 
@@ -272,6 +468,100 @@ function formatDate(iso) {
         </div>
       </div>
     </div>
+
+    <!-- ── 財務明細管理 ── -->
+    <section class="ledger-section">
+      <h2 class="section-title">📊 每期財務明細</h2>
+      <p class="section-desc">
+        編輯每期財務徵信表，結餘自動由「上一期最末結餘」+ 本期累加計算。
+        <br />儲存後，前台 <code>/finance</code> 與「編輯資訊」文章的同步都會即時反映。
+      </p>
+
+      <div class="ledger-toolbar">
+        <label>
+          期次：
+          <select v-model="issueId" class="issue-select">
+            <option v-for="i in allIssuesLedger" :key="i.id" :value="i.id">
+              Vol.{{ i.id }} {{ i.title ? `《${i.title}》` : "" }}
+            </option>
+          </select>
+        </label>
+        <label class="date-range-input">
+          日期區間：
+          <input type="text" v-model="dateRange" placeholder="如：115.02.16 – 115.04.15" />
+        </label>
+        <span class="ledger-status">
+          起始結餘：{{ fmtNum(startBalance) }}
+          收入：<span class="income">{{ fmtNum(totals.income) }}</span>
+          支出：<span class="expense">{{ fmtNum(totals.expense) }}</span>
+          淨額：<span :class="totals.net >= 0 ? 'income' : 'expense'">{{ fmtNum(totals.net) }}</span>
+          期末結餘：<strong>{{ fmtNum(endingBalance) }}</strong>
+        </span>
+      </div>
+
+      <div v-if="ledgerLoading" class="ledger-loading">載入中…</div>
+
+      <div v-else class="ledger-table-wrap">
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th>編號</th><th>日期</th><th>收支</th><th>項目</th><th>性質</th>
+              <th>單價</th><th>數量</th><th>總價</th><th>結餘</th><th>備註</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, i) in rows" :key="row.id">
+              <td class="cell-display-seq">{{ displaySeqMap[row.id] || "—" }}</td>
+              <td><input type="text" v-model="row.date" class="cell-input" placeholder="115.02.20" /></td>
+              <td>
+                <select v-model="row.type" class="cell-input">
+                  <option value="收入">收入</option>
+                  <option value="支出">支出</option>
+                </select>
+              </td>
+              <td><input type="text" v-model="row.item" class="cell-input" /></td>
+              <td>
+                <input
+                  type="text"
+                  v-model="row.category"
+                  list="finance-category-list"
+                  class="cell-input cell-category"
+                  :style="{ color: getCatColor(row.category) }"
+                  placeholder="點此下拉或自行輸入"
+                />
+              </td>
+              <td><input type="text" v-model="row.unitPrice" class="cell-input cell-num" placeholder="—" /></td>
+              <td><input type="number" v-model="row.qty" class="cell-input cell-num" /></td>
+              <td><input type="number" v-model="row.total" class="cell-input cell-num" /></td>
+              <td class="cell-balance" :class="computedRows[i]?.balance < 0 ? 'expense' : ''">
+                {{ fmtNum(computedRows[i]?.balance) }}
+              </td>
+              <td><input type="text" v-model="row.note" class="cell-input" /></td>
+              <td class="ledger-actions">
+                <button class="btn-mini" @click="moveUp(i)" :disabled="i === 0" title="上移">↑</button>
+                <button class="btn-mini" @click="moveDown(i)" :disabled="i === rows.length - 1" title="下移">↓</button>
+                <button class="btn-mini btn-del" @click="deleteRow(i)" title="刪除">✕</button>
+              </td>
+            </tr>
+            <tr v-if="rows.length === 0">
+              <td colspan="11" class="ledger-empty">本期尚無明細，按下方「+ 新增明細」開始輸入。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="ledger-footer">
+        <button class="btn-add" @click="addRow">＋ 新增明細</button>
+        <button class="btn-save" :disabled="ledgerSaving" @click="saveAll">
+          {{ ledgerSaving ? "儲存中…" : "💾 儲存" }}
+        </button>
+      </div>
+
+      <!-- 性質下拉選單來源（給每列 category input 共用） -->
+      <datalist id="finance-category-list">
+        <option v-for="c in CATEGORY_LIST" :key="c" :value="c" />
+      </datalist>
+    </section>
   </div>
 </template>
 
@@ -516,4 +806,113 @@ function formatDate(iso) {
   .stats-row { gap: 8px; }
   .stat-card { min-width: 90px; padding: 10px 14px; }
 }
+
+/* ── 財務明細管理區 ─────────────────────────────────────────────── */
+.ledger-section {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 2px solid #eaeaea;
+}
+.section-title {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #2c3e50;
+  margin: 0 0 8px;
+}
+.section-desc {
+  color: #666;
+  line-height: 1.6;
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+}
+.section-desc code {
+  background: #f1f3f5;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+.ledger-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: center;
+  background: #fff;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  margin-bottom: 16px;
+  font-size: 0.92rem;
+}
+.ledger-toolbar label { display: inline-flex; align-items: center; gap: 6px; }
+.issue-select,
+.date-range-input input {
+  padding: 5px 9px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem;
+}
+.date-range-input input { width: 200px; }
+.ledger-status { color: #555; }
+.income { color: #2e7d32; font-weight: bold; }
+.expense { color: #c62828; font-weight: bold; }
+
+.ledger-loading { text-align: center; color: #888; padding: 40px; }
+
+.ledger-table-wrap {
+  background: #fff; border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  overflow-x: auto;
+}
+.ledger-table { width: 100%; border-collapse: collapse; min-width: 1200px; }
+.ledger-table th {
+  background: #f0f4f8; color: #444; padding: 8px 6px;
+  border-bottom: 2px solid #ddd; font-size: 0.88rem; text-align: center;
+  white-space: nowrap;
+}
+.ledger-table td {
+  padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: middle;
+}
+.ledger-table tbody tr:hover { background: #fafbfd; }
+.cell-input {
+  width: 100%; padding: 5px 7px; border: 1px solid #ddd; border-radius: 3px;
+  font-size: 0.88rem; box-sizing: border-box;
+}
+.cell-input:focus { outline: none; border-color: #5b9bd5; }
+.cell-id { width: 75px; }
+.cell-display-seq {
+  width: 70px; padding: 6px 8px; text-align: center; font-weight: bold;
+  color: #2c3e50; background: #f8f9fa; white-space: nowrap;
+  font-family: "Times New Roman", monospace;
+}
+.cell-category { font-weight: bold; }
+.cell-num { text-align: right; }
+.cell-balance {
+  text-align: right; padding-right: 10px; font-weight: bold;
+  background: #f8f9fa; white-space: nowrap;
+}
+
+.ledger-actions { white-space: nowrap; text-align: center; }
+.btn-mini {
+  background: #f1f3f5; border: 1px solid #ddd; border-radius: 3px;
+  width: 26px; height: 26px; cursor: pointer; margin: 0 1px;
+  font-size: 0.85rem;
+}
+.btn-mini:hover:not(:disabled) { background: #e2e6ea; }
+.btn-mini:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-del { color: #c62828; }
+.btn-del:hover { background: #ffebee; }
+
+.ledger-empty { text-align: center; color: #999; padding: 30px; font-size: 0.95rem; }
+
+.ledger-footer { display: flex; gap: 12px; margin-top: 16px; }
+.btn-add {
+  padding: 9px 18px; background: #fff; border: 1px dashed #5b9bd5;
+  color: #5b9bd5; border-radius: 5px; cursor: pointer; font-size: 0.95rem;
+}
+.btn-add:hover { background: #f0f8ff; }
+.btn-save {
+  padding: 9px 24px; background: #2c3e50; color: #fff; border: none;
+  border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 0.95rem;
+  margin-left: auto;
+}
+.btn-save:hover:not(:disabled) { background: #34495e; }
+.btn-save:disabled { background: #aaa; cursor: not-allowed; }
 </style>

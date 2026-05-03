@@ -1,10 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import { useLanguage } from "~/composables/useLanguage";
+import { useEditorMode } from "~/composables/useEditorMode";
 import { supabase } from "~/supabase";
 import { listPeriods, loadPeriodWithBalance } from "~/utils/financeDb";
+import { getCatColor } from "~/utils/financeCategories";
 
 const { currentLang } = useLanguage();
+const { isEditor } = useEditorMode();
 
 // 從 DB 載入：期次清單 + 當前選定期的明細（含承接前期結餘）
 const periods = ref([]); // [{ issue, dateRange, label }]
@@ -13,7 +16,8 @@ const activePeriod = ref(null); // { issue, dateRange, rows[含 balance] }
 const loadingLedger = ref(false);
 
 const fetchPeriodsList = async () => {
-  const list = await listPeriods(supabase);
+  // 非編輯者只看已發布期次；編輯模式看所有
+  const list = await listPeriods(supabase, { onlyPublished: !isEditor.value });
   periods.value = list.map((p) => ({
     key: p.issue,
     issue: p.issue,
@@ -24,6 +28,11 @@ const fetchPeriodsList = async () => {
     activeKey.value = periods.value[periods.value.length - 1].key;
   }
 };
+
+watch(isEditor, async () => {
+  // 編輯模式切換時重抓期次清單，可能多／少未發布期
+  await fetchPeriodsList();
+});
 
 const fetchActivePeriod = async () => {
   if (activeKey.value == null) return;
@@ -72,22 +81,7 @@ const fmt = (n) => {
 };
 
 
-const categoryColors = {
-  個人贊助:     "#2e7d32",
-  機構補助:     "#1565c0",
-  專案贊助:     "#1976d2",
-  雜誌訂閱:     "#00838f",
-  紙本訂閱:     "#00838f",
-  紙本印製:     "#e65100",
-  雜誌寄送:     "#7b1fa2",
-  網路維護:     "#37474f",
-  雜費:         "#78909c",
-  利息:         "#558b2f",
-  編輯費用:     "#bf360c",
-  特稿稿費:     "#880e4f",
-  雜誌代碼申請: "#4e342e",
-};
-const getCatColor = (cat) => categoryColors[cat] || "#666";
+// 類別顏色：與後台 /admin/finance 共用 utils/financeCategories.js
 
 // 贊助表單
 const donateName   = ref("");
@@ -192,7 +186,7 @@ async function submitDonate() {
             </thead>
             <tbody>
               <tr v-for="row in activePeriod.rows" :key="row.id">
-                <td class="td-id">{{ row.id }}</td>
+                <td class="td-id">{{ row.display_seq || row.id }}</td>
                 <td class="td-date">{{ row.date }}</td>
                 <td :class="row.type === '收入' ? 'td-income' : 'td-expense'">{{ row.type }}</td>
                 <td class="td-item">{{ row.item }}</td>
