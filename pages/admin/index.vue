@@ -5,7 +5,7 @@ import {
   buildSubmissionInfoHtml,
   buildEditorialInfoHtml,
 } from "~/utils/metaTemplates";
-import { getPeriodByIssue } from "~/stores/finance_data";
+import { loadPeriodWithBalance } from "~/utils/financeDb";
 
 definePageMeta({
   layout: "admin",
@@ -116,7 +116,7 @@ const confirmCreate = async () => {
   });
   const editorialContent = buildEditorialInfoHtml(
     { id: newId, title: newIssueTitle.value, date: dateStr },
-    getPeriodByIssue(newId),
+    await loadPeriodWithBalance(supabase, newId),
   );
 
   const metaRows = [

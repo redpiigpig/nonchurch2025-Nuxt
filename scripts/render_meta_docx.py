@@ -411,33 +411,35 @@ def render_editorial_info(template_path, issue, finance, article_id, output_path
                 )
                 break
 
-    # 財務表：保留 row[0]、用 row[1] 作模板，重建內容
-    if finance and finance.get("rows"):
-        table = find_finance_table(doc)
-        if table is not None and len(table.rows) >= 2:
-            tbl_el = table._tbl
-            template_tr = deepcopy(table.rows[1]._tr)
-            # 刪除舊的 body rows（rows[1:]）
-            for row in list(table.rows)[1:]:
-                tbl_el.remove(row._tr)
-            # 插入新 rows
-            for row_data in finance["rows"]:
-                values = [
-                    str(row_data.get("id") or ""),
-                    str(row_data.get("date") or ""),
-                    str(row_data.get("type") or ""),
-                    str(row_data.get("item") or ""),
-                    str(row_data.get("category") or ""),
-                    str(row_data.get("unitPrice") or ""),
-                    str(row_data.get("qty") or ""),
-                    fmt_num(row_data.get("total")),
-                    fmt_num(row_data.get("balance")),
-                ]
-                new_tr = deepcopy(template_tr)
-                tcs = new_tr.findall(qn("w:tc"))
-                for tc, val in zip(tcs, values):
-                    set_cell_text(tc, val)
-                tbl_el.append(new_tr)
+    # 財務表：保留 row[0]（header）、用 row[1] 作模板重建內容
+    # 不論 finance 是否為 null，都清空 template 內示範用的舊 body rows，
+    # 避免新期次 docx 還殘留第 7 期的範例資料。
+    table = find_finance_table(doc)
+    if table is not None and len(table.rows) >= 2:
+        tbl_el = table._tbl
+        template_tr = deepcopy(table.rows[1]._tr)
+        # 刪除舊的 body rows（rows[1:]）
+        for row in list(table.rows)[1:]:
+            tbl_el.remove(row._tr)
+        # 插入新 rows（finance 為空時 docx 表只剩 header）
+        finance_rows = (finance or {}).get("rows") or []
+        for row_data in finance_rows:
+            values = [
+                str(row_data.get("id") or ""),
+                str(row_data.get("date") or ""),
+                str(row_data.get("type") or ""),
+                str(row_data.get("item") or ""),
+                str(row_data.get("category") or ""),
+                str(row_data.get("unitPrice") or ""),
+                str(row_data.get("qty") or ""),
+                fmt_num(row_data.get("total")),
+                fmt_num(row_data.get("balance")),
+            ]
+            new_tr = deepcopy(template_tr)
+            tcs = new_tr.findall(qn("w:tc"))
+            for tc, val in zip(tcs, values):
+                set_cell_text(tc, val)
+            tbl_el.append(new_tr)
 
     doc.save(output_path)
 

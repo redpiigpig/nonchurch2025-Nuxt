@@ -1,9 +1,53 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useLanguage } from "~/composables/useLanguage";
-import { periods } from "~/stores/finance_data";
+import { supabase } from "~/supabase";
+import { listPeriods, loadPeriodWithBalance } from "~/utils/financeDb";
 
 const { currentLang } = useLanguage();
+
+// 從 DB 載入：期次清單 + 當前選定期的明細（含承接前期結餘）
+const periods = ref([]); // [{ issue, dateRange, label }]
+const activeKey = ref(null);
+const activePeriod = ref(null); // { issue, dateRange, rows[含 balance] }
+const loadingLedger = ref(false);
+
+const fetchPeriodsList = async () => {
+  const list = await listPeriods(supabase);
+  periods.value = list.map((p) => ({
+    key: p.issue,
+    issue: p.issue,
+    dateRange: p.date_range,
+    label: `第${p.issue}期`,
+  }));
+  if (periods.value.length && activeKey.value == null) {
+    activeKey.value = periods.value[periods.value.length - 1].key;
+  }
+};
+
+const fetchActivePeriod = async () => {
+  if (activeKey.value == null) return;
+  loadingLedger.value = true;
+  try {
+    const data = await loadPeriodWithBalance(supabase, activeKey.value);
+    if (data) {
+      activePeriod.value = {
+        ...data,
+        label: `第${data.issue}期`,
+      };
+    } else {
+      activePeriod.value = null;
+    }
+  } finally {
+    loadingLedger.value = false;
+  }
+};
+
+watch(activeKey, fetchActivePeriod);
+onMounted(async () => {
+  await fetchPeriodsList();
+  await fetchActivePeriod();
+});
 
 const pageTitles = {
   "zh-TW": "財務資訊",
@@ -27,8 +71,6 @@ const fmt = (n) => {
   return Number(n).toLocaleString("zh-TW");
 };
 
-const activeKey = ref(7);
-const activePeriod = computed(() => periods.find((p) => p.key === activeKey.value));
 
 const categoryColors = {
   個人贊助:     "#2e7d32",

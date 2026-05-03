@@ -76,6 +76,35 @@ const syncFromCfp = () => {
   alert("✅ 已從 CFP 資料同步內文，請確認後儲存。");
 };
 
+// ── 財務資料（編輯資訊用）────────────────────────────────────────
+const financeData = ref(null);
+const financeLoading = ref(false);
+
+const loadFinanceForIssue = async (issueId) => {
+  financeLoading.value = true;
+  try {
+    const { loadPeriodWithBalance } = await import("~/utils/financeDb");
+    financeData.value = await loadPeriodWithBalance(supabase, issueId);
+  } finally {
+    financeLoading.value = false;
+  }
+};
+
+const syncFromFinance = async () => {
+  // 重新從 DB 抓最新 issue 資料 + 最新 finance 資料，用 metaTemplate 重組 content
+  const { data: issueRow, error: ie } = await supabase
+    .from("issues")
+    .select("id, title, date")
+    .eq("id", form.value.issue)
+    .single();
+  if (ie) return alert("讀取期次失敗：" + ie.message);
+
+  await loadFinanceForIssue(form.value.issue);
+  const { buildEditorialInfoHtml } = await import("~/utils/metaTemplates");
+  form.value.content = buildEditorialInfoHtml(issueRow, financeData.value);
+  alert("✅ 已從財務明細同步內文，請確認後儲存。");
+};
+
 // ── 預覽（content 已是 HTML）──────────────────────────────────────
 const previewHtml = computed(() => form.value.content || "");
 
@@ -117,6 +146,11 @@ const loadArticle = async () => {
     }
   }
 
+  // 編輯資訊：自動載入當期財務資料
+  if (data.article_type === "editorial_info") {
+    await loadFinanceForIssue(data.issue);
+  }
+
   loading.value = false;
 };
 
@@ -156,8 +190,8 @@ const exportToWord = async () => {
       if (ie) throw ie;
       let finance = null;
       if (form.value.article_type === "editorial_info") {
-        const { getPeriodByIssue } = await import("~/stores/finance_data");
-        finance = getPeriodByIssue(form.value.issue);
+        const { loadPeriodWithBalance } = await import("~/utils/financeDb");
+        finance = await loadPeriodWithBalance(supabase, form.value.issue);
       }
       articleData = {
         id: form.value.id,
@@ -288,6 +322,35 @@ onMounted(loadArticle);
             </div>
             <button class="btn-sync-cfp" @click="syncFromCfp">
               🔄 同步並生成內文
+            </button>
+          </div>
+        </div>
+
+        <!-- ── 編輯資訊：財務同步面板 ── -->
+        <div v-if="isEditorialInfo" class="cfp-panel">
+          <div class="cfp-panel-header">
+            <h3>🔄 從財務明細管理同步本期財務徵信</h3>
+          </div>
+          <div v-if="financeLoading" class="cfp-loading">讀取財務資料中...</div>
+          <div v-else class="cfp-content">
+            <div v-if="financeData" class="cfp-preview">
+              <p>
+                <strong>日期區間：</strong>{{ financeData.dateRange || "（未填）" }}
+              </p>
+              <p>
+                <strong>明細筆數：</strong>{{ financeData.rows?.length || 0 }}
+              </p>
+              <p v-if="financeData.rows?.length">
+                <strong>期末結餘：</strong>{{ financeData.rows[financeData.rows.length - 1].balance?.toLocaleString("zh-TW") || "—" }}
+              </p>
+            </div>
+            <div v-else class="cfp-preview" style="color: #999">
+              本期尚無財務明細。請至
+              <NuxtLink to="/admin/finance_ledger" style="color: #3182ce">💰 財務明細</NuxtLink>
+              填入後再回此頁同步。
+            </div>
+            <button class="btn-sync-cfp" @click="syncFromFinance">
+              🔄 同步並重新生成內文
             </button>
           </div>
         </div>

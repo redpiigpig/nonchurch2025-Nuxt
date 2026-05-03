@@ -653,23 +653,6 @@ onMounted(async () => {
       </div>
     </section>
 
-    <!-- ── 龐君華會督數位典藏入口（僅第 9 期顯示） ── -->
-    <section v-if="currentIssue.number == 9" class="pong-archive-banner">
-      <div class="pong-archive-banner__inner">
-        <div class="pong-archive-banner__text">
-          <p class="pong-archive-banner__eyebrow">特輯專欄 · Special Collection</p>
-          <h2 class="pong-archive-banner__title">龐君華會督數位典藏</h2>
-          <p class="pong-archive-banner__desc">
-            本期特別收錄龐會督講道、著作與手稿，設立數位典藏專區，以存念其事奉遺產。
-          </p>
-        </div>
-        <NuxtLink to="/pong-archive" class="pong-archive-banner__btn">
-          進入典藏庫
-          <span class="pong-archive-banner__arrow">→</span>
-        </NuxtLink>
-      </div>
-    </section>
-
     <section v-if="specialFeatures.length" class="diverse-lectures">
       <h2>🎙️ {{ t.special }}</h2>
       <div class="article-container two-cols">
@@ -1393,73 +1376,6 @@ h2 {
     content: "......";
   }
 }
-/* ── 龐會督典藏入口橫幅 ─────────────────────────────── */
-.pong-archive-banner {
-  padding: 0;
-  margin: 0 30px 2rem 30px;
-}
-.pong-archive-banner__inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 32px;
-  padding: 36px 48px;
-  background: linear-gradient(135deg, #F2EFE9 0%, #EAE5DC 100%);
-  border: 1px solid #CFC8BA;
-  border-left: 5px solid #9A8060;
-  border-radius: 4px;
-}
-.pong-archive-banner__eyebrow {
-  font-family: "Times New Roman", serif;
-  font-size: 0.72rem;
-  font-weight: normal;
-  color: #9A8E78;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  margin: 0 0 8px;
-}
-.pong-archive-banner__title {
-  font-family: "Times New Roman", serif;
-  font-size: 1.6rem;
-  font-weight: bold;
-  color: #3A3025;
-  letter-spacing: 0.1em;
-  margin: 0 0 10px;
-  text-align: left;
-}
-.pong-archive-banner__desc {
-  font-family: "Times New Roman", serif;
-  font-size: 0.9rem;
-  color: #6A6058;
-  line-height: 1.8;
-  margin: 0;
-  max-width: 560px;
-}
-.pong-archive-banner__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  padding: 12px 28px;
-  background-color: #3A3025;
-  color: #F2EFE9;
-  text-decoration: none;
-  font-family: "Times New Roman", serif;
-  font-size: 0.9rem;
-  letter-spacing: 0.1em;
-  border-radius: 2px;
-  transition: background-color 0.2s ease, gap 0.2s ease;
-  white-space: nowrap;
-}
-.pong-archive-banner__btn:hover {
-  background-color: #5A4A38;
-  gap: 14px;
-}
-.pong-archive-banner__arrow {
-  font-size: 1rem;
-  line-height: 1;
-}
-
 @media (max-width: 1024px) {
   .two-cols,
   .three-cols {
@@ -1518,15 +1434,6 @@ h2 {
   .articles {
     padding: 0;
     margin-bottom: 2rem;
-  }
-  .pong-archive-banner__inner {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 20px;
-  }
-  .pong-archive-banner__btn {
-    align-self: stretch;
-    text-align: center;
   }
 }
 </style>

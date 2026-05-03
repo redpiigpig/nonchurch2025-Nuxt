@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { supabase } from "~/supabase";
 import { useRouter, useRoute, onBeforeRouteLeave } from "vue-router";
-import { getPeriodByIssue } from "~/stores/finance_data";
+import { loadPeriodWithBalance } from "~/utils/financeDb";
 
 definePageMeta({ layout: "admin", middleware: "auth" });
 useHead({ title: "文章管理 - 無境界者後台" });
@@ -573,7 +573,7 @@ const buildExportPayloadForArticle = async (article) => {
       article_type: article.article_type,
       issue: issueRow,
       finance: article.article_type === "editorial_info"
-        ? getPeriodByIssue(article.issue)
+        ? await loadPeriodWithBalance(supabase, article.issue)
         : null,
     };
   }

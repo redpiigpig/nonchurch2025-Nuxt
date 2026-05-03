@@ -25,6 +25,9 @@
           <NuxtLink to="/admin/submissions_manager" active-class="active-link">
             📥 投稿管理
           </NuxtLink>
+          <NuxtLink to="/admin/finance_ledger" active-class="active-link">
+            💰 財務明細
+          </NuxtLink>
           <NuxtLink to="/admin/editor" active-class="active-link">
             📝 新增文章
           </NuxtLink>
