@@ -26,37 +26,14 @@ AI 獲得**明確授權**可以直接讀取 `.env` 並操作下列資源（登�
 
 ---
 
-## ⚠️ 專案分離計畫
+## 專案範疇
 
-本專案包含 **兩個獨立的子專案**，目前暫時共用一個 Nuxt 4 repo，但未來必須分離：
-
-### 1. **無境界者雜誌**（nonchurch Magazine）
-- 路由：`/` 、`/issues/`、`/articles/`、`/submit/`
+本專案是 **無境界者雜誌**（nonchurch Magazine）：
+- 路由：`/`、`/issues/`、`/articles/`、`/submit/`
 - 核心頁面：期刊瀏覽、文章閱讀、投稿系統
 - 管理後台：`/admin/`、`/admin/editor/`、`/admin/submissions_manager/` 等
 
-### 2. **龐君華會督記念文集典藏**（Pong Archive）
-- 路由：`/pong-archive/`、`/pong-archive/writings/`、`/pong-archive/daily-office/`
-- 核心頁面：著作列表、演講稿、晨禱經課
-
-### 🚫 **分離規則（必須遵守）**
-
-| 項目 | 說明 |
-|-----|------|
-| **CSS** | ❌ 絕對不共用。每個子專案應有獨立的 `assets/` 與 scoped styles |
-| **Vue 元件** | ❌ 絕對不共用。各自的 `components/` 目錄 |
-| **Store** | ⚠️ 儘量不共用，若共用則明確標註 `// shared` |
-| **API Route** | ⚠️ 可共用基礎工具函數，但業務邏輯分離 |
-
-### 未來分離方案
-
-當時機成熟（預計 2026 Q3 以後）：
-```
-nonchurch-nuxt/       ← 保留雜誌部分
-pong-archive-nuxt/    ← 獨立新 repo（複製當前 pong-archive/ 下所有代碼）
-```
-
-**修改前確認：** 你在修改 `/pong-archive/` 下的代碼時，不要引入 nonchurch magazine 的 CSS 或元件；反之亦然。
+> **2026-05-03**：原本共用 repo 的「龐君華會督記念文集典藏」(pong-archive) 已分離至獨立的 `pong-archive-nuxt` 專案，所有相關 pages / layouts / composables / server API / supabase schema / scripts / stores 已從本 repo 移除。
 
 ---
 
@@ -247,16 +224,7 @@ SITE_URL
 
 ---
 
-## 九、外部資源操作限制
-
-### 🚫 1day3read3pray.com 爬蟲：禁止自動執行
-- **規則**：`1day3read3pray.com` 的爬蟲腳本（如 `scripts/year_b_advent_scraper.py` 等）**一律不得自動啟動或排程**。
-- **原因**：該網站有 WAF（Wordfence），自動爬蟲會觸發封鎖。所有內容改由使用者**手動下載**後再處理。
-- **AI 的職責**：協助解析已下載的檔案、匯入資料庫，不主動發起任何 HTTP 請求至該網域。
-
----
-
-## 十、常見 Debug 方向
+## 九、常見 Debug 方向
 
 ### 部署後 API 報錯
 1. 確認 `.env` 變數都已設定在部署平台的環境設定中

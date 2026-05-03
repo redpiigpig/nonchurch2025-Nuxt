@@ -1,17 +1,5 @@
-Directory structure:
+﻿Directory structure:
 └── nonchurch-nuxt/
-    ├── .env
-    ├── .gitignore
-    ├── CLAUDE.md
-    ├── README.md
-    ├── app.vue
-    ├── nuxt.config.ts
-    ├── package.json
-    ├── package-lock.json
-    ├── project_info.txt
-    ├── supabase.js
-    ├── tree.txt
-    ├── tsconfig.json
     ├── app/
     │   └── router.options.ts
     ├── assets/
@@ -19,65 +7,35 @@ Directory structure:
     │   ├── main.css
     │   └── shared.css
     ├── components/
+    │   ├── feature_articles/
+    │   │   └── Article7_6.vue
+    │   ├── icons/
+    │   │   ├── IconCommunity.vue
+    │   │   ├── IconDocumentation.vue
+    │   │   ├── IconEcosystem.vue
+    │   │   ├── IconSupport.vue
+    │   │   └── IconTooling.vue
     │   ├── AppFooter.vue
     │   ├── AppHeader.vue
     │   ├── EditorView.vue
     │   ├── HomeView.vue
     │   ├── MainLayout.vue
     │   ├── ProofreadView.vue
-    │   ├── SubmissionForm.vue
-    │   ├── feature_articles/
-    │   │   └── Article7_6.vue
-    │   └── icons/
-    │       ├── IconCommunity.vue
-    │       ├── IconDocumentation.vue
-    │       ├── IconEcosystem.vue
-    │       ├── IconSupport.vue
-    │       └── IconTooling.vue
+    │   └── SubmissionForm.vue
     ├── composables/
     │   ├── useEditorMode.js
-    │   ├── useLanguage.js
-    │   └── usePongSession.js
+    │   └── useLanguage.js
     ├── data/
     │   ├── authors.js
     │   ├── issues.js
     │   └── submissionThemes.js
     ├── layouts/
     │   ├── admin.vue
-    │   ├── default.vue
-    │   └── pong-archive.vue
+    │   └── default.vue
     ├── middleware/
     │   └── auth.js
     ├── pages/
-    │   ├── about.vue
-    │   ├── finance.vue
-    │   ├── index.vue
-    │   ├── login.vue
-    │   ├── mission.vue
-    │   ├── publication.vue
-    │   ├── preview.vue
-    │   ├── search.vue
-    │   ├── submit.vue
-    │   ├── submission.vue
-    │   ├── donate-confirm.vue
-    │   ├── subscribe.vue
-    │   ├── subscribe-print.vue
-    │   ├── unsubscribe.vue
     │   ├── admin/
-    │   │   ├── about.vue
-    │   │   ├── articles_manager.vue
-    │   │   ├── authors_manager.vue
-    │   │   ├── finance.vue
-    │   │   ├── home.vue
-    │   │   ├── index.vue
-    │   │   ├── issues_manager.vue
-    │   │   ├── media_manager.vue
-    │   │   ├── mission.vue
-    │   │   ├── publication.vue
-    │   │   ├── search.vue
-    │   │   ├── submit.vue
-    │   │   ├── submissions_manager.vue
-    │   │   ├── subscribers_manager.vue
     │   │   ├── articles/
     │   │   │   ├── [id].vue
     │   │   │   └── index.vue
@@ -88,18 +46,33 @@ Directory structure:
     │   │   │   ├── [id].vue
     │   │   │   └── index.vue
     │   │   ├── home/
-    │   │   │   ├── index.vue
-    │   │   │   └── issue/
-    │   │   │       └── [issueNumber].vue
+    │   │   │   ├── issue/
+    │   │   │   │   └── [issueNumber].vue
+    │   │   │   └── index.vue
     │   │   ├── meta-article/
-    │   │   │   └── [id].vue
-    │   │   ├── toc-editor/
     │   │   │   └── [id].vue
     │   │   ├── proofread/
     │   │   │   └── [id].vue
-    │   │   └── submit/
-    │   │       └── issue/
-    │   │           └── [issueNumber].vue
+    │   │   ├── submit/
+    │   │   │   └── issue/
+    │   │   │       └── [issueNumber].vue
+    │   │   ├── toc-editor/
+    │   │   │   └── [id].vue
+    │   │   ├── about.vue
+    │   │   ├── articles_manager.vue
+    │   │   ├── authors_manager.vue
+    │   │   ├── finance.vue
+    │   │   ├── finance_ledger.vue
+    │   │   ├── home.vue
+    │   │   ├── index.vue
+    │   │   ├── issues_manager.vue
+    │   │   ├── media_manager.vue
+    │   │   ├── mission.vue
+    │   │   ├── publication.vue
+    │   │   ├── search.vue
+    │   │   ├── submissions_manager.vue
+    │   │   ├── submit.vue
+    │   │   └── subscribers_manager.vue
     │   ├── articles/
     │   │   ├── [id].vue
     │   │   └── index.vue
@@ -112,124 +85,1353 @@ Directory structure:
     │   ├── submit/
     │   │   └── issue/
     │   │       └── [issueNumber].vue
-    │   └── pong-archive/
-    │       ├── index.vue
-    │       ├── login.vue
-    │       ├── register.vue
-    │       ├── media/
-    │       │   ├── index.vue
-    │       │   └── [id].vue
-    │       ├── sermons/
-    │       │   ├── index.vue
-    │       │   ├── [year].vue
-    │       │   └── year/
-    │       │       └── [year].vue
-    │       ├── writings/
-    │       │   └── index.vue
-    │       └── daily-office/
-    │           ├── index.vue
-    │           └── [year]/
-    │               └── [season]/
-    │                   └── [week].vue
+    │   ├── about.vue
+    │   ├── donate-confirm.vue
+    │   ├── finance.vue
+    │   ├── index.vue
+    │   ├── login.vue
+    │   ├── mission.vue
+    │   ├── preview.vue
+    │   ├── publication.vue
+    │   ├── search.vue
+    │   ├── submission.vue
+    │   ├── submit.vue
+    │   ├── subscribe.vue
+    │   ├── subscribe-print.vue
+    │   └── unsubscribe.vue
     ├── public/
-    │   ├── favicon.ico
-    │   ├── robots.txt
     │   ├── articles/
     │   │   ├── 5-13話語與肉身.json
     │   │   └── 5-13話語與肉身.md
     │   ├── images/
     │   │   ├── articles/
-    │   │   │   ├── issue-1/   (31 files)
-    │   │   │   ├── issue-2/   (40 files)
-    │   │   │   ├── issue-3/   (56 files)
-    │   │   │   ├── issue-4/   (55 files)
-    │   │   │   ├── issue-5/   (38 files)
-    │   │   │   └── issue-6/   (57 files)
+    │   │   │   ├── issue-1/
+    │   │   │   │   ├── issue1_10-1.jpg
+    │   │   │   │   ├── issue1_1-1.png
+    │   │   │   │   ├── issue1_11-1.jpg
+    │   │   │   │   ├── issue1_11-2.jpg
+    │   │   │   │   ├── issue1_12-1.jpg
+    │   │   │   │   ├── issue1_13-1.png
+    │   │   │   │   ├── issue1_13-2.jpg
+    │   │   │   │   ├── issue1_13-3.webp
+    │   │   │   │   ├── issue1_13-4.jpg
+    │   │   │   │   ├── issue1_14-1.webp
+    │   │   │   │   ├── issue1_14-2.png
+    │   │   │   │   ├── issue1_15.png
+    │   │   │   │   ├── issue1_2-1.jpg
+    │   │   │   │   ├── issue1_2-2.jpg
+    │   │   │   │   ├── issue1_2-3.jpg
+    │   │   │   │   ├── issue1_2-4.jpg
+    │   │   │   │   ├── issue1_2-5.jpg
+    │   │   │   │   ├── issue1_2-6.jpg
+    │   │   │   │   ├── issue1_3-1.jpg
+    │   │   │   │   ├── issue1_5-1.jpg
+    │   │   │   │   ├── issue1_5-2.jpg
+    │   │   │   │   ├── issue1_5-3.jpg
+    │   │   │   │   ├── issue1_6-1.png
+    │   │   │   │   ├── issue1_6-2.png
+    │   │   │   │   ├── issue1_6-3.JPG
+    │   │   │   │   ├── issue1_6-4.jpg
+    │   │   │   │   ├── issue1_7-1.png
+    │   │   │   │   ├── issue1_7-2.jpg
+    │   │   │   │   ├── issue1_7-3.png
+    │   │   │   │   ├── issue1_7-4.jpg
+    │   │   │   │   ├── issue1_8-1.jpg
+    │   │   │   │   ├── issue1_9-1.webp
+    │   │   │   │   ├── issue1_9-2.jpg
+    │   │   │   │   └── issue1_9-3.webp
+    │   │   │   ├── issue-2/
+    │   │   │   │   ├── issue2_10-1.jpg
+    │   │   │   │   ├── issue2_10-2.jpg
+    │   │   │   │   ├── issue2_10-3.jpg
+    │   │   │   │   ├── issue2_10-4.webp
+    │   │   │   │   ├── issue2_1-1.webp
+    │   │   │   │   ├── issue2_11-1.png
+    │   │   │   │   ├── issue2_11-2.jpg
+    │   │   │   │   ├── issue2_11-3.jpg
+    │   │   │   │   ├── issue2_12-1.jpg
+    │   │   │   │   ├── issue2_12-2.png
+    │   │   │   │   ├── issue2_12-3.png
+    │   │   │   │   ├── issue2_13-1.jpg
+    │   │   │   │   ├── issue2_13-2.jpg
+    │   │   │   │   ├── issue2_13-3.jpg
+    │   │   │   │   ├── issue2_13-4.jpg
+    │   │   │   │   ├── issue2_13-5.jpg
+    │   │   │   │   ├── issue2_14-1.jpg
+    │   │   │   │   ├── issue2_14-2.jpg
+    │   │   │   │   ├── issue2_15-1.jpg
+    │   │   │   │   ├── issue2_15-2.jpg
+    │   │   │   │   ├── issue2_15-3.png
+    │   │   │   │   ├── issue2_16-1.png
+    │   │   │   │   ├── issue2_16-2.png
+    │   │   │   │   ├── issue2_17-1.png
+    │   │   │   │   ├── issue2_2-1.jpg
+    │   │   │   │   ├── issue2_2-2.jpg
+    │   │   │   │   ├── issue2_2-3.jpg
+    │   │   │   │   ├── issue2_2-4.jpg
+    │   │   │   │   ├── issue2_2-5.JPG
+    │   │   │   │   ├── issue2_2-6.jpg
+    │   │   │   │   ├── issue2_2-7.jpg
+    │   │   │   │   ├── issue2_2-8.jpg
+    │   │   │   │   ├── issue2_2-9.jpg
+    │   │   │   │   ├── issue2_3-1.jpg
+    │   │   │   │   ├── issue2_5-1.jpg
+    │   │   │   │   ├── issue2_6-0 .pdf
+    │   │   │   │   ├── issue2_6-0 .png
+    │   │   │   │   ├── issue2_6-1.png
+    │   │   │   │   ├── issue2_6-2.png
+    │   │   │   │   ├── issue2_6-3.jpg
+    │   │   │   │   ├── issue2_7-1.jpg
+    │   │   │   │   ├── issue2_7-2.jpg
+    │   │   │   │   ├── issue2_7-3.jpg
+    │   │   │   │   ├── issue2_7-4.webp
+    │   │   │   │   ├── issue2_8-1.jpg
+    │   │   │   │   └── issue2_9-1.jpg
+    │   │   │   ├── issue-3/
+    │   │   │   │   ├── issue3_10-1.jpg
+    │   │   │   │   ├── issue3_10-10.jpg
+    │   │   │   │   ├── issue3_10-11.jpg
+    │   │   │   │   ├── issue3_10-12.jpg
+    │   │   │   │   ├── issue3_10-13.JPG
+    │   │   │   │   ├── issue3_10-14.jpg
+    │   │   │   │   ├── issue3_10-15.JPG
+    │   │   │   │   ├── issue3_10-16.JPG
+    │   │   │   │   ├── issue3_10-2.jpg
+    │   │   │   │   ├── issue3_10-3.jpg
+    │   │   │   │   ├── issue3_10-4.jpg
+    │   │   │   │   ├── issue3_10-5.jpg
+    │   │   │   │   ├── issue3_10-6.jpg
+    │   │   │   │   ├── issue3_10-7.jpg
+    │   │   │   │   ├── issue3_10-8.JPG
+    │   │   │   │   ├── issue3_10-9.jpg
+    │   │   │   │   ├── issue3_1-1.png
+    │   │   │   │   ├── issue3_11-1.JPG
+    │   │   │   │   ├── issue3_11-2.JPG
+    │   │   │   │   ├── issue3_11-3.JPG
+    │   │   │   │   ├── issue3_11-4.JPG
+    │   │   │   │   ├── issue3_11-5.JPG
+    │   │   │   │   ├── issue3_11-6.JPG
+    │   │   │   │   ├── issue3_11-7.JPG
+    │   │   │   │   ├── issue3_11-8.JPG
+    │   │   │   │   ├── issue3_12-1.jpg
+    │   │   │   │   ├── issue3_12-2.jpg
+    │   │   │   │   ├── issue3_12-3.jpg
+    │   │   │   │   ├── issue3_13-1.jpg
+    │   │   │   │   ├── issue3_13-2.JPG
+    │   │   │   │   ├── issue3_14-1.jpg
+    │   │   │   │   ├── issue3_14-2.jpg
+    │   │   │   │   ├── issue3_14-3.jpg
+    │   │   │   │   ├── issue3_15-1.jpg
+    │   │   │   │   ├── issue3_16-1.jpg
+    │   │   │   │   ├── issue3_16-2.jpg
+    │   │   │   │   ├── issue3_16-3.jpg
+    │   │   │   │   ├── issue3_17-1.jpg
+    │   │   │   │   ├── issue3_17-2.png
+    │   │   │   │   ├── issue3_17-3.png
+    │   │   │   │   ├── issue3_17-4.jpg
+    │   │   │   │   ├── issue3_18-1.png
+    │   │   │   │   ├── issue3_18-2.jpg
+    │   │   │   │   ├── issue3_19-1.jpg
+    │   │   │   │   ├── issue3_19-2.jpg
+    │   │   │   │   ├── issue3_19-3.jpg
+    │   │   │   │   ├── issue3_19-4.jpg
+    │   │   │   │   ├── issue3_2-1.jpg
+    │   │   │   │   ├── issue3_2-2.jpg
+    │   │   │   │   ├── issue3_2-3.jpg
+    │   │   │   │   ├── issue3_2-4.jpg
+    │   │   │   │   ├── issue3_2-5.jpg
+    │   │   │   │   ├── issue3_2-6.JPG
+    │   │   │   │   ├── issue3_2-7.jpeg
+    │   │   │   │   ├── issue3_2-8.jpg
+    │   │   │   │   ├── issue3_3-1.JPG
+    │   │   │   │   ├── issue3_4-1.jpg
+    │   │   │   │   ├── issue3_4-2.jpg
+    │   │   │   │   ├── issue3_5-1.jpg
+    │   │   │   │   ├── issue3_6-1.jpg
+    │   │   │   │   ├── issue3_7-1.png
+    │   │   │   │   ├── issue3_7-2.jpg
+    │   │   │   │   ├── issue3_7-3.png
+    │   │   │   │   ├── issue3_8-1.jpg
+    │   │   │   │   ├── issue3_8-2.jpg
+    │   │   │   │   ├── issue3_8-3.jpg
+    │   │   │   │   ├── issue3_8-4.jpg
+    │   │   │   │   ├── issue3_8-5.jpg
+    │   │   │   │   ├── issue3_9-1.jpg
+    │   │   │   │   ├── issue3_9-2.jpg
+    │   │   │   │   ├── issue3_9-3.jpg
+    │   │   │   │   ├── issue3_9-4.jpg
+    │   │   │   │   └── issue3_9-5.jpg
+    │   │   │   ├── issue-4/
+    │   │   │   │   ├── issue4_10-1.jpg
+    │   │   │   │   ├── issue4_1-1.jpg
+    │   │   │   │   ├── issue4_11-1.jpg
+    │   │   │   │   ├── issue4_11-2.png
+    │   │   │   │   ├── issue4_11-3.png
+    │   │   │   │   ├── issue4_1-2.png
+    │   │   │   │   ├── issue4_12-1.jpg
+    │   │   │   │   ├── issue4_13-1.jpg
+    │   │   │   │   ├── issue4_13-2.jpg
+    │   │   │   │   ├── issue4_14-1.jpg
+    │   │   │   │   ├── issue4_14-2.jpg
+    │   │   │   │   ├── issue4_15-1.jpg
+    │   │   │   │   ├── issue4_15-2.jpg
+    │   │   │   │   ├── issue4_15-3.jpg
+    │   │   │   │   ├── issue4_15-4.jpg
+    │   │   │   │   ├── issue4_15-5.jpg
+    │   │   │   │   ├── issue4_15-6.jpg
+    │   │   │   │   ├── issue4_15-7.jpg
+    │   │   │   │   ├── issue4_15-8.jpg
+    │   │   │   │   ├── issue4_16-1.png
+    │   │   │   │   ├── issue4_16-2.jpg
+    │   │   │   │   ├── issue4_17-1.jpg
+    │   │   │   │   ├── issue4_17-2.jpg
+    │   │   │   │   ├── issue4_17-3.jpg
+    │   │   │   │   ├── issue4_17-4.jpg
+    │   │   │   │   ├── issue4_2-1.jpg
+    │   │   │   │   ├── issue4_2-10.jpg
+    │   │   │   │   ├── issue4_2-2.jpg
+    │   │   │   │   ├── issue4_2-3.jpg
+    │   │   │   │   ├── issue4_2-4.jpg
+    │   │   │   │   ├── issue4_2-5.jpg
+    │   │   │   │   ├── issue4_2-6.jpg
+    │   │   │   │   ├── issue4_2-7Sunny Leung.jpg
+    │   │   │   │   ├── issue4_2-8.JPG
+    │   │   │   │   ├── issue4_2-9.jpg
+    │   │   │   │   ├── issue4_3-1.jpg
+    │   │   │   │   ├── issue4_4-1.jpg
+    │   │   │   │   ├── issue4_4-2.jpg
+    │   │   │   │   ├── issue4_4-3.jpg
+    │   │   │   │   ├── issue4_4-4.jpg
+    │   │   │   │   ├── issue4_4-5.jpg
+    │   │   │   │   ├── issue4_4-6.jpg
+    │   │   │   │   ├── issue4_4-7.jpg
+    │   │   │   │   ├── issue4_4-8.jpg
+    │   │   │   │   ├── issue4_4-9.jpg
+    │   │   │   │   ├── issue4_5-1.jpg
+    │   │   │   │   ├── issue4_5-2.jpg
+    │   │   │   │   ├── issue4_5-3.jpg
+    │   │   │   │   ├── issue4_5-4.JPG
+    │   │   │   │   ├── issue4_5-5.JPG
+    │   │   │   │   ├── issue4_5-6.jpg
+    │   │   │   │   ├── issue4_5-7.jpg
+    │   │   │   │   ├── issue4_6-1.jpg
+    │   │   │   │   ├── issue4_6-10.jpg
+    │   │   │   │   ├── issue4_6-11.jpg
+    │   │   │   │   ├── issue4_6-12.jpg
+    │   │   │   │   ├── issue4_6-2.jpg
+    │   │   │   │   ├── issue4_6-3.jpg
+    │   │   │   │   ├── issue4_6-4.jpg
+    │   │   │   │   ├── issue4_6-5.jpg
+    │   │   │   │   ├── issue4_6-6.jpg
+    │   │   │   │   ├── issue4_6-7.jpg
+    │   │   │   │   ├── issue4_6-8.jpg
+    │   │   │   │   ├── issue4_6-9.jpg
+    │   │   │   │   ├── issue4_7-1.jpg
+    │   │   │   │   ├── issue4_7-2.jpg
+    │   │   │   │   ├── issue4_7-3.jpg
+    │   │   │   │   ├── issue4_7-4.jpg
+    │   │   │   │   ├── issue4_8-1.jpg
+    │   │   │   │   ├── issue4_8-2.jpg
+    │   │   │   │   ├── issue4_8-3.jpg
+    │   │   │   │   ├── issue4_8-4.jpg
+    │   │   │   │   ├── issue4_9-1.png
+    │   │   │   │   ├── issue4_9-2.png
+    │   │   │   │   ├── issue4_9-3.jpg
+    │   │   │   │   └── issue4_9-4.png
+    │   │   │   ├── issue-5/
+    │   │   │   │   ├── issue5_10-1.jpg
+    │   │   │   │   ├── issue5_1-1.png
+    │   │   │   │   ├── issue5_11-1 .jpg
+    │   │   │   │   ├── issue5_12-1.jpg
+    │   │   │   │   ├── issue5_12-2.jpg
+    │   │   │   │   ├── issue5_12-3.jpg
+    │   │   │   │   ├── issue5_13-1.jpg
+    │   │   │   │   ├── issue5_13-2.jpg
+    │   │   │   │   ├── issue5_13-3.png
+    │   │   │   │   ├── issue5_13-4.jpg
+    │   │   │   │   ├── issue5_13-5.png
+    │   │   │   │   ├── issue5_14-1.png
+    │   │   │   │   ├── issue5_16-2.jpg
+    │   │   │   │   ├── issue5_17-1.jpg
+    │   │   │   │   ├── issue5_17-2.jpg
+    │   │   │   │   ├── issue5_17-3.jpg
+    │   │   │   │   ├── issue5_17-4.jpg
+    │   │   │   │   ├── issue5_2-1.jpeg
+    │   │   │   │   ├── issue5_2-2.jpeg
+    │   │   │   │   ├── issue5_2-3.jpg
+    │   │   │   │   ├── issue5_2-4.jpg
+    │   │   │   │   ├── issue5_2-5.JPG
+    │   │   │   │   ├── issue5_2-6.jpg
+    │   │   │   │   ├── issue5_3-1.jpg
+    │   │   │   │   ├── issue5_4-1.jpg
+    │   │   │   │   ├── issue5_4-2.jpg
+    │   │   │   │   ├── issue5_5-1.JPG
+    │   │   │   │   ├── issue5_6-1.jpg
+    │   │   │   │   ├── issue5_6-2.jpg
+    │   │   │   │   ├── issue5_7-1.png
+    │   │   │   │   ├── issue5_8-1.jpg
+    │   │   │   │   ├── issue5_8-2.jpg
+    │   │   │   │   ├── issue5_8-3.JPG
+    │   │   │   │   ├── issue5_8-4.jpeg
+    │   │   │   │   ├── issue5_8-5.jpg
+    │   │   │   │   ├── issue5_9-1.png
+    │   │   │   │   ├── issue5_9-2.png
+    │   │   │   │   ├── issue5_9-3.jpg
+    │   │   │   │   └── issue5_9-4.jpeg
+    │   │   │   └── issue-6/
+    │   │   │       ├── issue6_10-1.jpg
+    │   │   │       ├── issue6_10-2.jpg
+    │   │   │       ├── issue6_10-3.png
+    │   │   │       ├── issue6_10-4.png
+    │   │   │       ├── issue6_10-5.png
+    │   │   │       ├── issue6_10-6.png
+    │   │   │       ├── issue6_1-1.png
+    │   │   │       ├── issue6_11-1.jpg
+    │   │   │       ├── issue6_11-2.jpg
+    │   │   │       ├── issue6_11-3.jpg
+    │   │   │       ├── issue6_11-4.jpg
+    │   │   │       ├── issue6_11-5.jpg
+    │   │   │       ├── issue6_1-2.png
+    │   │   │       ├── issue6_12-1.jpg
+    │   │   │       ├── issue6_12-2.jpg
+    │   │   │       ├── issue6_12-3.png
+    │   │   │       ├── issue6_12-4.png
+    │   │   │       ├── issue6_13-1.png
+    │   │   │       ├── issue6_13-2.png
+    │   │   │       ├── issue6_14-0.png
+    │   │   │       ├── issue6_14-1.jpg
+    │   │   │       ├── issue6_14-2.jpg
+    │   │   │       ├── issue6_14-3.png
+    │   │   │       ├── issue6_14-4.jpg
+    │   │   │       ├── issue6_14-5.jpg
+    │   │   │       ├── issue6_15-1.png
+    │   │   │       ├── issue6_17-1.png
+    │   │   │       ├── issue6_2-1.jpg
+    │   │   │       ├── issue6_2-10.jpg
+    │   │   │       ├── issue6_2-11.jpg
+    │   │   │       ├── issue6_2-12.JPG
+    │   │   │       ├── issue6_2-2.jpg
+    │   │   │       ├── issue6_2-3.jpg
+    │   │   │       ├── issue6_2-4.jpg
+    │   │   │       ├── issue6_2-5.jpg
+    │   │   │       ├── issue6_2-6.jpg
+    │   │   │       ├── issue6_2-7.jpg
+    │   │   │       ├── issue6_2-8.jpg
+    │   │   │       ├── issue6_2-9.jpg
+    │   │   │       ├── issue6_3-1.jpg
+    │   │   │       ├── issue6_4-1.jpg
+    │   │   │       ├── issue6_4-2.jpg
+    │   │   │       ├── issue6_4-3.jpg
+    │   │   │       ├── issue6_4-4.JPG
+    │   │   │       ├── issue6_4-5.jpg
+    │   │   │       ├── issue6_4-6.jpg
+    │   │   │       ├── issue6_4-7.jpg
+    │   │   │       ├── issue6_4-8.jpg
+    │   │   │       ├── issue6_5-1.JPG
+    │   │   │       ├── issue6_5-2.jpg
+    │   │   │       ├── issue6_5-3.jpg
+    │   │   │       ├── issue6_5-4.jpg
+    │   │   │       ├── issue6_5-5.jpg
+    │   │   │       ├── issue6_6-1.jpg
+    │   │   │       ├── issue6_6-2.jpg
+    │   │   │       ├── issue6_7-1.jpg
+    │   │   │       ├── issue6_8-1.jpg
+    │   │   │       ├── issue6_9.png
+    │   │   │       ├── issue6_9-0.jpg
+    │   │   │       ├── issue6_9-1.png
+    │   │   │       ├── issue6_9-2.jpg
+    │   │   │       ├── issue6_9-3.jpg
+    │   │   │       ├── issue6_9-5.jpg
+    │   │   │       ├── issue6_9-6.jpg
+    │   │   │       └── issue6_9-7.jpg
     │   │   ├── authors/
-    │   │   │   └── author_1.jpg ~ author_26.jpg  (26 files)
+    │   │   │   ├── author_1.jpg
+    │   │   │   ├── author_10.jpg
+    │   │   │   ├── author_11.jpg
+    │   │   │   ├── author_12.jpg
+    │   │   │   ├── author_13.jpeg
+    │   │   │   ├── author_14.jpg
+    │   │   │   ├── author_15.jpg
+    │   │   │   ├── author_16.jpg
+    │   │   │   ├── author_17.jpg
+    │   │   │   ├── author_18.jpeg
+    │   │   │   ├── author_19.jpeg
+    │   │   │   ├── author_2.jpg
+    │   │   │   ├── author_20.jpg
+    │   │   │   ├── author_21.jpg
+    │   │   │   ├── author_22.jpg
+    │   │   │   ├── author_23.jpg
+    │   │   │   ├── author_24.jpg
+    │   │   │   ├── author_25.jpg
+    │   │   │   ├── author_26.jpg
+    │   │   │   ├── author_3.jpg
+    │   │   │   ├── author_4.jpg
+    │   │   │   ├── author_5.jpg
+    │   │   │   ├── author_6.jpg
+    │   │   │   ├── author_7.jpg
+    │   │   │   ├── author_8.jpg
+    │   │   │   └── author_9.jpg
     │   │   ├── covers/
-    │   │   │   └── cover-1.png ~ cover-6.png  (6 files)
+    │   │   │   ├── cover-1.png
+    │   │   │   ├── cover-2.png
+    │   │   │   ├── cover-3.png
+    │   │   │   ├── cover-4.png
+    │   │   │   ├── cover-5.png
+    │   │   │   └── cover-6.png
     │   │   ├── system/
+    │   │   │   ├── background_image.png
     │   │   │   ├── Header_Logo.png
     │   │   │   ├── Header_text.png
-    │   │   │   ├── background_image.png
     │   │   │   ├── topic.jpg
     │   │   │   └── web_Logo.png
     │   │   └── topics/
-    │   │       └── topic-2.png ~ topic-6.png  (5 files)
-    │   └── magazines/
-    │       └── Vol.1.pdf ~ Vol.6.pdf  (6 files)
+    │   │       ├── topic-2.png
+    │   │       ├── topic-3.png
+    │   │       ├── topic-4.png
+    │   │       ├── topic-5.png
+    │   │       └── topic-6.png
+    │   ├── magazines/
+    │   │   ├── Vol.1.pdf
+    │   │   ├── Vol.2.pdf
+    │   │   ├── Vol.3.pdf
+    │   │   ├── Vol.4.pdf
+    │   │   ├── Vol.5.pdf
+    │   │   └── Vol.6.pdf
+    │   ├── favicon.ico
+    │   └── robots.txt
     ├── scripts/
-    │   ├── fetch_chengzhong_sermons.py
+    │   ├── __pycache__/
+    │   │   └── generate_docx.cpython-314.pyc
     │   ├── footnote_stats.mjs
     │   ├── generate_docx.py
-    │   ├── lectionary_pipeline.py
-    │   ├── lectionary_yearb_html.py
     │   ├── merge_pdfs.py
     │   ├── migrate_content_to_html.mjs
-    │   ├── migrate_pong_sermons_v2.mjs
     │   ├── normalize_footnotes.mjs
     │   ├── patch_docx.py
-    │   ├── patch_memorial_prayer.mjs
-    │   ├── patch_sermons_songs_yt.mjs
-    │   ├── pong_sermon_pipeline.py
-    │   ├── seed_lectionary_advent_A_wk1.mjs
-    │   ├── seed_lectionary_advent_A_wk2.mjs
-    │   ├── seed_lectionary_advent_A_wk3.mjs
-    │   ├── seed_lectionary_advent_A_wk4.mjs
-    │   ├── seed_media_lecture_20231015.mjs
-    │   ├── seed_memorial_20260131.mjs
-    │   ├── seed_pong_media_transcript.mjs
-    │   ├── seed_pong_sermon_20130106.mjs
-    │   ├── seed_pong_sermon_20240317.mjs
-    │   ├── seed_pong_sermons_2013_batch.mjs
-    │   ├── seed_meta_articles.mjs
-    │   ├── setup_pong_auth.mjs
-    │   └── update_lectionary_html.mjs
+    │   ├── render_meta_docx.py
+    │   ├── seed_finance.mjs
+    │   └── seed_meta_articles.mjs
     ├── server/
-    │   └── api/
-    │       ├── classify-article.post.js
-    │       ├── delete-article.post.js
-    │       ├── pong-auth/
-    │       │   ├── login.post.js
-    │       │   ├── register.post.js
-    │       │   ├── editors.get.js
-    │       │   └── approve.post.js
-    │       ├── export-issue-word.post.js
-    │       ├── export-word.post.js
-    │       ├── media.js
-    │       ├── merge-pdfs.post.js
-    │       ├── submission-lookup.post.js
-    │       ├── submit.post.js
-    │       ├── donate-inquiry.post.js
-    │       ├── donate-confirm.post.js
-    │       ├── donate-send-confirm.post.js
-    │       ├── subscribe.post.js
-    │       ├── subscribe-print.post.js
-    │       ├── send-newsletter.post.js
-    │       └── unsubscribe.post.js
+    │   ├── api/
+    │   │   ├── classify-article.post.js
+    │   │   ├── delete-article.post.js
+    │   │   ├── donate-confirm.post.js
+    │   │   ├── donate-inquiry.post.js
+    │   │   ├── donate-send-confirm.post.js
+    │   │   ├── export-issue-word.post.js
+    │   │   ├── export-word.post.js
+    │   │   ├── media.js
+    │   │   ├── media-assets.js
+    │   │   ├── merge-pdfs.post.js
+    │   │   ├── send-newsletter.post.js
+    │   │   ├── submission-lookup.post.js
+    │   │   ├── submit.post.js
+    │   │   ├── subscribe.post.js
+    │   │   ├── subscribe-print.post.js
+    │   │   └── unsubscribe.post.js
+    │   └── utils/
     ├── stores/
-    │   ├── form.md
-    │   ├── robot_a_status.md
-    │   ├── word_to_sql.md
+    │   ├── 無境界者雜誌/
+    │   │   ├── 01-第一期/
+    │   │   │   ├── 1-0目次.docx
+    │   │   │   ├── 1-10東正教的視角.docx
+    │   │   │   ├── 1-11作為無教會主義的一種實踐？.docx
+    │   │   │   ├── 1-12誕是.docx
+    │   │   │   ├── 1-13一部為無國家者辯白的歷史.docx
+    │   │   │   ├── 1-14投稿資訊.docx
+    │   │   │   ├── 1-15編輯資訊.docx
+    │   │   │   ├── 1-1編輯室報告.docx
+    │   │   │   ├── 1-2本期作者簡介.docx
+    │   │   │   ├── 1-3克呂尼的晚霞，大教堂時代的黃昏.docx
+    │   │   │   ├── 1-4《無境界者》使命宣言.docx
+    │   │   │   ├── 1-5無教會主義的精神：獨立.docx
+    │   │   │   ├── 1-6縱貫一世紀的無教會史.docx
+    │   │   │   ├── 1-7從「無教會」到「無境界」.docx
+    │   │   │   ├── 1-8精神上的無教會.docx
+    │   │   │   ├── 1-9基督教中的安那其份子.docx
+    │   │   │   ├── 1-封底.pdf
+    │   │   │   └── 1-封面.pdf
+    │   │   ├── 02-第二期/
+    │   │   │   ├── 2-0目次.docx
+    │   │   │   ├── 2-10流浪者之聲.docx
+    │   │   │   ├── 2-11在燃燒中閃耀的神聖之黑.docx
+    │   │   │   ├── 2-12我的異端史.docx
+    │   │   │   ├── 2-13孕育日本無教會主義的土壤：友誼.docx
+    │   │   │   ├── 2-14文本以外無一物？.docx
+    │   │   │   ├── 2-15飛鳥的啟示.docx
+    │   │   │   ├── 2-16投稿資訊.docx
+    │   │   │   ├── 2-17編輯資訊.docx
+    │   │   │   ├── 2-1編輯室報告.docx
+    │   │   │   ├── 2-2本期作者簡介.docx
+    │   │   │   ├── 2-3離散於台港之間.docx
+    │   │   │   ├── 2-4沒有名字的教會，所為何來？.docx
+    │   │   │   ├── 2-5我的棄教宣言.docx
+    │   │   │   ├── 2-6教會外的信徒還在嗎？.docx
+    │   │   │   ├── 2-7萬籟所成的生命詩歌.docx
+    │   │   │   ├── 2-8游牧信徒.docx
+    │   │   │   ├── 2-9大齋期的流浪.docx
+    │   │   │   ├── 2-封底.pdf
+    │   │   │   └── 2-封面.pdf
+    │   │   ├── 03-第三期/
+    │   │   │   ├── 3-0目次.docx
+    │   │   │   ├── 3-10帶著路德去旅行.docx
+    │   │   │   ├── 3-11跟隨路德的腳蹤.docx
+    │   │   │   ├── 3-12馬丁‧路德的恐懼與平安.docx
+    │   │   │   ├── 3-13教會中你我是自願為誰的奴？.docx
+    │   │   │   ├── 3-14我的福音派史.docx
+    │   │   │   ├── 3-15救渡與文化.docx
+    │   │   │   ├── 3-16戒律與時代適應性.docx
+    │   │   │   ├── 3-17第二屆性別友善自在營公告.docx
+    │   │   │   ├── 3-18投稿資訊.docx
+    │   │   │   ├── 3-19編輯資訊.docx
+    │   │   │   ├── 3-1編輯室報告.docx
+    │   │   │   ├── 3-2本期作者簡介.docx
+    │   │   │   ├── 3-3那天，我去了路德與凱蒂之家.docx
+    │   │   │   ├── 3-4無境界者2025年度演講會公告.docx
+    │   │   │   ├── 3-5獨身．梵行與聖果之間的關係.docx
+    │   │   │   ├── 3-6教宗方濟各對天主教會的影響.docx
+    │   │   │   ├── 3-7諸宗教當中的「獨身」與「婚姻」制度演化史.docx
+    │   │   │   ├── 3-8婚禮也有神學.docx
+    │   │   │   ├── 3-9繼承路德的第二次宗教改革.docx
+    │   │   │   ├── 3-封底.pdf
+    │   │   │   └── 3-封面.pdf
+    │   │   ├── 04-第四期/
+    │   │   │   ├── 4-0目次.docx
+    │   │   │   ├── 4-10怪胎與ㄊㄚ們的產地.docx
+    │   │   │   ├── 4-11我的彩基史.docx
+    │   │   │   ├── 4-12因祂是我們的和睦.docx
+    │   │   │   ├── 4-13神啊，祢在哪兒？.docx
+    │   │   │   ├── 4-14後現代是對「宏大敘事」的質疑.docx
+    │   │   │   ├── 4-15不為自己求安樂，但願眾生得離苦.docx
+    │   │   │   ├── 4-16投稿資訊.docx
+    │   │   │   ├── 4-17編輯資訊.docx
+    │   │   │   ├── 4-1編輯室報告.docx
+    │   │   │   ├── 4-2本期作者簡介.docx
+    │   │   │   ├── 4-3佛陀座下的泰澤祈禱.docx
+    │   │   │   ├── 4-4拆毀信仰與性別的藩籬.docx
+    │   │   │   ├── 4-5建立在愛與公義中的跨界友誼.docx
+    │   │   │   ├── 4-6酷兒×宗教的跨界友誼.docx
+    │   │   │   ├── 4-7會於蘭亭，和而不同.docx
+    │   │   │   ├── 4-8跨越宗教藩籬的情誼.docx
+    │   │   │   ├── 4-9我願作十方橋.docx
+    │   │   │   ├── 4-封底.pdf
+    │   │   │   ├── 4-封面.pdf
+    │   │   │   ├── 4-書背.docx
+    │   │   │   └── 4-書背.pdf
+    │   │   ├── 05-第五期/
+    │   │   │   ├── 5-0目次.docx
+    │   │   │   ├── 5-10神學回應啟示的使命.docx
+    │   │   │   ├── 5-11關於苦難.docx
+    │   │   │   ├── 5-12權力即知識.docx
+    │   │   │   ├── 5-13話語與肉身.docx
+    │   │   │   ├── 5-14投稿資訊.docx
+    │   │   │   ├── 5-15編輯資訊.docx
+    │   │   │   ├── 5-1編輯室報告.docx
+    │   │   │   ├── 5-2本期作者簡介.docx
+    │   │   │   ├── 5-3她讓身體成為上主的居所.docx
+    │   │   │   ├── 5-4回應呼召的自由.docx
+    │   │   │   ├── 5-5淺談聖公會傳統中的聖母馬利亞.docx
+    │   │   │   ├── 5-6正教會對聖母的理解.docx
+    │   │   │   ├── 5-7誕神者.docx
+    │   │   │   ├── 5-8我的大公派史.docx
+    │   │   │   ├── 5-9尼西亞基督教的形成.docx
+    │   │   │   ├── 5-封底.pdf
+    │   │   │   ├── 5-封面.pdf
+    │   │   │   ├── 5-書背.docx
+    │   │   │   └── 5-書背.pdf
+    │   │   ├── 06-第六期/
+    │   │   │   ├── 14看！在媚俗中起舞的人類.docx.duplicate_backup
+    │   │   │   ├── 6-0目次.docx
+    │   │   │   ├── 6-10陌生又親切的異鄉之神.docx
+    │   │   │   ├── 6-11聆聽異端的聲音.docx
+    │   │   │   ├── 6-12當鄉下老鼠遇上支配惡魔.docx
+    │   │   │   ├── 6-13話語、肉身與教義語法.docx
+    │   │   │   ├── 6-14看！在媚俗中起舞的人類.docx
+    │   │   │   ├── 6-15那一天教會教導成了我的夢魘.docx
+    │   │   │   ├── 6-16投稿資訊.docx
+    │   │   │   ├── 6-17編輯資訊.docx
+    │   │   │   ├── 6-1編輯室報告.docx
+    │   │   │   ├── 6-2本期作者簡介.docx
+    │   │   │   ├── 6-3一直走，路才會在.docx
+    │   │   │   ├── 6-4布施無畏的勇者.docx
+    │   │   │   ├── 6-5跨海來台的人權勇士.docx
+    │   │   │   ├── 6-6異端何以成焰.docx
+    │   │   │   ├── 6-7教會內的異端份子.docx
+    │   │   │   ├── 6-8和而不同的基督徒政治觀.docx
+    │   │   │   ├── 6-9帝國邊境的自由靈魂.docx
+    │   │   │   ├── 6-封底.pdf
+    │   │   │   ├── 6-封面.pdf
+    │   │   │   ├── 6-書背.docx
+    │   │   │   └── 6-書背.pdf
+    │   │   ├── 07-第七期/
+    │   │   │   ├── 繪本/
+    │   │   │   │   ├── 照片/
+    │   │   │   │   │   ├── 482003856_1065320238971782_1719865846578077837_n.jpg
+    │   │   │   │   │   ├── 482004784_1065320285638444_8520348919556326514_n.jpg
+    │   │   │   │   │   ├── 482019014_1065319835638489_8011506580830576554_n.jpg
+    │   │   │   │   │   ├── 482137370_1065320268971779_1919516119527473827_n.jpg
+    │   │   │   │   │   ├── 482213619_1065319945638478_8586882246544455327_n.jpg
+    │   │   │   │   │   ├── 482221541_1065319858971820_8562101242012975813_n.jpg
+    │   │   │   │   │   ├── desktop.ini
+    │   │   │   │   │   ├── IMG_0970.JPG
+    │   │   │   │   │   ├── IMG_0971.JPG
+    │   │   │   │   │   ├── IMG_0972.JPG
+    │   │   │   │   │   ├── IMG_0973.JPG
+    │   │   │   │   │   ├── IMG_0974.JPG
+    │   │   │   │   │   ├── IMG_0975.JPG
+    │   │   │   │   │   ├── IMG_0976.JPG
+    │   │   │   │   │   ├── IMG_0977.JPG
+    │   │   │   │   │   ├── IMG_0978.JPG
+    │   │   │   │   │   ├── IMG_0979.JPG
+    │   │   │   │   │   ├── IMG_0980.JPG
+    │   │   │   │   │   ├── IMG_0981.JPG
+    │   │   │   │   │   ├── IMG_0982.JPG
+    │   │   │   │   │   ├── IMG_0983.JPG
+    │   │   │   │   │   ├── IMG_0984.JPG
+    │   │   │   │   │   ├── IMG_0986.JPG
+    │   │   │   │   │   ├── IMG_0987.JPG
+    │   │   │   │   │   ├── IMG_0988.JPG
+    │   │   │   │   │   ├── IMG_0989.JPG
+    │   │   │   │   │   ├── IMG_0991.JPG
+    │   │   │   │   │   ├── IMG_0992.JPG
+    │   │   │   │   │   ├── IMG_0993.JPG
+    │   │   │   │   │   ├── IMG_0994.JPG
+    │   │   │   │   │   ├── IMG_0995.JPG
+    │   │   │   │   │   ├── IMG_0996.JPG
+    │   │   │   │   │   ├── IMG_0997.JPG
+    │   │   │   │   │   ├── IMG_0998.JPG
+    │   │   │   │   │   ├── IMG_0999.JPG
+    │   │   │   │   │   ├── IMG_1001.JPG
+    │   │   │   │   │   ├── IMG_1002.JPG
+    │   │   │   │   │   ├── IMG_1003.JPG
+    │   │   │   │   │   ├── IMG_1004.JPG
+    │   │   │   │   │   ├── IMG_1005.JPG
+    │   │   │   │   │   ├── IMG_1006.JPG
+    │   │   │   │   │   ├── IMG_1007.JPG
+    │   │   │   │   │   ├── IMG_1008.JPG
+    │   │   │   │   │   ├── IMG_1009.JPG
+    │   │   │   │   │   ├── IMG_1010.JPG
+    │   │   │   │   │   ├── IMG_1011.JPG
+    │   │   │   │   │   ├── IMG_1012.JPG
+    │   │   │   │   │   ├── IMG_1016.JPG
+    │   │   │   │   │   ├── IMG_1017.JPG
+    │   │   │   │   │   ├── IMG_1018.JPG
+    │   │   │   │   │   ├── IMG_1019.JPG
+    │   │   │   │   │   ├── IMG_1020.JPG
+    │   │   │   │   │   ├── IMG_1021.JPG
+    │   │   │   │   │   ├── IMG_1022.JPG
+    │   │   │   │   │   ├── IMG_1023.JPG
+    │   │   │   │   │   ├── IMG_1024.JPG
+    │   │   │   │   │   ├── IMG_1025.JPG
+    │   │   │   │   │   ├── IMG_1026.JPG
+    │   │   │   │   │   ├── IMG_1027.JPG
+    │   │   │   │   │   ├── IMG_1028.JPG
+    │   │   │   │   │   ├── IMG_1029.JPG
+    │   │   │   │   │   ├── IMG_1030.JPG
+    │   │   │   │   │   ├── IMG_1032.JPG
+    │   │   │   │   │   ├── IMG_1033.JPG
+    │   │   │   │   │   ├── IMG_1034.JPG
+    │   │   │   │   │   ├── IMG_1035.JPG
+    │   │   │   │   │   ├── IMG_1037.JPG
+    │   │   │   │   │   ├── IMG_1038.JPG
+    │   │   │   │   │   ├── IMG_1039.JPG
+    │   │   │   │   │   ├── IMG_1040.JPG
+    │   │   │   │   │   ├── IMG_1041.JPG
+    │   │   │   │   │   ├── IMG_1042.JPG
+    │   │   │   │   │   ├── IMG_1043.JPG
+    │   │   │   │   │   ├── IMG_1044.JPG
+    │   │   │   │   │   ├── IMG_1045.JPG
+    │   │   │   │   │   ├── IMG_1046.JPG
+    │   │   │   │   │   ├── IMG_1048.JPG
+    │   │   │   │   │   ├── IMG_1049.JPG
+    │   │   │   │   │   ├── IMG_1050.JPG
+    │   │   │   │   │   ├── IMG_1051.JPG
+    │   │   │   │   │   ├── IMG_1052.JPG
+    │   │   │   │   │   ├── IMG_1053.JPG
+    │   │   │   │   │   ├── IMG_1054.JPG
+    │   │   │   │   │   ├── IMG_1055.JPG
+    │   │   │   │   │   ├── IMG_1056.JPG
+    │   │   │   │   │   ├── IMG_1057.JPG
+    │   │   │   │   │   ├── IMG_1058.JPG
+    │   │   │   │   │   ├── IMG_1059.JPG
+    │   │   │   │   │   ├── IMG_1060.JPG
+    │   │   │   │   │   ├── IMG_1061.JPG
+    │   │   │   │   │   ├── IMG_1062.JPG
+    │   │   │   │   │   ├── IMG_1063.JPG
+    │   │   │   │   │   ├── IMG_1064.JPG
+    │   │   │   │   │   ├── IMG_1065.JPG
+    │   │   │   │   │   ├── IMG_1066.JPG
+    │   │   │   │   │   ├── IMG_1067.JPG
+    │   │   │   │   │   ├── IMG_1068.JPG
+    │   │   │   │   │   ├── IMG_1071.JPG
+    │   │   │   │   │   ├── IMG_1072.JPG
+    │   │   │   │   │   ├── IMG_1073.JPG
+    │   │   │   │   │   ├── IMG_1074.JPG
+    │   │   │   │   │   ├── IMG_1075.JPG
+    │   │   │   │   │   ├── IMG_1076.JPG
+    │   │   │   │   │   ├── IMG_1077.JPG
+    │   │   │   │   │   ├── IMG_1078.JPG
+    │   │   │   │   │   ├── IMG_1079.JPG
+    │   │   │   │   │   ├── IMG_1080.JPG
+    │   │   │   │   │   ├── IMG_1081.JPG
+    │   │   │   │   │   ├── IMG_1082.JPG
+    │   │   │   │   │   ├── IMG_1083.JPG
+    │   │   │   │   │   ├── IMG_1084.JPG
+    │   │   │   │   │   ├── IMG_1085.JPG
+    │   │   │   │   │   ├── IMG_1086.JPG
+    │   │   │   │   │   ├── IMG_1087.JPG
+    │   │   │   │   │   ├── IMG_1088.JPG
+    │   │   │   │   │   ├── IMG_1089.JPG
+    │   │   │   │   │   ├── IMG_1090.JPG
+    │   │   │   │   │   ├── IMG_1091.JPG
+    │   │   │   │   │   ├── IMG_1092.JPG
+    │   │   │   │   │   ├── IMG_1093.JPG
+    │   │   │   │   │   ├── IMG_1094.JPG
+    │   │   │   │   │   ├── IMG_1095.JPG
+    │   │   │   │   │   ├── IMG_1099.JPG
+    │   │   │   │   │   ├── IMG_1100.JPG
+    │   │   │   │   │   ├── IMG_1101.JPG
+    │   │   │   │   │   ├── IMG_1102.JPG
+    │   │   │   │   │   ├── IMG_1103.JPG
+    │   │   │   │   │   ├── IMG_1104.JPG
+    │   │   │   │   │   ├── IMG_1105.JPG
+    │   │   │   │   │   ├── IMG_1106.JPG
+    │   │   │   │   │   ├── IMG_1107.JPG
+    │   │   │   │   │   ├── IMG_1108.JPG
+    │   │   │   │   │   ├── IMG_1109.JPG
+    │   │   │   │   │   ├── IMG_1110.JPG
+    │   │   │   │   │   ├── IMG_1111.JPG
+    │   │   │   │   │   ├── IMG_1112.JPG
+    │   │   │   │   │   ├── IMG_1113.JPG
+    │   │   │   │   │   ├── IMG_1114.JPG
+    │   │   │   │   │   ├── IMG_1115.JPG
+    │   │   │   │   │   ├── IMG_1116.JPG
+    │   │   │   │   │   ├── IMG_1117.JPG
+    │   │   │   │   │   ├── IMG_1118.JPG
+    │   │   │   │   │   ├── IMG_1119.JPG
+    │   │   │   │   │   ├── IMG_1120.JPG
+    │   │   │   │   │   ├── IMG_1121.JPG
+    │   │   │   │   │   ├── IMG_1122.JPG
+    │   │   │   │   │   ├── IMG_1123.JPG
+    │   │   │   │   │   ├── IMG_1124.JPG
+    │   │   │   │   │   ├── IMG_1125.JPG
+    │   │   │   │   │   ├── IMG_1126.JPG
+    │   │   │   │   │   ├── IMG_1127.JPG
+    │   │   │   │   │   ├── IMG_1128.JPG
+    │   │   │   │   │   ├── IMG_1129.JPG
+    │   │   │   │   │   ├── IMG_1130.JPG
+    │   │   │   │   │   ├── IMG_1131.JPG
+    │   │   │   │   │   ├── IMG_1132.JPG
+    │   │   │   │   │   ├── IMG_1133.JPG
+    │   │   │   │   │   ├── IMG_1134.JPG
+    │   │   │   │   │   ├── IMG_1135.JPG
+    │   │   │   │   │   ├── IMG_1136.JPG
+    │   │   │   │   │   ├── IMG_1137.JPG
+    │   │   │   │   │   ├── IMG_1138.JPG
+    │   │   │   │   │   ├── IMG_1140.JPG
+    │   │   │   │   │   ├── IMG_1141.JPG
+    │   │   │   │   │   ├── IMG_1142.JPG
+    │   │   │   │   │   ├── IMG_1143.JPG
+    │   │   │   │   │   ├── IMG_1144.JPG
+    │   │   │   │   │   ├── IMG_1145.JPG
+    │   │   │   │   │   ├── IMG_1146.JPG
+    │   │   │   │   │   ├── IMG_1147.JPG
+    │   │   │   │   │   ├── IMG_1148.JPG
+    │   │   │   │   │   ├── IMG_1149.JPG
+    │   │   │   │   │   ├── IMG_1150.JPG
+    │   │   │   │   │   ├── IMG_1151.JPG
+    │   │   │   │   │   ├── IMG_1152.JPG
+    │   │   │   │   │   ├── IMG_1153.JPG
+    │   │   │   │   │   ├── IMG_1154.JPG
+    │   │   │   │   │   ├── IMG_1155.JPG
+    │   │   │   │   │   ├── IMG_1160.JPG
+    │   │   │   │   │   ├── IMG_1161.JPG
+    │   │   │   │   │   ├── IMG_1167.JPG
+    │   │   │   │   │   ├── IMG_1168.JPG
+    │   │   │   │   │   ├── IMG_1170.JPG
+    │   │   │   │   │   ├── IMG_1174.JPG
+    │   │   │   │   │   ├── IMG_1175.JPG
+    │   │   │   │   │   ├── IMG_1176.JPG
+    │   │   │   │   │   ├── IMG_1177.JPG
+    │   │   │   │   │   ├── IMG_1178.JPG
+    │   │   │   │   │   ├── IMG_1179.JPG
+    │   │   │   │   │   ├── IMG_1180.PNG
+    │   │   │   │   │   ├── IMG_1182.PNG
+    │   │   │   │   │   ├── IMG_1185.JPG
+    │   │   │   │   │   ├── IMG_1186.JPG
+    │   │   │   │   │   ├── IMG_1187.JPG
+    │   │   │   │   │   ├── IMG_1188.JPG
+    │   │   │   │   │   ├── IMG_1191.JPG
+    │   │   │   │   │   ├── IMG_1192.JPG
+    │   │   │   │   │   ├── IMG_1193.JPG
+    │   │   │   │   │   ├── IMG_1194.JPG
+    │   │   │   │   │   ├── IMG_1195.JPG
+    │   │   │   │   │   ├── IMG_1196.JPG
+    │   │   │   │   │   ├── IMG_1197.JPG
+    │   │   │   │   │   ├── IMG_1198.JPG
+    │   │   │   │   │   ├── IMG_1199.JPG
+    │   │   │   │   │   ├── IMG_1200.JPG
+    │   │   │   │   │   ├── IMG_1201.JPG
+    │   │   │   │   │   ├── IMG_1202.JPG
+    │   │   │   │   │   ├── IMG_1203.JPG
+    │   │   │   │   │   ├── IMG_1204.JPG
+    │   │   │   │   │   ├── IMG_1205.JPG
+    │   │   │   │   │   ├── IMG_1206.JPG
+    │   │   │   │   │   ├── IMG_1207.JPG
+    │   │   │   │   │   ├── IMG_1208.JPG
+    │   │   │   │   │   ├── IMG_1209.JPG
+    │   │   │   │   │   ├── IMG_1210.JPG
+    │   │   │   │   │   ├── IMG_1211.JPG
+    │   │   │   │   │   ├── IMG_1212.JPG
+    │   │   │   │   │   ├── IMG_1213.JPG
+    │   │   │   │   │   ├── IMG_1214.JPG
+    │   │   │   │   │   ├── IMG_1215.JPG
+    │   │   │   │   │   ├── IMG_1216.JPG
+    │   │   │   │   │   ├── IMG_1217.JPG
+    │   │   │   │   │   ├── IMG_1218.JPG
+    │   │   │   │   │   ├── IMG_1219.JPG
+    │   │   │   │   │   ├── IMG_1220.JPG
+    │   │   │   │   │   ├── IMG_1221.JPG
+    │   │   │   │   │   ├── IMG_1222.JPG
+    │   │   │   │   │   ├── IMG_1223.JPG
+    │   │   │   │   │   ├── IMG_1224.JPG
+    │   │   │   │   │   ├── IMG_1225.JPG
+    │   │   │   │   │   ├── IMG_1226.JPG
+    │   │   │   │   │   ├── IMG_1227.JPG
+    │   │   │   │   │   ├── IMG_1228.JPG
+    │   │   │   │   │   ├── IMG_1229.JPG
+    │   │   │   │   │   ├── IMG_1230.JPG
+    │   │   │   │   │   ├── IMG_1231.JPG
+    │   │   │   │   │   ├── IMG_1232.JPG
+    │   │   │   │   │   ├── IMG_1233.JPG
+    │   │   │   │   │   ├── IMG_1234.JPG
+    │   │   │   │   │   ├── IMG_1235.JPG
+    │   │   │   │   │   ├── IMG_1236.JPG
+    │   │   │   │   │   ├── IMG_1237.JPG
+    │   │   │   │   │   ├── IMG_1238.JPG
+    │   │   │   │   │   ├── IMG_1239.JPG
+    │   │   │   │   │   ├── IMG_1240.JPG
+    │   │   │   │   │   ├── IMG_1241.JPG
+    │   │   │   │   │   ├── IMG_1242.JPG
+    │   │   │   │   │   ├── IMG_1243.JPG
+    │   │   │   │   │   ├── IMG_1244.JPG
+    │   │   │   │   │   ├── IMG_1245.JPG
+    │   │   │   │   │   ├── IMG_1246.JPG
+    │   │   │   │   │   ├── IMG_1247.JPG
+    │   │   │   │   │   ├── IMG_1248.JPG
+    │   │   │   │   │   ├── IMG_1249.JPG
+    │   │   │   │   │   ├── IMG_1250.JPG
+    │   │   │   │   │   ├── IMG_1251.JPG
+    │   │   │   │   │   ├── IMG_1252.JPG
+    │   │   │   │   │   ├── IMG_1253.JPG
+    │   │   │   │   │   ├── IMG_1254.JPG
+    │   │   │   │   │   ├── IMG_1255.JPG
+    │   │   │   │   │   ├── IMG_1256.JPG
+    │   │   │   │   │   ├── IMG_1257.JPG
+    │   │   │   │   │   ├── IMG_1258.JPG
+    │   │   │   │   │   ├── IMG_1259.JPG
+    │   │   │   │   │   ├── IMG_1260.JPG
+    │   │   │   │   │   ├── IMG_1261.JPG
+    │   │   │   │   │   ├── IMG_1262.JPG
+    │   │   │   │   │   ├── IMG_1263.JPG
+    │   │   │   │   │   ├── IMG_1264.JPG
+    │   │   │   │   │   ├── IMG_1265.JPG
+    │   │   │   │   │   ├── IMG_1266.JPG
+    │   │   │   │   │   ├── IMG_1267.JPG
+    │   │   │   │   │   ├── IMG_1268.JPG
+    │   │   │   │   │   ├── IMG_1269.JPG
+    │   │   │   │   │   ├── IMG_1270.JPG
+    │   │   │   │   │   ├── IMG_1271.JPG
+    │   │   │   │   │   ├── IMG_1272.JPG
+    │   │   │   │   │   ├── IMG_1273.JPG
+    │   │   │   │   │   ├── IMG_1274.JPG
+    │   │   │   │   │   ├── IMG_1275.JPG
+    │   │   │   │   │   ├── IMG_1276.JPG
+    │   │   │   │   │   ├── IMG_1277.JPG
+    │   │   │   │   │   ├── IMG_1278.JPG
+    │   │   │   │   │   ├── IMG_1279.JPG
+    │   │   │   │   │   ├── IMG_1280.JPG
+    │   │   │   │   │   ├── IMG_1281.JPG
+    │   │   │   │   │   ├── IMG_1282.JPG
+    │   │   │   │   │   ├── IMG_1283.JPG
+    │   │   │   │   │   ├── IMG_1284.JPG
+    │   │   │   │   │   ├── IMG_1285.JPG
+    │   │   │   │   │   ├── IMG_1286.JPG
+    │   │   │   │   │   ├── IMG_1287.JPG
+    │   │   │   │   │   ├── IMG_1288.JPG
+    │   │   │   │   │   ├── IMG_1289.JPG
+    │   │   │   │   │   ├── IMG_1290.JPG
+    │   │   │   │   │   ├── IMG_1291.JPG
+    │   │   │   │   │   ├── IMG_1292.JPG
+    │   │   │   │   │   ├── IMG_1293.JPG
+    │   │   │   │   │   ├── IMG_1294.JPG
+    │   │   │   │   │   ├── IMG_1295.JPG
+    │   │   │   │   │   ├── IMG_1296.JPG
+    │   │   │   │   │   ├── IMG_1297.JPG
+    │   │   │   │   │   ├── IMG_1298.JPG
+    │   │   │   │   │   ├── IMG_1299.JPG
+    │   │   │   │   │   ├── IMG_1300.JPG
+    │   │   │   │   │   ├── IMG_1301.JPG
+    │   │   │   │   │   ├── IMG_1302.JPG
+    │   │   │   │   │   ├── IMG_1303.JPG
+    │   │   │   │   │   ├── IMG_1304.JPG
+    │   │   │   │   │   ├── IMG_1305.JPG
+    │   │   │   │   │   ├── IMG_1306.JPG
+    │   │   │   │   │   ├── IMG_1307.JPG
+    │   │   │   │   │   ├── IMG_1308.JPG
+    │   │   │   │   │   ├── IMG_1309.JPG
+    │   │   │   │   │   ├── IMG_1310.JPG
+    │   │   │   │   │   ├── IMG_1311.JPG
+    │   │   │   │   │   ├── IMG_1312.JPG
+    │   │   │   │   │   ├── IMG_1313.JPG
+    │   │   │   │   │   ├── IMG_1314.JPG
+    │   │   │   │   │   ├── IMG_1315.JPG
+    │   │   │   │   │   ├── IMG_1316.JPG
+    │   │   │   │   │   ├── IMG_1317.JPG
+    │   │   │   │   │   ├── IMG_1318.JPG
+    │   │   │   │   │   ├── IMG_1319.JPG
+    │   │   │   │   │   ├── IMG_1320.JPG
+    │   │   │   │   │   ├── IMG_1321.JPG
+    │   │   │   │   │   ├── IMG_1322.JPG
+    │   │   │   │   │   ├── IMG_1323.JPG
+    │   │   │   │   │   ├── IMG_1324.JPG
+    │   │   │   │   │   ├── IMG_1325.JPG
+    │   │   │   │   │   ├── IMG_1326.JPG
+    │   │   │   │   │   ├── IMG_1327.JPG
+    │   │   │   │   │   ├── IMG_1328.JPG
+    │   │   │   │   │   ├── IMG_1329.JPG
+    │   │   │   │   │   ├── IMG_1330.JPG
+    │   │   │   │   │   ├── IMG_1331.JPG
+    │   │   │   │   │   ├── IMG_1332.JPG
+    │   │   │   │   │   ├── IMG_1333.JPG
+    │   │   │   │   │   ├── IMG_1334.JPG
+    │   │   │   │   │   ├── IMG_1335.JPG
+    │   │   │   │   │   ├── IMG_1336.JPG
+    │   │   │   │   │   ├── IMG_1337.JPG
+    │   │   │   │   │   ├── IMG_1338.JPG
+    │   │   │   │   │   ├── IMG_1339.JPG
+    │   │   │   │   │   ├── IMG_1340.JPG
+    │   │   │   │   │   ├── IMG_1341.JPG
+    │   │   │   │   │   ├── IMG_1342.JPG
+    │   │   │   │   │   ├── IMG_1343.JPG
+    │   │   │   │   │   ├── IMG_1344.JPG
+    │   │   │   │   │   ├── IMG_1345.JPG
+    │   │   │   │   │   ├── IMG_1346.JPG
+    │   │   │   │   │   ├── IMG_1347.JPG
+    │   │   │   │   │   ├── IMG_1348.JPG
+    │   │   │   │   │   ├── IMG_1349.JPG
+    │   │   │   │   │   ├── IMG_1350.JPG
+    │   │   │   │   │   ├── IMG_1351.JPG
+    │   │   │   │   │   ├── IMG_1352.JPG
+    │   │   │   │   │   ├── IMG_1353.JPG
+    │   │   │   │   │   ├── IMG_1354.JPG
+    │   │   │   │   │   ├── IMG_1355.JPG
+    │   │   │   │   │   ├── IMG_1356.JPG
+    │   │   │   │   │   ├── IMG_1357.JPG
+    │   │   │   │   │   ├── IMG_1358.JPG
+    │   │   │   │   │   ├── IMG_1359.JPG
+    │   │   │   │   │   ├── IMG_1360.JPG
+    │   │   │   │   │   ├── IMG_1361.JPG
+    │   │   │   │   │   ├── IMG_1362.JPG
+    │   │   │   │   │   ├── IMG_1363.JPG
+    │   │   │   │   │   ├── IMG_1364.JPG
+    │   │   │   │   │   ├── IMG_1365.JPG
+    │   │   │   │   │   ├── IMG_1366.JPG
+    │   │   │   │   │   ├── IMG_1367.JPG
+    │   │   │   │   │   ├── IMG_1368.JPG
+    │   │   │   │   │   ├── IMG_1369.JPG
+    │   │   │   │   │   ├── IMG_1370.JPG
+    │   │   │   │   │   ├── IMG_1371.JPG
+    │   │   │   │   │   ├── IMG_1372.JPG
+    │   │   │   │   │   ├── IMG_1373.JPG
+    │   │   │   │   │   ├── IMG_1374.JPG
+    │   │   │   │   │   ├── IMG_1375.JPG
+    │   │   │   │   │   ├── IMG_1376.JPG
+    │   │   │   │   │   ├── IMG_1377.JPG
+    │   │   │   │   │   ├── IMG_1378.JPG
+    │   │   │   │   │   ├── IMG_1379.JPG
+    │   │   │   │   │   ├── IMG_1380.JPG
+    │   │   │   │   │   ├── IMG_1381.JPG
+    │   │   │   │   │   ├── IMG_1382.JPG
+    │   │   │   │   │   ├── IMG_1383.JPG
+    │   │   │   │   │   ├── IMG_1384.JPG
+    │   │   │   │   │   ├── IMG_1385.JPG
+    │   │   │   │   │   ├── IMG_1386.JPG
+    │   │   │   │   │   ├── IMG_1387.JPG
+    │   │   │   │   │   ├── IMG_1388.JPG
+    │   │   │   │   │   ├── IMG_1389.JPG
+    │   │   │   │   │   ├── IMG_1390.JPG
+    │   │   │   │   │   ├── IMG_1391.JPG
+    │   │   │   │   │   ├── IMG_1392.JPG
+    │   │   │   │   │   ├── IMG_1393.JPG
+    │   │   │   │   │   ├── IMG_1394.JPG
+    │   │   │   │   │   ├── IMG_1395.JPG
+    │   │   │   │   │   ├── IMG_1396.JPG
+    │   │   │   │   │   ├── IMG_1397.JPG
+    │   │   │   │   │   ├── IMG_1398.JPG
+    │   │   │   │   │   ├── IMG_1399.JPG
+    │   │   │   │   │   ├── IMG_1400.JPG
+    │   │   │   │   │   ├── IMG_1403.JPG
+    │   │   │   │   │   ├── IMG_1404.JPG
+    │   │   │   │   │   ├── IMG_1405.JPG
+    │   │   │   │   │   ├── IMG_1406.JPG
+    │   │   │   │   │   ├── IMG_1407.JPG
+    │   │   │   │   │   ├── IMG_1408.JPG
+    │   │   │   │   │   ├── IMG_1409.JPG
+    │   │   │   │   │   ├── IMG_1410.JPG
+    │   │   │   │   │   ├── IMG_1411.JPG
+    │   │   │   │   │   ├── IMG_1412.JPG
+    │   │   │   │   │   ├── IMG_1413.JPG
+    │   │   │   │   │   ├── IMG_1414.JPG
+    │   │   │   │   │   ├── IMG_1415.JPG
+    │   │   │   │   │   ├── IMG_1416.JPG
+    │   │   │   │   │   ├── IMG_1417.JPG
+    │   │   │   │   │   ├── IMG_1418.JPG
+    │   │   │   │   │   ├── IMG_1419.JPG
+    │   │   │   │   │   ├── IMG_1420.JPG
+    │   │   │   │   │   ├── IMG_1421.JPG
+    │   │   │   │   │   ├── IMG_1422.JPG
+    │   │   │   │   │   ├── IMG_1423.JPG
+    │   │   │   │   │   ├── IMG_1424.JPG
+    │   │   │   │   │   ├── IMG_1425.JPG
+    │   │   │   │   │   ├── IMG_1426.JPG
+    │   │   │   │   │   ├── IMG_1427.JPG
+    │   │   │   │   │   ├── IMG_1428.JPG
+    │   │   │   │   │   ├── IMG_1429.JPG
+    │   │   │   │   │   ├── IMG_1430.JPG
+    │   │   │   │   │   ├── IMG_1431.JPG
+    │   │   │   │   │   ├── IMG_1432.JPG
+    │   │   │   │   │   ├── IMG_1433.JPG
+    │   │   │   │   │   ├── IMG_1434.JPG
+    │   │   │   │   │   ├── IMG_1435.JPG
+    │   │   │   │   │   ├── IMG_1436.JPG
+    │   │   │   │   │   ├── IMG_1437.JPG
+    │   │   │   │   │   ├── IMG_1438.JPG
+    │   │   │   │   │   ├── IMG_1440.JPG
+    │   │   │   │   │   ├── IMG_1441.JPG
+    │   │   │   │   │   ├── IMG_1442.JPG
+    │   │   │   │   │   ├── IMG_1443.JPG
+    │   │   │   │   │   ├── IMG_1444.JPG
+    │   │   │   │   │   ├── IMG_1445.JPG
+    │   │   │   │   │   ├── IMG_1446.JPG
+    │   │   │   │   │   ├── IMG_1447.JPG
+    │   │   │   │   │   ├── IMG_1448.JPG
+    │   │   │   │   │   ├── IMG_1449.JPG
+    │   │   │   │   │   ├── IMG_1450.JPG
+    │   │   │   │   │   ├── IMG_1451.PNG
+    │   │   │   │   │   ├── IMG_1481.JPG
+    │   │   │   │   │   ├── IMG_1482.JPG
+    │   │   │   │   │   ├── IMG_1483.JPG
+    │   │   │   │   │   ├── IMG_1484.JPG
+    │   │   │   │   │   ├── IMG_1485.JPG
+    │   │   │   │   │   ├── IMG_1486.JPG
+    │   │   │   │   │   ├── IMG_1487.JPG
+    │   │   │   │   │   ├── IMG_1489.JPG
+    │   │   │   │   │   ├── IMG_1490.JPG
+    │   │   │   │   │   ├── IMG_1491.JPG
+    │   │   │   │   │   ├── IMG_1492.JPG
+    │   │   │   │   │   ├── IMG_1493.JPG
+    │   │   │   │   │   ├── IMG_1494.JPG
+    │   │   │   │   │   ├── IMG_1495.JPG
+    │   │   │   │   │   ├── IMG_1496.JPG
+    │   │   │   │   │   ├── IMG_1497.JPG
+    │   │   │   │   │   ├── IMG_1498.JPG
+    │   │   │   │   │   ├── IMG_1499.JPG
+    │   │   │   │   │   ├── IMG_1500.JPG
+    │   │   │   │   │   ├── IMG_1501.JPG
+    │   │   │   │   │   ├── IMG_1502.JPG
+    │   │   │   │   │   ├── IMG_1503.JPG
+    │   │   │   │   │   ├── IMG_1504.JPG
+    │   │   │   │   │   ├── IMG_1505.JPG
+    │   │   │   │   │   ├── IMG_1506.JPG
+    │   │   │   │   │   ├── IMG_1507.JPG
+    │   │   │   │   │   ├── IMG_1508.JPG
+    │   │   │   │   │   ├── IMG_1509.JPG
+    │   │   │   │   │   ├── IMG_1510.JPG
+    │   │   │   │   │   ├── IMG_1511.JPG
+    │   │   │   │   │   ├── IMG_1512.JPG
+    │   │   │   │   │   ├── IMG_1513.JPG
+    │   │   │   │   │   ├── IMG_1514.JPG
+    │   │   │   │   │   ├── IMG_1515.JPG
+    │   │   │   │   │   ├── IMG_1516.JPG
+    │   │   │   │   │   ├── IMG_1517.JPG
+    │   │   │   │   │   ├── IMG_1518.JPG
+    │   │   │   │   │   ├── IMG_1519.JPG
+    │   │   │   │   │   ├── IMG_1520.JPG
+    │   │   │   │   │   ├── IMG_1521.JPG
+    │   │   │   │   │   ├── IMG_1522.JPG
+    │   │   │   │   │   ├── IMG_1523.JPG
+    │   │   │   │   │   ├── IMG_1524.JPG
+    │   │   │   │   │   ├── IMG_1526.JPG
+    │   │   │   │   │   ├── IMG_1527.JPG
+    │   │   │   │   │   ├── IMG_1528.JPG
+    │   │   │   │   │   ├── IMG_1530.JPG
+    │   │   │   │   │   ├── IMG_1531.JPG
+    │   │   │   │   │   ├── IMG_1532.JPG
+    │   │   │   │   │   ├── IMG_1533.JPG
+    │   │   │   │   │   ├── IMG_1534.JPG
+    │   │   │   │   │   ├── IMG_1535.JPG
+    │   │   │   │   │   ├── IMG_1536.JPG
+    │   │   │   │   │   ├── IMG_1537.JPG
+    │   │   │   │   │   ├── IMG_1538.JPG
+    │   │   │   │   │   ├── IMG_1548.JPG
+    │   │   │   │   │   ├── IMG_1549.JPG
+    │   │   │   │   │   ├── IMG_1550.JPG
+    │   │   │   │   │   ├── IMG_1551.JPG
+    │   │   │   │   │   ├── IMG_1552.JPG
+    │   │   │   │   │   ├── IMG_1553.JPG
+    │   │   │   │   │   ├── IMG_1554.JPG
+    │   │   │   │   │   ├── IMG_1555.JPG
+    │   │   │   │   │   ├── IMG_1556.JPG
+    │   │   │   │   │   ├── IMG_1559.JPG
+    │   │   │   │   │   ├── IMG_1560.JPG
+    │   │   │   │   │   ├── IMG_1561.JPG
+    │   │   │   │   │   ├── IMG_1562.JPG
+    │   │   │   │   │   ├── IMG_1563.JPG
+    │   │   │   │   │   ├── IMG_1564.JPG
+    │   │   │   │   │   ├── IMG_1565.JPG
+    │   │   │   │   │   ├── IMG_1566.JPG
+    │   │   │   │   │   ├── IMG_1567.JPG
+    │   │   │   │   │   ├── IMG_1568.JPG
+    │   │   │   │   │   ├── IMG_1569.JPG
+    │   │   │   │   │   ├── IMG_1570.JPG
+    │   │   │   │   │   ├── IMG_1571.JPG
+    │   │   │   │   │   ├── IMG_1572.JPG
+    │   │   │   │   │   ├── IMG_1573.JPG
+    │   │   │   │   │   ├── IMG_1574.JPG
+    │   │   │   │   │   ├── IMG_1575.JPG
+    │   │   │   │   │   ├── IMG_1576.JPG
+    │   │   │   │   │   ├── IMG_1577.JPG
+    │   │   │   │   │   ├── IMG_1578.JPG
+    │   │   │   │   │   ├── IMG_1579.JPG
+    │   │   │   │   │   ├── IMG_1580.JPG
+    │   │   │   │   │   ├── IMG_1581.JPG
+    │   │   │   │   │   ├── IMG_1582.JPG
+    │   │   │   │   │   ├── IMG_1583.JPG
+    │   │   │   │   │   ├── IMG_1584.JPG
+    │   │   │   │   │   ├── IMG_1585.JPG
+    │   │   │   │   │   ├── IMG_1586.JPG
+    │   │   │   │   │   ├── IMG_1587.JPG
+    │   │   │   │   │   ├── IMG_1588.JPG
+    │   │   │   │   │   ├── IMG_1589.JPG
+    │   │   │   │   │   ├── IMG_1590.JPG
+    │   │   │   │   │   ├── IMG_1591.JPG
+    │   │   │   │   │   ├── IMG_1592.JPG
+    │   │   │   │   │   ├── IMG_1593.JPG
+    │   │   │   │   │   ├── IMG_1594.JPG
+    │   │   │   │   │   ├── IMG_1595.JPG
+    │   │   │   │   │   ├── IMG_1596.JPG
+    │   │   │   │   │   ├── IMG_1597.JPG
+    │   │   │   │   │   ├── IMG_1600.JPG
+    │   │   │   │   │   ├── IMG_1601.JPG
+    │   │   │   │   │   ├── IMG_1602.JPG
+    │   │   │   │   │   ├── IMG_1603.JPG
+    │   │   │   │   │   ├── IMG_1604.JPG
+    │   │   │   │   │   ├── IMG_1605.JPG
+    │   │   │   │   │   ├── IMG_1606.JPG
+    │   │   │   │   │   ├── IMG_1607.JPG
+    │   │   │   │   │   ├── IMG_1608.JPG
+    │   │   │   │   │   ├── IMG_1609.JPG
+    │   │   │   │   │   ├── IMG_1610.JPG
+    │   │   │   │   │   ├── IMG_1611.JPG
+    │   │   │   │   │   ├── IMG_1612.JPG
+    │   │   │   │   │   ├── IMG_1613.JPG
+    │   │   │   │   │   ├── IMG_1614.JPG
+    │   │   │   │   │   ├── IMG_1615.JPG
+    │   │   │   │   │   ├── IMG_1616.JPG
+    │   │   │   │   │   ├── IMG_1617.JPG
+    │   │   │   │   │   ├── IMG_1618.JPG
+    │   │   │   │   │   ├── IMG_1619.JPG
+    │   │   │   │   │   ├── IMG_1620.JPG
+    │   │   │   │   │   ├── IMG_1621.JPG
+    │   │   │   │   │   ├── IMG_1622.JPG
+    │   │   │   │   │   ├── IMG_1623.JPG
+    │   │   │   │   │   ├── IMG_1624.JPG
+    │   │   │   │   │   ├── IMG_1625.JPG
+    │   │   │   │   │   ├── IMG_1626.JPG
+    │   │   │   │   │   ├── IMG_1627.JPG
+    │   │   │   │   │   ├── IMG_1628.JPG
+    │   │   │   │   │   ├── IMG_1629.JPG
+    │   │   │   │   │   ├── IMG_1630.JPG
+    │   │   │   │   │   ├── IMG_1631.JPG
+    │   │   │   │   │   ├── IMG_1632.JPG
+    │   │   │   │   │   ├── IMG_1633.JPG
+    │   │   │   │   │   ├── IMG_1634.JPG
+    │   │   │   │   │   ├── IMG_1635.JPG
+    │   │   │   │   │   ├── IMG_1636.JPG
+    │   │   │   │   │   ├── IMG_1637.PNG
+    │   │   │   │   │   ├── IMG_1641.JPG
+    │   │   │   │   │   ├── IMG_1642.JPG
+    │   │   │   │   │   ├── IMG_1643.JPG
+    │   │   │   │   │   ├── IMG_4078.JPG
+    │   │   │   │   │   ├── IMG_4104.JPG
+    │   │   │   │   │   ├── IMG_4105.JPG
+    │   │   │   │   │   ├── IMG_4114.JPG
+    │   │   │   │   │   ├── IMG_4136.JPG
+    │   │   │   │   │   ├── IMG_4139.JPG
+    │   │   │   │   │   ├── IMG_4143.JPG
+    │   │   │   │   │   ├── IMG_4152.JPG
+    │   │   │   │   │   ├── IMG_4167.JPG
+    │   │   │   │   │   ├── IMG_4168.JPG
+    │   │   │   │   │   ├── IMG_4173.JPG
+    │   │   │   │   │   ├── IMG_4221.JPG
+    │   │   │   │   │   ├── IMG_4233.JPG
+    │   │   │   │   │   ├── IMG_4239.JPG
+    │   │   │   │   │   ├── IMG_4240.JPG
+    │   │   │   │   │   ├── IMG_4241.JPG
+    │   │   │   │   │   ├── IMG_4242.JPG
+    │   │   │   │   │   ├── IMG_4244.JPG
+    │   │   │   │   │   ├── IMG_4250.JPG
+    │   │   │   │   │   ├── IMG_4253.JPG
+    │   │   │   │   │   ├── IMG_4256.JPG
+    │   │   │   │   │   ├── IMG_4257.JPG
+    │   │   │   │   │   ├── IMG_4258.JPG
+    │   │   │   │   │   ├── IMG_4262.JPG
+    │   │   │   │   │   ├── IMG_4264.JPG
+    │   │   │   │   │   ├── IMG_4265.JPG
+    │   │   │   │   │   ├── IMG_4269.JPG
+    │   │   │   │   │   └── IMG_4699.JPG
+    │   │   │   │   ├── 影片回顧/
+    │   │   │   │   │   ├── photo1.JPG
+    │   │   │   │   │   ├── photo10.JPG
+    │   │   │   │   │   ├── photo11.jpg
+    │   │   │   │   │   ├── photo12.JPG
+    │   │   │   │   │   ├── photo13.JPG
+    │   │   │   │   │   ├── photo14.JPG
+    │   │   │   │   │   ├── photo15.JPG
+    │   │   │   │   │   ├── photo16.JPG
+    │   │   │   │   │   ├── photo17.JPG
+    │   │   │   │   │   ├── photo18.JPG
+    │   │   │   │   │   ├── photo19.JPG
+    │   │   │   │   │   ├── photo2.JPG
+    │   │   │   │   │   ├── photo20.JPG
+    │   │   │   │   │   ├── photo21.jpg
+    │   │   │   │   │   ├── photo22.jpg
+    │   │   │   │   │   ├── photo23.jpg
+    │   │   │   │   │   ├── photo24.JPG
+    │   │   │   │   │   ├── photo25.jpg
+    │   │   │   │   │   ├── photo3.JPG
+    │   │   │   │   │   ├── photo4.JPG
+    │   │   │   │   │   ├── photo5.JPG
+    │   │   │   │   │   ├── photo6.JPG
+    │   │   │   │   │   ├── photo7.JPG
+    │   │   │   │   │   ├── photo8.JPG
+    │   │   │   │   │   ├── photo9.JPG
+    │   │   │   │   │   └── slideshow-bgm.mp3
+    │   │   │   │   ├── 繪本音檔/
+    │   │   │   │   │   ├── audio-1.m4a
+    │   │   │   │   │   ├── audio-10.m4a
+    │   │   │   │   │   ├── audio-11.m4a
+    │   │   │   │   │   ├── audio-12.m4a
+    │   │   │   │   │   ├── audio-13.m4a
+    │   │   │   │   │   ├── audio-14.m4a
+    │   │   │   │   │   ├── audio-15.m4a
+    │   │   │   │   │   ├── audio-16.m4a
+    │   │   │   │   │   ├── audio-17.m4a
+    │   │   │   │   │   ├── audio-2.m4a
+    │   │   │   │   │   ├── audio-3.m4a
+    │   │   │   │   │   ├── audio-4.m4a
+    │   │   │   │   │   ├── audio-5.m4a
+    │   │   │   │   │   ├── audio-6.m4a
+    │   │   │   │   │   ├── audio-7.m4a
+    │   │   │   │   │   ├── audio-8.m4a
+    │   │   │   │   │   ├── audio-9.m4a
+    │   │   │   │   │   └── desktop.ini
+    │   │   │   │   ├── back.png
+    │   │   │   │   ├── character-1.jpg
+    │   │   │   │   ├── character-2.png
+    │   │   │   │   ├── character-3.jpg
+    │   │   │   │   ├── cover.jpg
+    │   │   │   │   ├── cover-1.jpg
+    │   │   │   │   ├── page1.png
+    │   │   │   │   ├── page10.png
+    │   │   │   │   ├── page11.png
+    │   │   │   │   ├── page12.png
+    │   │   │   │   ├── page13.png
+    │   │   │   │   ├── page14.png
+    │   │   │   │   ├── page15.png
+    │   │   │   │   ├── page16.png
+    │   │   │   │   ├── page17.png
+    │   │   │   │   ├── page18.png
+    │   │   │   │   ├── page2.png
+    │   │   │   │   ├── page3.png
+    │   │   │   │   ├── page4.png
+    │   │   │   │   ├── page5.png
+    │   │   │   │   ├── page6.png
+    │   │   │   │   ├── page7.png
+    │   │   │   │   ├── page8.png
+    │   │   │   │   ├── page9.png
+    │   │   │   │   ├── 他們是誰.docx
+    │   │   │   │   ├── 繪本qr-code.png
+    │   │   │   │   └── 繪本綱要.docx
+    │   │   │   ├── 7-0目次.docx
+    │   │   │   ├── 7-10帝大教授的殖民地診斷書.docx
+    │   │   │   ├── 7-11戴著鎖鏈歡呼的先知.docx
+    │   │   │   ├── 7-12願月光指引我們的故事.docx
+    │   │   │   ├── 7-13在繪本裡重讀神聖.docx
+    │   │   │   ├── 7-14蔡依林有沒有在拜撒旦到底干那些基督徒什麼事？.docx
+    │   │   │   ├── 7-15從智慧到十字架.docx
+    │   │   │   ├── 7-16基督宗教的七個大公傳統.docx
+    │   │   │   ├── 7-17投稿資訊.docx
+    │   │   │   ├── 7-18編輯資訊.docx
+    │   │   │   ├── 7-1編輯室報告.docx
+    │   │   │   ├── 7-2本期作者簡介.docx
+    │   │   │   ├── 7-3火燒島的美麗風景.docx
+    │   │   │   ├── 7-4教會外的福音見證者.docx
+    │   │   │   ├── 7-5聆聽被遺忘的苦難.docx
+    │   │   │   ├── 7-6In是Siáng？.docx
+    │   │   │   ├── 7-7被國家剝奪權利的人.docx
+    │   │   │   ├── 7-8黑暗中的那點光.docx
+    │   │   │   ├── 7-9跨地域的緣與情.docx
+    │   │   │   ├── 7-封底.pdf
+    │   │   │   ├── 7-封面.pdf
+    │   │   │   ├── 7-書背.docx
+    │   │   │   ├── 7-書背.pdf
+    │   │   │   └── issue7_plain.txt
+    │   │   ├── 08-第八期/
+    │   │   │   ├── 8-11活在當下，還是逃避現實？.docx
+    │   │   │   ├── 8-4從苦難生發出的公義之光.docx
+    │   │   │   ├── 8-5林家嬤孫遭害六週年追思禮拜.docx
+    │   │   │   ├── 8-6尋找後基督紀元的靈魂中心.docx
+    │   │   │   ├── 8-7拆解神聖的帷幕.docx
+    │   │   │   ├── 8-8我的泰澤史.docx
+    │   │   │   └── 8-9為什麼台神愈來愈保守.docx
+    │   │   ├── review_issue7.docx
+    │   │   └── review_issue7.json
     │   ├── finance_data.js
-    │   └── tempArticles.js
-    ├── composables/
-    │   ├── useChurchCalendar.js
-    │   ├── useEditorMode.js
-    │   ├── useLanguage.js
-    │   └── usePongEditor.js
+    │   ├── form.md
+    │   ├── robot_status.md
+    │   ├── tempArticles.js
+    │   └── word_to_sql.md
     ├── supabase/
-    │   ├── critical_rls_fix.sql
-    │   └── pong_archive_tables.sql
+    │   └── critical_rls_fix.sql
     ├── templates/
-    │   └── article-template.dotx
-    └── utils/
-        ├── authorRemark.js
-        ├── cdn.js
-        ├── cloudinary.js
-        ├── contentParser.js
-        ├── formatSpecParser.js
-        ├── formatSpecWatcher.js
-        ├── geminiAPI.js
-        └── metaTemplates.js
+    │   ├── article-template.dotx
+    │   ├── editorial_info_template.docx
+    │   └── submission_info_template.docx
+    ├── utils/
+    │   ├── authorRemark.js
+    │   ├── cdn.js
+    │   ├── cloudinary.js
+    │   ├── contentParser.js
+    │   ├── financeDb.js
+    │   ├── formatSpecParser.js
+    │   ├── formatSpecWatcher.js
+    │   ├── geminiAPI.js
+    │   └── metaTemplates.js
+    ├── add_columns.mjs
+    ├── add_columns2.mjs
+    ├── app.vue
+    ├── check_db.js
+    ├── check_db.mjs
+    ├── CLAUDE.md
+    ├── cookies.txt
+    ├── nuxt.config.ts
+    ├── package.json
+    ├── package-lock.json
+    ├── project_info.txt
+    ├── README.md
+    ├── supabase.js
+    ├── tree.txt
+    ├── tsconfig.json
+    └── verify_columns.mjs
