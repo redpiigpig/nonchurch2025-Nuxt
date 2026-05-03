@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { supabase } from "~/supabase";
 import {
   buildSubmissionInfoHtml,
   buildEditorialInfoHtml,
@@ -11,6 +10,8 @@ definePageMeta({
   layout: "admin",
   middleware: "auth",
 });
+
+const supabase = useSupabaseClient();
 
 useHead({ title: "期刊發布中心 - 無境界者雜誌" });
 
@@ -97,10 +98,15 @@ const confirmCreate = async () => {
     is_published: false,
   };
 
-  const { error } = await supabase.from("issues").insert([issueRow]);
+  const { data: issueData, error } = await supabase.from("issues").insert([issueRow]).select("id");
 
   if (error) {
     alert("新增失敗：" + error.message);
+    loading.value = false;
+    return;
+  }
+  if (!issueData || issueData.length === 0) {
+    alert("⚠️ 期次未建立（可能登入逾期或權限不足）");
     loading.value = false;
     return;
   }
@@ -152,12 +158,14 @@ const confirmCreate = async () => {
     },
   ];
 
-  const { error: metaErr } = await supabase.from("articles").insert(metaRows);
+  const { data: metaData, error: metaErr } = await supabase.from("articles").insert(metaRows).select("id");
 
   if (metaErr) {
     alert(
       `第 ${newId} 期已建立，但 meta 文章建立失敗：${metaErr.message}\n請至文章管理手動補建。`,
     );
+  } else if (!metaData || metaData.length === 0) {
+    alert(`第 ${newId} 期已建立，但 meta 文章未寫入（可能 RLS / 登入逾期）。請至文章管理手動補建。`);
   } else {
     alert(`第 ${newId} 期《${newIssueTitle.value}》已建立！\n已自動新增：目次、投稿資訊、編輯資訊。`);
   }
@@ -172,27 +180,33 @@ const handlePublish = async (issueItem) => {
 
   loading.value = true;
   try {
-    const { error: issueErr } = await supabase
+    const { data: id1, error: issueErr } = await supabase
       .from("issues")
       .update({ is_published: true })
-      .eq("id", issueItem.id);
+      .eq("id", issueItem.id)
+      .select("id");
     if (issueErr) throw issueErr;
+    if (!id1 || id1.length === 0) throw new Error("期次未發布（可能登入逾期或權限不足）");
 
-    const { error: artErr } = await supabase
+    const { data: id2, error: artErr } = await supabase
       .from("articles")
       .update({ is_published: true })
-      .eq("issue", issueItem.id);
+      .eq("issue", issueItem.id)
+      .select("id");
     if (artErr) throw artErr;
+    if (!id2 || id2.length === 0) throw new Error("文章未發布（可能登入逾期或權限不足）");
 
     if (
       issueItem.relatedAuthorNames &&
       issueItem.relatedAuthorNames.length > 0
     ) {
-      const { error: authorErr } = await supabase
+      const { data: id3, error: authorErr } = await supabase
         .from("authors")
         .update({ is_published: true })
-        .in("name", issueItem.relatedAuthorNames);
+        .in("name", issueItem.relatedAuthorNames)
+        .select("id");
       if (authorErr) throw authorErr;
+      if (!id3 || id3.length === 0) throw new Error("作者未發布（可能登入逾期或權限不足）");
     }
 
     alert(`第 ${issueItem.id} 期發布成功！`);

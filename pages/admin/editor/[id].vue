@@ -1,12 +1,12 @@
 <script setup>
 import EditorView from "~/components/EditorView.vue";
-import { supabase } from "~/supabase";
 
 definePageMeta({
   layout: "admin",
   middleware: "auth",
 });
 
+const supabase = useSupabaseClient();
 const route = useRoute();
 const router = useRouter();
 const articleId = computed(() => route.params.id);

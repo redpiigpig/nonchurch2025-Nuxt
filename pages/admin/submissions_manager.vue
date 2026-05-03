@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { supabase } from "~/supabase";
 
 definePageMeta({ layout: "admin", middleware: "auth" });
 useHead({ title: "投稿管理 - 無境界者後台" });
+
+const supabase = useSupabaseClient();
 
 const submissions = ref([]);
 const loading = ref(false);
@@ -63,11 +64,16 @@ const closeModal = () => {
 
 const updateStatus = async (id, newStatus) => {
   updatingStatus.value = true;
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("submissions")
     .update({ status: newStatus })
-    .eq("id", id);
-  if (!error) {
+    .eq("id", id)
+    .select("id");
+  if (error) {
+    alert("狀態更新失敗：" + error.message);
+  } else if (!data || data.length === 0) {
+    alert("⚠️ 狀態未更新（可能登入逾期或權限不足）");
+  } else {
     const idx = submissions.value.findIndex((s) => s.id === id);
     if (idx !== -1) submissions.value[idx].status = newStatus;
     if (selectedSubmission.value?.id === id) selectedSubmission.value.status = newStatus;

@@ -1,9 +1,10 @@
 ﻿<script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { useLanguage } from "~/composables/useLanguage";
+
+const supabase = useSupabaseClient();
 
 // 嵌入用 props（被 articles/[id].vue 對 submission_info 嵌入時使用）
 //   hideTitle      隱藏 page-main-title / 主分隔線 / admin-toolbar，

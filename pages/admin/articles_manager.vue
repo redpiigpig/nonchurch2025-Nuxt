@@ -1,12 +1,12 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
-import { supabase } from "~/supabase";
 import { useRouter, useRoute, onBeforeRouteLeave } from "vue-router";
 import { loadPeriodWithBalance } from "~/utils/financeDb";
 
 definePageMeta({ layout: "admin", middleware: "auth" });
 useHead({ title: "文章管理 - 無境界者後台" });
 
+const supabase = useSupabaseClient();
 const router = useRouter();
 const route = useRoute();
 const loading = ref(false);
@@ -386,12 +386,15 @@ const performUpdate = async (article) => {
     page_start: article.page_start,
   };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("articles")
     .update({ ...updates, id: newId })
-    .eq("id", article.id);
+    .eq("id", article.id)
+    .select("id");
 
   if (error) throw error;
+  if (!data || data.length === 0)
+    throw new Error("RLS 過濾為 0 row：可能登入逾期或權限不足");
   article.seo = newSeo;
   article.id = newId;
 };
@@ -808,7 +811,7 @@ const submitAddArticle = async () => {
   };
   addSaving.value = true;
   try {
-    const { error } = await supabase.from("articles").insert({
+    const { data, error } = await supabase.from("articles").insert({
       id: stub.id,
       issue: stub.issue,
       title: stub.title,
@@ -816,8 +819,10 @@ const submitAddArticle = async () => {
       sort_order: stub.sort_order,
       article_type: stub.article_type,
       is_published: false,
-    });
+    }).select("id");
     if (error) throw error;
+    if (!data || data.length === 0)
+      throw new Error("RLS 過濾為 0 row：可能登入逾期或權限不足");
     editedArticles.value.push(stub);
     allArticles.value.push(JSON.parse(JSON.stringify(stub)));
     closeAddModal();
@@ -942,9 +947,12 @@ const convertToArticle = async (sub) => {
 
     // ── 3a. 更新現有文章 ──────────────────────────────────────
     if (isExisting) {
-      const { error: updateErr } = await supabase.from("articles").update(articleData).eq("id", targetId);
+      const { data: ud, error: updateErr } = await supabase.from("articles").update(articleData).eq("id", targetId).select("id");
       if (updateErr) throw updateErr;
-      await supabase.from("submissions").update({ status: "converted", article_id: targetId }).eq("id", sub.id);
+      if (!ud || ud.length === 0) throw new Error("文章未更新（可能登入逾期或權限不足）");
+      const { data: sd, error: subErr } = await supabase.from("submissions").update({ status: "converted", article_id: targetId }).eq("id", sub.id).select("id");
+      if (subErr) throw subErr;
+      if (!sd || sd.length === 0) throw new Error("投稿狀態未更新（可能登入逾期或權限不足）");
       pendingSubmissions.value = pendingSubmissions.value.filter((s) => s.id !== sub.id);
       await initData();
       alert(`✅ 已成功更新文章：${targetId}`);
@@ -953,9 +961,12 @@ const convertToArticle = async (sub) => {
       const titleShort = articleData.title.replace(/\s/g, "").slice(0, 4);
       const newId = `${selectedIssueId.value}-${nextSeq}${titleShort}`;
       const newArticle = { id: newId, issue: selectedIssueId.value, sort_order: nextSeq, ...articleData };
-      const { error: insertErr } = await supabase.from("articles").insert([newArticle]);
+      const { data: nd, error: insertErr } = await supabase.from("articles").insert([newArticle]).select("id");
       if (insertErr) throw insertErr;
-      await supabase.from("submissions").update({ status: "converted", article_id: newId }).eq("id", sub.id);
+      if (!nd || nd.length === 0) throw new Error("文章未建立（可能登入逾期或權限不足）");
+      const { data: sd2, error: subErr2 } = await supabase.from("submissions").update({ status: "converted", article_id: newId }).eq("id", sub.id).select("id");
+      if (subErr2) throw subErr2;
+      if (!sd2 || sd2.length === 0) throw new Error("投稿狀態未更新（可能登入逾期或權限不足）");
       pendingSubmissions.value = pendingSubmissions.value.filter((s) => s.id !== sub.id);
       await initData();
       alert(`✅ 已成功建立草稿：${newId}`);

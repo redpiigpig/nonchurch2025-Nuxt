@@ -1427,6 +1427,5 @@
     ├── package-lock.json
     ├── project_info.txt
     ├── README.md
-    ├── supabase.js
     ├── tree.txt
     └── tsconfig.json

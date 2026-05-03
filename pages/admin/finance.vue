@@ -2,7 +2,6 @@
 definePageMeta({ layout: "admin", middleware: "auth" });
 
 import { ref, computed, onMounted, watch } from "vue";
-import { createClient } from "@supabase/supabase-js";
 import {
   loadPeriod,
   getEndingBalanceBefore,
@@ -13,8 +12,7 @@ import {
 } from "~/utils/financeDb";
 import { CATEGORY_LIST, getCatColor } from "~/utils/financeCategories";
 
-const config = useRuntimeConfig();
-const supabase = createClient(config.public.supabaseUrl, config.public.supabaseKey);
+const supabase = useSupabaseClient();
 
 // ── 贊助者資料 ───────────────────────────────────────────────────
 const donations = ref([]);
@@ -78,8 +76,9 @@ async function toggleConfirm(d) {
   const update = newVal
     ? { confirmed: true, confirmed_at: new Date().toISOString() }
     : { confirmed: false, confirmed_at: null };
-  const { error } = await supabase.from("donations").update(update).eq("id", d.id);
+  const { data, error } = await supabase.from("donations").update(update).eq("id", d.id).select("id");
   if (error) { alert("更新失敗：" + error.message); return; }
+  if (!data || data.length === 0) { alert("⚠️ 更新未生效（可能登入逾期或權限不足）"); return; }
   d.confirmed = update.confirmed;
   d.confirmed_at = update.confirmed_at;
 
@@ -106,24 +105,28 @@ function startEditNote(d) {
 }
 
 async function saveNote(d) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("donations")
     .update({ note: noteInput.value.trim() || null })
-    .eq("id", d.id);
-  if (!error) {
+    .eq("id", d.id)
+    .select("id");
+  if (error) {
+    alert("儲存備註失敗：" + error.message);
+  } else if (!data || data.length === 0) {
+    alert("⚠️ 備註未寫入（可能登入逾期或權限不足）");
+  } else {
     d.note = noteInput.value.trim() || null;
     editingNoteId.value = null;
-  } else {
-    alert("儲存備註失敗：" + error.message);
   }
 }
 
 // ── 刪除 ─────────────────────────────────────────────────────────
 async function deleteDonation(d) {
   if (!confirm(`確定要刪除「${d.name}」的贊助紀錄？此操作無法還原。`)) return;
-  const { error } = await supabase.from("donations").delete().eq("id", d.id);
-  if (!error) donations.value = donations.value.filter((r) => r.id !== d.id);
-  else alert("刪除失敗：" + error.message);
+  const { data, error } = await supabase.from("donations").delete().eq("id", d.id).select("id");
+  if (error) alert("刪除失敗：" + error.message);
+  else if (!data || data.length === 0) alert("⚠️ 未刪除任何資料（可能登入逾期或權限不足）");
+  else donations.value = donations.value.filter((r) => r.id !== d.id);
 }
 
 // ── 匯出 CSV ──────────────────────────────────────────────────────
@@ -300,18 +303,20 @@ async function saveAll() {
   ledgerSaving.value = true;
   try {
     {
-      const { error } = await supabase.from("finance_periods").upsert({
+      const { data, error } = await supabase.from("finance_periods").upsert({
         issue: issueId.value,
         date_range: dateRange.value || "",
         updated_at: new Date().toISOString(),
-      });
+      }).select("issue");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("RLS 過濾為 0 row：可能登入逾期或權限不足");
     }
     const currentIds = new Set(rows.value.map((r) => r.id));
     const toDelete = [...originalIds.value].filter((id) => !currentIds.has(id));
     if (toDelete.length) {
-      const { error } = await supabase.from("finance_entries").delete().in("id", toDelete);
+      const { data, error } = await supabase.from("finance_entries").delete().in("id", toDelete).select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("RLS 過濾為 0 row：可能登入逾期或權限不足");
     }
     const upserts = rows.value.map((r, i) => ({
       id: r.id,
@@ -328,8 +333,9 @@ async function saveAll() {
       updated_at: new Date().toISOString(),
     }));
     if (upserts.length) {
-      const { error } = await supabase.from("finance_entries").upsert(upserts);
+      const { data, error } = await supabase.from("finance_entries").upsert(upserts).select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("RLS 過濾為 0 row：可能登入逾期或權限不足");
     }
     alert("✅ 已儲存");
     await fetchPeriod();

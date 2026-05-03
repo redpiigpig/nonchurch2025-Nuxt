@@ -1,11 +1,11 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { supabase } from "~/supabase";
 import { splitAuthorRemarkLines } from "~/utils/authorRemark";
 
 const route = useRoute();
 const router = useRouter();
+const supabase = useSupabaseClient();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -17,6 +17,11 @@ const annotations = ref([]);
 const proofreadStatus = ref("pending");
 const proofreadBy = ref("");
 const proofreadDate = ref("");
+
+// ── 自動儲存狀態（仿 EditorView）────────────────────────────────────
+const autoSaveStatus = ref("idle"); // 'idle' | 'saving' | 'saved' | 'error'
+let autoSaveTimer = null;
+let suppressAutoSave = true; // 載入文章時暫時關閉，避免初始 watch 觸發
 
 // ── 選取文字彈窗 ─────────────────────────────────────────────────────
 const showPopup = ref(false);
@@ -184,11 +189,16 @@ const loadArticle = async () => {
   loading.value = false;
   await nextTick();
   rebuildParaHtml();
+  // 載入完成後才允許 auto-save，避免初始 watch 立刻觸發儲存
+  await nextTick();
+  suppressAutoSave = false;
 };
 
 // ── 儲存進度 ─────────────────────────────────────────────────────────
 const saveProgress = async (quiet = false) => {
+  if (!article.value?.id) return;
   saving.value = true;
+  if (quiet) autoSaveStatus.value = "saving";
   const newStatus =
     proofreadStatus.value === "completed"
       ? "completed"
@@ -196,15 +206,29 @@ const saveProgress = async (quiet = false) => {
         ? "in_progress"
         : "pending";
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("articles")
     .update({ proofread_annotations: annotations.value, proofread_status: newStatus })
-    .eq("id", article.value.id);
+    .eq("id", article.value.id)
+    .select("id");
 
-  if (error) alert("儲存失敗：" + error.message);
-  else {
+  if (error) {
+    autoSaveStatus.value = "error";
+    if (quiet) console.error("[auto-save] 儲存失敗", error);
+    else alert("儲存失敗：" + error.message);
+  } else if (!data || data.length === 0) {
+    // RLS 過濾為 0 row：「靜默成功」陷阱的最後防線
+    autoSaveStatus.value = "error";
+    const msg = "⚠️ 儲存未生效（可能登入逾期或權限不足）。請重新登入後再試。";
+    if (quiet) console.warn("[auto-save] 0 row updated — possibly RLS / session expired");
+    else alert(msg);
+  } else {
     proofreadStatus.value = newStatus;
+    autoSaveStatus.value = "saved";
     if (!quiet) alert("✅ 校對進度已儲存！");
+    setTimeout(() => {
+      if (autoSaveStatus.value === "saved") autoSaveStatus.value = "idle";
+    }, 3000);
   }
   saving.value = false;
 };
@@ -216,7 +240,7 @@ const submitComplete = async () => {
   if (!completeDate.value) return alert("請填寫校對日期");
 
   saving.value = true;
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("articles")
     .update({
       proofread_annotations: annotations.value,
@@ -224,10 +248,14 @@ const submitComplete = async () => {
       proofread_by: completeName.value.trim(),
       proofread_date: completeDate.value,
     })
-    .eq("id", article.value.id);
+    .eq("id", article.value.id)
+    .select("id");
 
-  if (error) alert("送出失敗：" + error.message);
-  else {
+  if (error) {
+    alert("送出失敗：" + error.message);
+  } else if (!data || data.length === 0) {
+    alert("⚠️ 送出未生效（可能登入逾期或權限不足）。請重新登入後再試。");
+  } else {
     proofreadStatus.value = "completed";
     proofreadBy.value = completeName.value.trim();
     proofreadDate.value = completeDate.value;
@@ -237,6 +265,21 @@ const submitComplete = async () => {
   }
   saving.value = false;
 };
+
+// ── 自動儲存（debounce 2s，仿 EditorView）──────────────────────────
+watch(
+  annotations,
+  () => {
+    if (suppressAutoSave) return;
+    if (!article.value?.id) return;
+    if (proofreadStatus.value === "completed") return; // 已完成的不再自動儲存
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      saveProgress(true);
+    }, 2000);
+  },
+  { deep: true },
+);
 
 // ── 滑鼠放開：偵測文字選取 ───────────────────────────────────────────
 const onMouseUp = (e) => {
@@ -472,12 +515,18 @@ onBeforeUnmount(() => {
         </span>
       </div>
       <div class="header-right">
+        <span class="autosave-status" :class="autoSaveStatus" v-if="proofreadStatus !== 'completed'">
+          <template v-if="autoSaveStatus === 'saving'">⏳ 儲存中…</template>
+          <template v-else-if="autoSaveStatus === 'saved'">✅ 已自動儲存</template>
+          <template v-else-if="autoSaveStatus === 'error'">❌ 自動儲存失敗</template>
+          <template v-else>📝 修改後 2 秒自動儲存</template>
+        </span>
         <button
           class="btn btn-save-progress"
           @click="saveProgress(false)"
           :disabled="saving || proofreadStatus === 'completed'"
         >
-          {{ saving ? "儲存中..." : "💾 儲存校對進度" }}
+          {{ saving ? "儲存中..." : "💾 立即儲存" }}
         </button>
         <button
           v-if="proofreadStatus !== 'completed'"
@@ -728,6 +777,17 @@ onBeforeUnmount(() => {
   border-radius: 4px;
 }
 .completed-info { font-size: 0.82rem; color: #27ae60; }
+.autosave-status {
+  font-size: 0.82rem;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: #f0f0f0;
+  color: #666;
+  white-space: nowrap;
+}
+.autosave-status.saving { background: #fff3cd; color: #856404; }
+.autosave-status.saved  { background: #d4edda; color: #155724; }
+.autosave-status.error  { background: #f8d7da; color: #721c24; }
 .status-badge {
   font-size: 0.78rem;
   font-weight: bold;

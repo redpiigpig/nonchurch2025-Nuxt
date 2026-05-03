@@ -39,11 +39,13 @@ const loadTocArticles = async (issueId) => {
 
 const saveTocPageStart = async (article) => {
   tocSaving.value[article.id] = true;
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("articles")
     .update({ page_start: article.page_start })
-    .eq("id", article.id);
+    .eq("id", article.id)
+    .select("id");
   if (error) alert("儲存頁數失敗：" + error.message);
+  else if (!data || data.length === 0) alert("⚠️ 頁數未寫入（可能登入逾期或權限不足）");
   tocSaving.value[article.id] = false;
 };
 
@@ -1590,10 +1592,14 @@ const resolveAnnotation = async (ann) => {
     editorAction: "resolved",
   };
   // 自動儲存 annotations 回資料庫
-  await supabase
+  const { data: r1, error: e1 } = await supabase
     .from("articles")
     .update({ proofread_annotations: proofreadAnnotations.value })
-    .eq("id", form.value.id);
+    .eq("id", form.value.id)
+    .select("id");
+  if (e1) console.error("[resolveAnnotation] 儲存失敗", e1);
+  else if (!r1 || r1.length === 0)
+    console.warn("[resolveAnnotation] 0 row updated — 可能登入逾期");
   activeAnnId.value = null;
 };
 
@@ -1606,10 +1612,14 @@ const unresolveAnnotation = async (id) => {
     editorNote: "",
     editorAction: "none",
   };
-  await supabase
+  const { data: r2, error: e2 } = await supabase
     .from("articles")
     .update({ proofread_annotations: proofreadAnnotations.value })
-    .eq("id", form.value.id);
+    .eq("id", form.value.id)
+    .select("id");
+  if (e2) console.error("[unresolveAnnotation] 儲存失敗", e2);
+  else if (!r2 || r2.length === 0)
+    console.warn("[unresolveAnnotation] 0 row updated — 可能登入逾期");
 };
 
 const colorLabel = (color) => {

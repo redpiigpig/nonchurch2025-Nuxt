@@ -2,12 +2,13 @@
 import { ref, onMounted } from "vue";
 import EditorView from "~/components/EditorView.vue";
 import { parseAndClassifyDocument } from "~/utils/contentParser";
-import { supabase } from "~/supabase";
 
 definePageMeta({
   layout: "admin",
   middleware: "auth",
 });
+
+const supabase = useSupabaseClient();
 
 useHead({ title: "新增文章 - 無境界者雜誌" });
 
@@ -55,7 +56,7 @@ async function handleFileUpload(event) {
       : {};
 
     // 若選擇帶入已有文章，直接用該 ID 覆蓋，不讓 Gemini 產生新 ID
-    const { articleId, classified } = await parseAndClassifyDocument(file, true, issueContext, targetArticleId.value || null);
+    const { articleId, classified } = await parseAndClassifyDocument(file, true, issueContext, targetArticleId.value || null, supabase);
 
     uploadStatus.value = `✅ 上傳成功！文章 ID: ${articleId}`;
     console.log("分類結果：", classified);

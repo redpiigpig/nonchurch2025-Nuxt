@@ -1,10 +1,10 @@
 ﻿<script setup>
 import { ref, computed, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { supabase } from "~/supabase";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { useLanguage } from "~/composables/useLanguage";
 
+const supabase = useSupabaseClient();
 const { isEditor } = useEditorMode();
 const { currentLang } = useLanguage();
 const route = useRoute();

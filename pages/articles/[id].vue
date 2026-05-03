@@ -1,7 +1,6 @@
 <script setup>
 import { computed, defineAsyncComponent } from "vue";
 import { useRoute } from "vue-router";
-import { supabase } from "~/supabase";
 import { useTempArticlesStore } from "~/stores/tempArticles";
 import { useLanguage } from "~/composables/useLanguage";
 import { useEditorMode } from "~/composables/useEditorMode";
@@ -9,6 +8,7 @@ import { splitAuthorRemarkLines } from "~/utils/authorRemark";
 import SubmitPage from "~/pages/submit.vue";
 
 const route = useRoute();
+const supabase = useSupabaseClient();
 const { currentLang } = useLanguage();
 const { isEditor } = useEditorMode();
 const tempArticlesStore = useTempArticlesStore();

@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import { supabase } from "~/supabase";
 import { useLanguage } from "~/composables/useLanguage";
 
 const props = defineProps({
@@ -10,6 +9,7 @@ const props = defineProps({
 
 const PAGE_SIZE = 20;
 
+const supabase = useSupabaseClient();
 const { currentLang } = useLanguage();
 const route = useRoute();
 

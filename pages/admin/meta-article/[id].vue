@@ -1,14 +1,19 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, watch, onMounted, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { supabase } from "~/supabase";
 
 definePageMeta({ layout: "admin", middleware: "auth" });
 
 const route = useRoute();
 const router = useRouter();
+const supabase = useSupabaseClient();
 const loading = ref(false);
 const saving = ref(false);
+
+// ── 自動儲存狀態 ────────────────────────────────────────────────
+const autoSaveStatus = ref("idle"); // 'idle' | 'saving' | 'saved' | 'error'
+let autoSaveTimer = null;
+let suppressAutoSave = true;
 
 const articleId = computed(() => route.params.id);
 
@@ -152,27 +157,55 @@ const loadArticle = async () => {
   }
 
   loading.value = false;
+  // 載入完成後才允許 auto-save
+  await nextTick();
+  suppressAutoSave = false;
 };
 
 // ── 儲存 ─────────────────────────────────────────────────────────
-const saveArticle = async () => {
+const saveArticle = async (quiet = false) => {
+  if (!form.value.id) return;
   saving.value = true;
-  const { error } = await supabase
+  if (quiet) autoSaveStatus.value = "saving";
+  const { data, error } = await supabase
     .from("articles")
     .update({
       content: form.value.content,
       page_start: form.value.page_start,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", form.value.id);
+    .eq("id", form.value.id)
+    .select("id");
 
   if (error) {
-    alert("儲存失敗：" + error.message);
+    autoSaveStatus.value = "error";
+    if (quiet) console.error("[auto-save] 儲存失敗", error);
+    else alert("儲存失敗：" + error.message);
+  } else if (!data || data.length === 0) {
+    autoSaveStatus.value = "error";
+    const msg = "⚠️ 儲存未生效（可能登入逾期或權限不足）。請重新登入後再試。";
+    if (quiet) console.warn("[auto-save] 0 row updated");
+    else alert(msg);
   } else {
-    alert("✅ 儲存成功！");
+    autoSaveStatus.value = "saved";
+    if (!quiet) alert("✅ 儲存成功！");
+    setTimeout(() => {
+      if (autoSaveStatus.value === "saved") autoSaveStatus.value = "idle";
+    }, 3000);
   }
   saving.value = false;
 };
+
+// ── 自動儲存（debounce 2s）──────────────────────────────────────
+watch(
+  () => [form.value.content, form.value.page_start],
+  () => {
+    if (suppressAutoSave) return;
+    if (!form.value.id) return;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => saveArticle(true), 2000);
+  },
+);
 
 // ── 下載 Word ────────────────────────────────────────────────────
 const exportToWord = async () => {
@@ -258,14 +291,20 @@ onMounted(loadArticle);
     <div class="meta-header">
       <h2>{{ pageTitle }}</h2>
       <div class="meta-actions">
+        <span class="autosave-status" :class="autoSaveStatus">
+          <template v-if="autoSaveStatus === 'saving'">⏳ 儲存中…</template>
+          <template v-else-if="autoSaveStatus === 'saved'">✅ 已自動儲存</template>
+          <template v-else-if="autoSaveStatus === 'error'">❌ 自動儲存失敗</template>
+          <template v-else>📝 修改後 2 秒自動儲存</template>
+        </span>
         <NuxtLink :to="`/admin/proofread/${articleId}`" class="btn btn-proofread">
           🔍 文章校對
         </NuxtLink>
         <button class="btn btn-download" @click="exportToWord" :disabled="loading">
           📥 下載 Word
         </button>
-        <button class="btn btn-save" @click="saveArticle" :disabled="saving || loading">
-          {{ saving ? "儲存中..." : "💾 儲存至資料庫" }}
+        <button class="btn btn-save" @click="saveArticle(false)" :disabled="saving || loading">
+          {{ saving ? "儲存中..." : "💾 立即儲存" }}
         </button>
         <NuxtLink to="/admin/articles_manager" class="btn btn-cancel">
           回列表
@@ -441,6 +480,18 @@ onMounted(loadArticle);
   border: 1px solid #dee2e6;
 }
 .btn-cancel:hover { background: #e2e6ea; }
+
+.autosave-status {
+  font-size: 0.82rem;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: #f0f0f0;
+  color: #666;
+  white-space: nowrap;
+}
+.autosave-status.saving { background: #fff3cd; color: #856404; }
+.autosave-status.saved  { background: #d4edda; color: #155724; }
+.autosave-status.error  { background: #f8d7da; color: #721c24; }
 
 .loading {
   text-align: center;

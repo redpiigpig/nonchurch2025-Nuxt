@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useLanguage } from "~/composables/useLanguage";
-import { supabase } from "~/supabase";
 
+const supabase = useSupabaseClient();
 const { currentLang } = useLanguage();
 
 const contentMap = {

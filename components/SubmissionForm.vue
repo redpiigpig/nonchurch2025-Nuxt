@@ -1,8 +1,8 @@
 ﻿<script setup>
 import { ref, computed, nextTick } from "vue";
-import { supabase } from "~/supabase";
 import { useLanguage } from "~/composables/useLanguage";
 
+const supabase = useSupabaseClient();
 const { currentLang } = useLanguage();
 
 const i18n = {

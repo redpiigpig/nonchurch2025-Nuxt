@@ -2,10 +2,8 @@
 definePageMeta({ layout: "admin", middleware: "auth" });
 
 import { ref, computed, onMounted } from "vue";
-import { createClient } from "@supabase/supabase-js";
 
-const config = useRuntimeConfig();
-const supabase = createClient(config.public.supabaseUrl, config.public.supabaseKey);
+const supabase = useSupabaseClient();
 
 // ── Tab ───────────────────────────────────────────────────────────
 const activeTab = ref("list"); // 'list' | 'print' | 'compose'
@@ -49,9 +47,10 @@ const filtered = computed(() => {
 // 確認刪除取消訂閱申請
 async function confirmUnsubscribe(s) {
   if (!confirm(`確定要刪除訂閱者「${s.name}」（${s.email}）？`)) return;
-  const { error } = await supabase.from("subscribers").delete().eq("id", s.id);
-  if (!error) subscribers.value = subscribers.value.filter((r) => r.id !== s.id);
-  else alert("刪除失敗：" + error.message);
+  const { data, error } = await supabase.from("subscribers").delete().eq("id", s.id).select("id");
+  if (error) alert("刪除失敗：" + error.message);
+  else if (!data || data.length === 0) alert("⚠️ 未刪除任何資料（可能登入逾期或權限不足）");
+  else subscribers.value = subscribers.value.filter((r) => r.id !== s.id);
 }
 
 const stats = computed(() => {
@@ -70,18 +69,22 @@ const stats = computed(() => {
 
 async function deleteSubscriber(id) {
   if (!confirm("確定要刪除此訂閱者？此操作無法還原。")) return;
-  const { error } = await supabase.from("subscribers").delete().eq("id", id);
-  if (!error) subscribers.value = subscribers.value.filter((s) => s.id !== id);
-  else alert("刪除失敗：" + error.message);
+  const { data, error } = await supabase.from("subscribers").delete().eq("id", id).select("id");
+  if (error) alert("刪除失敗：" + error.message);
+  else if (!data || data.length === 0) alert("⚠️ 未刪除任何資料（可能登入逾期或權限不足）");
+  else subscribers.value = subscribers.value.filter((s) => s.id !== id);
 }
 
 async function toggleActive(s) {
   const newVal = s.is_active === false ? true : false;
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("subscribers")
     .update({ is_active: newVal })
-    .eq("id", s.id);
-  if (!error) s.is_active = newVal;
+    .eq("id", s.id)
+    .select("id");
+  if (error) alert("狀態更新失敗：" + error.message);
+  else if (!data || data.length === 0) alert("⚠️ 狀態未更新（可能登入逾期或權限不足）");
+  else s.is_active = newVal;
 }
 
 function exportCsv() {
@@ -157,9 +160,10 @@ const printFiltered = computed(() => {
 
 async function deletePrintSubscriber(id) {
   if (!confirm("確定要刪除此紙本訂閱者？此操作無法還原。")) return;
-  const { error } = await supabase.from("print_subscribers").delete().eq("id", id);
-  if (!error) printSubscribers.value = printSubscribers.value.filter((s) => s.id !== id);
-  else alert("刪除失敗：" + error.message);
+  const { data, error } = await supabase.from("print_subscribers").delete().eq("id", id).select("id");
+  if (error) alert("刪除失敗：" + error.message);
+  else if (!data || data.length === 0) alert("⚠️ 未刪除任何資料（可能登入逾期或權限不足）");
+  else printSubscribers.value = printSubscribers.value.filter((s) => s.id !== id);
 }
 
 function exportPrintCsv() {

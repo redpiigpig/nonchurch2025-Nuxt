@@ -22,6 +22,7 @@ export async function parseAndClassifyDocument(
   useAI = false,
   issueContext = {},
   overrideId = null,
+  supabaseClient = null,
 ) {
   // 初始化格式規範
   if (!FORMAT_SPEC) {
@@ -87,7 +88,7 @@ export async function parseAndClassifyDocument(
 
   // Step 3: 自動寫入 Supabase
   console.log("💾 Step 3: 寫入資料庫...");
-  const articleId = await saveToSupabase(classified);
+  const articleId = await saveToSupabase(classified, supabaseClient);
 
   console.log("✅ 完成！文章 ID:", articleId);
 
@@ -574,19 +575,14 @@ function replaceImagePlaceholders(content, _issue, articleSeq) {
 
 /**
  * Step 3: 自動寫入 Supabase
+ *
+ * 必須由呼叫端傳入帶有使用者 session 的 supabase client（useSupabaseClient()），
+ * 否則 RLS 會把 update/insert 全部過濾掉而看似成功。
  */
-async function saveToSupabase(classified) {
-  // 動態導入 Supabase（避免伺服器端錯誤）
-  const { createClient } = await import("@supabase/supabase-js");
-
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error("❌ 請設定 Supabase 環境變數");
+async function saveToSupabase(classified, supabase) {
+  if (!supabase) {
+    throw new Error("❌ saveToSupabase 需要由呼叫端傳入帶 session 的 supabase client");
   }
-
-  const supabase = createClient(supabaseUrl, supabaseKey);
 
   if (!classified.id) {
     throw new Error("❌ AI 未能產生文章 ID，請手動輸入");
@@ -622,6 +618,9 @@ async function saveToSupabase(classified) {
   if (error) {
     console.error("Supabase 錯誤:", error);
     throw new Error(`資料庫寫入失敗: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error("資料庫寫入未生效（可能登入逾期或權限不足）");
   }
 
   return data.id;

@@ -2,10 +2,10 @@
 import { ref, computed, onMounted, watch } from "vue";
 import { useLanguage } from "~/composables/useLanguage";
 import { useEditorMode } from "~/composables/useEditorMode";
-import { supabase } from "~/supabase";
 import { listPeriods, loadPeriodWithBalance } from "~/utils/financeDb";
 import { getCatColor } from "~/utils/financeCategories";
 
+const supabase = useSupabaseClient();
 const { currentLang } = useLanguage();
 const { isEditor } = useEditorMode();
 

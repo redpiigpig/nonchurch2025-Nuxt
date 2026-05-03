@@ -1,11 +1,12 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
-import { supabase } from "~/supabase";
 
 definePageMeta({
   layout: "admin",
   middleware: "auth",
 });
+
+const supabase = useSupabaseClient();
 
 useHead({
   title: "媒體庫管理 - 無境界者後台",
@@ -159,7 +160,9 @@ const loadArticleImages = async () => {
           sort_order: startOrder++,
         }));
 
-        await supabase.from("media_assets").insert(inserts);
+        const { data: ins, error: insErr } = await supabase.from("media_assets").insert(inserts).select("id");
+        if (insErr) console.error("[media_manager] media_assets insert 失敗", insErr);
+        else if (!ins || ins.length === 0) alert("⚠️ media_assets 寫入未生效（可能登入逾期或權限不足）");
 
         const { data: updatedDb } = await supabase
           .from("media_assets")
@@ -281,10 +284,13 @@ const deleteArtImage = async (img) => {
       .order("sort_order");
     if (remaining) {
       for (let i = 0; i < remaining.length; i++) {
-        await supabase
+        const { data: u, error: e } = await supabase
           .from("media_assets")
           .update({ sort_order: i + 1 })
-          .eq("id", remaining[i].id);
+          .eq("id", remaining[i].id)
+          .select("id");
+        if (e) console.error("[media_manager] sort_order 更新失敗", e);
+        else if (!u || u.length === 0) console.warn("[media_manager] 0 row updated — 可能登入逾期");
       }
     }
 

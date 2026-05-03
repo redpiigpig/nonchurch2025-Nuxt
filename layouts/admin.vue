@@ -50,10 +50,10 @@
 <script setup>
 import { useRouter, useRoute } from "vue-router";
 import { computed } from "vue";
-import { supabase } from "~/supabase";
 import AppHeader from "~/components/AppHeader.vue";
 import AppFooter from "~/components/AppFooter.vue";
 
+const supabase = useSupabaseClient();
 const router = useRouter();
 const route = useRoute();
 const isIssuesPage = computed(() =>

@@ -1,19 +1,24 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, watch, onMounted, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { supabase } from "~/supabase";
 
 definePageMeta({ layout: "admin", middleware: "auth" });
 useHead({ title: "目次編輯 - 無境界者後台" });
 
 const route = useRoute();
 const router = useRouter();
+const supabase = useSupabaseClient();
 const tocId = computed(() => route.params.id);
 
 const tocMeta = ref(null);
 const articles = ref([]);
 const loading = ref(true);
 const saving = ref(false);
+
+// ── 自動儲存狀態 ────────────────────────────────────────────────
+const autoSaveStatus = ref("idle"); // 'idle' | 'saving' | 'saved' | 'error'
+let autoSaveTimer = null;
+let suppressAutoSave = true;
 
 const SECTION_ORDER = ["主題介紹", "特稿專區", "主題廣場", "多元講堂", "編輯資訊"];
 const SECTIONS_WITH_LABEL = new Set(["特稿專區", "主題廣場", "多元講堂"]);
@@ -48,6 +53,9 @@ onMounted(async () => {
   })).sort((a, b) => a._seq - b._seq);
 
   loading.value = false;
+  // 載入完成後才允許 auto-save
+  await nextTick();
+  suppressAutoSave = false;
 });
 
 // Ordered flat list with continuous sequence numbers
@@ -200,30 +208,60 @@ const exportToWord = async () => {
   }
 };
 
-const save = async () => {
+const save = async (quiet = false) => {
   saving.value = true;
+  if (quiet) autoSaveStatus.value = "saving";
   try {
-    // Save page_start for all articles
-    await Promise.all(
+    // Save page_start for all articles，逐一檢查 RLS 是否有過濾
+    const results = await Promise.all(
       articles.value.map((a) =>
-        supabase.from("articles").update({ page_start: a.page_start }).eq("id", a.id)
-      )
+        supabase
+          .from("articles")
+          .update({ page_start: a.page_start })
+          .eq("id", a.id)
+          .select("id"),
+      ),
     );
+    for (const r of results) {
+      if (r.error) throw r.error;
+      if (!r.data || r.data.length === 0)
+        throw new Error("RLS 過濾為 0 row：可能登入逾期或權限不足");
+    }
     // Save generated HTML + ensure title is「目次」
     const content = generateHTML();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("articles")
       .update({ content, title: "目次" })
-      .eq("id", tocId.value);
+      .eq("id", tocId.value)
+      .select("id");
     if (error) throw error;
+    if (!data || data.length === 0) throw new Error("RLS 過濾為 0 row：可能登入逾期或權限不足");
     if (tocMeta.value) tocMeta.value.title = "目次";
-    alert("✅ 目次已儲存");
+    autoSaveStatus.value = "saved";
+    if (!quiet) alert("✅ 目次已儲存");
+    setTimeout(() => {
+      if (autoSaveStatus.value === "saved") autoSaveStatus.value = "idle";
+    }, 3000);
   } catch (err) {
-    alert("❌ 儲存失敗：" + err.message);
+    autoSaveStatus.value = "error";
+    if (quiet) console.error("[auto-save] toc 儲存失敗", err);
+    else alert("❌ 儲存失敗：" + err.message);
   } finally {
     saving.value = false;
   }
 };
+
+// ── 自動儲存（debounce 2s）──────────────────────────────────────
+watch(
+  articles,
+  () => {
+    if (suppressAutoSave) return;
+    if (loading.value) return;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => save(true), 2000);
+  },
+  { deep: true },
+);
 </script>
 
 <template>
@@ -234,11 +272,17 @@ const save = async () => {
         <h2>目次編輯</h2>
         <span v-if="tocMeta" class="issue-badge">Vol.{{ tocMeta.issue }}</span>
       </div>
+      <span class="autosave-status" :class="autoSaveStatus">
+        <template v-if="autoSaveStatus === 'saving'">⏳ 儲存中…</template>
+        <template v-else-if="autoSaveStatus === 'saved'">✅ 已自動儲存</template>
+        <template v-else-if="autoSaveStatus === 'error'">❌ 自動儲存失敗</template>
+        <template v-else>📝 修改後 2 秒自動儲存</template>
+      </span>
       <button class="btn-export" :disabled="exporting || loading" @click="exportToWord">
         {{ exporting ? "匯出中..." : "📥 下載 Word" }}
       </button>
-      <button class="btn-save" :disabled="saving || loading" @click="save">
-        {{ saving ? "儲存中..." : "💾 儲存目次" }}
+      <button class="btn-save" :disabled="saving || loading" @click="save(false)">
+        {{ saving ? "儲存中..." : "💾 立即儲存" }}
       </button>
     </div>
 
@@ -368,6 +412,18 @@ const save = async () => {
 }
 .btn-save:hover:not(:disabled) { background: #34495e; }
 .btn-save:disabled { background: #bdc3c7; cursor: not-allowed; }
+
+.autosave-status {
+  font-size: 0.82rem;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: #f0f0f0;
+  color: #666;
+  white-space: nowrap;
+}
+.autosave-status.saving { background: #fff3cd; color: #856404; }
+.autosave-status.saved  { background: #d4edda; color: #155724; }
+.autosave-status.error  { background: #f8d7da; color: #721c24; }
 
 .loading {
   text-align: center;

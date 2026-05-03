@@ -1,7 +1,8 @@
 <script setup>
 import { ref, onMounted } from "vue";
-import { supabase } from "~/supabase";
 import SubmissionForm from "~/components/SubmissionForm.vue";
+
+const supabase = useSupabaseClient();
 
 useHead({ title: "投稿表單 - 無境界者雜誌" });
 

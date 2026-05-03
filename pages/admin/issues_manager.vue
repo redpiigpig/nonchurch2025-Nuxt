@@ -1,6 +1,5 @@
 <script setup>
-import { ref, onMounted } from "vue";
-import { supabase } from "~/supabase"; // 修正路徑
+import { ref, watch, onMounted, nextTick } from "vue";
 
 // Nuxt 設定
 definePageMeta({
@@ -12,6 +11,7 @@ useHead({
   title: "期刊主題管理 - 無境界者後台",
 });
 
+const supabase = useSupabaseClient();
 const issues = ref([]);
 const loading = ref(false);
 const saving = ref(false);
@@ -19,6 +19,11 @@ const saving = ref(false);
 // 編輯彈窗控制
 const showModal = ref(false);
 const editingIssue = ref({});
+
+// ── 自動儲存狀態 ────────────────────────────────────────────────
+const autoSaveStatus = ref("idle"); // 'idle' | 'saving' | 'saved' | 'error'
+let autoSaveTimer = null;
+let suppressAutoSave = true;
 
 // ── 封面 / 封底 PDF 上傳 ──────────────────────────────────────────
 const coverPdfInput = ref(null);
@@ -83,7 +88,8 @@ const fetchIssues = async () => {
 };
 
 // 2. 開啟編輯模式
-const openEditModal = (issue) => {
+const openEditModal = async (issue) => {
+  suppressAutoSave = true;
   const tempIssue = JSON.parse(JSON.stringify(issue));
   if (Array.isArray(tempIssue.author_order)) {
     tempIssue.author_order_str = tempIssue.author_order.join("、");
@@ -92,11 +98,23 @@ const openEditModal = (issue) => {
   }
   editingIssue.value = tempIssue;
   showModal.value = true;
+  autoSaveStatus.value = "idle";
+  // 等 modal 渲染完，才開放 auto-save
+  await nextTick();
+  suppressAutoSave = false;
+};
+
+const closeEditModal = () => {
+  suppressAutoSave = true;
+  clearTimeout(autoSaveTimer);
+  showModal.value = false;
 };
 
 // 3. 儲存修改
-const saveIssue = async () => {
+const saveIssue = async (quiet = false) => {
+  if (!editingIssue.value?.id) return;
   saving.value = true;
+  if (quiet) autoSaveStatus.value = "saving";
   try {
     let authorArray = [];
     if (editingIssue.value.author_order_str) {
@@ -122,22 +140,51 @@ const saveIssue = async () => {
       cfp_deadline: editingIssue.value.cfp_deadline,
     };
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("issues")
       .update(updates)
-      .eq("id", editingIssue.value.id);
+      .eq("id", editingIssue.value.id)
+      .select("id");
 
     if (error) throw error;
+    if (!data || data.length === 0) throw new Error("RLS 過濾為 0 row：可能登入逾期或權限不足");
 
-    alert(`第 ${editingIssue.value.id} 期資料更新成功！`);
-    showModal.value = false;
-    fetchIssues();
+    autoSaveStatus.value = "saved";
+    if (!quiet) {
+      alert(`第 ${editingIssue.value.id} 期資料更新成功！`);
+      closeEditModal();
+      fetchIssues();
+    } else {
+      // 自動儲存後同步本地 issues 陣列（避免關閉 modal 後列表不同步）
+      const idx = issues.value.findIndex((i) => i.id === editingIssue.value.id);
+      if (idx !== -1) {
+        issues.value[idx] = { ...issues.value[idx], ...updates };
+      }
+    }
+    setTimeout(() => {
+      if (autoSaveStatus.value === "saved") autoSaveStatus.value = "idle";
+    }, 3000);
   } catch (err) {
-    alert("儲存失敗：" + err.message);
+    autoSaveStatus.value = "error";
+    if (quiet) console.error("[auto-save] issue 儲存失敗", err);
+    else alert("儲存失敗：" + err.message);
   } finally {
     saving.value = false;
   }
 };
+
+// ── 自動儲存（debounce 2s，僅在 modal 開啟時）──────────────────
+watch(
+  editingIssue,
+  () => {
+    if (suppressAutoSave) return;
+    if (!showModal.value) return;
+    if (!editingIssue.value?.id) return;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => saveIssue(true), 2000);
+  },
+  { deep: true },
+);
 
 onMounted(() => {
   fetchIssues();
@@ -200,7 +247,13 @@ onMounted(() => {
       <div class="modal">
         <div class="modal-header">
           <h3>編輯 第 {{ editingIssue.id }} 期內容</h3>
-          <button class="btn-close" @click="showModal = false">×</button>
+          <span class="autosave-status" :class="autoSaveStatus">
+            <template v-if="autoSaveStatus === 'saving'">⏳ 儲存中…</template>
+            <template v-else-if="autoSaveStatus === 'saved'">✅ 已自動儲存</template>
+            <template v-else-if="autoSaveStatus === 'error'">❌ 自動儲存失敗</template>
+            <template v-else>📝 修改後 2 秒自動儲存</template>
+          </span>
+          <button class="btn-close" @click="closeEditModal">×</button>
         </div>
 
         <div class="modal-body">
@@ -409,9 +462,9 @@ onMounted(() => {
         </div>
 
         <div class="modal-footer">
-          <button class="btn-cancel" @click="showModal = false">取消</button>
-          <button class="btn-save" @click="saveIssue" :disabled="saving">
-            {{ saving ? "儲存中..." : "確認儲存" }}
+          <button class="btn-cancel" @click="closeEditModal">關閉</button>
+          <button class="btn-save" @click="saveIssue(false)" :disabled="saving">
+            {{ saving ? "儲存中..." : "💾 立即儲存" }}
           </button>
         </div>
       </div>
@@ -724,6 +777,20 @@ label {
   background: #95a5a6;
   cursor: not-allowed;
 }
+
+.autosave-status {
+  font-size: 0.82rem;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: #f0f0f0;
+  color: #666;
+  white-space: nowrap;
+  margin-left: auto;
+  margin-right: 12px;
+}
+.autosave-status.saving { background: #fff3cd; color: #856404; }
+.autosave-status.saved  { background: #d4edda; color: #155724; }
+.autosave-status.error  { background: #f8d7da; color: #721c24; }
 
 @media (max-width: 768px) {
   .form-row {
