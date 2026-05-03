@@ -8,7 +8,7 @@ const config = useRuntimeConfig();
 const supabase = createClient(config.public.supabaseUrl, config.public.supabaseKey);
 
 // ── Tab ───────────────────────────────────────────────────────────
-const activeTab = ref("list"); // 'list' | 'compose'
+const activeTab = ref("list"); // 'list' | 'print' | 'compose'
 
 // ════════════════════════════════════════════════════════════════
 // TAB 1：訂閱者列表
@@ -114,7 +114,89 @@ function formatDate(iso) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// TAB 2：發送電子報
+// TAB 2：紙本訂閱者
+// ════════════════════════════════════════════════════════════════
+const printSubscribers = ref([]);
+const printLoading = ref(true);
+const printSearch = ref("");
+const printFilterSubType = ref("");
+const printExpandedId = ref(null);
+
+onMounted(fetchPrint);
+
+async function fetchPrint() {
+  printLoading.value = true;
+  const { data, error } = await supabase
+    .from("print_subscribers")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (!error) printSubscribers.value = data || [];
+  printLoading.value = false;
+}
+
+const printStats = computed(() => {
+  const total = printSubscribers.value.length;
+  const subTypeCount = {};
+  for (const s of printSubscribers.value) {
+    if (s.sub_type) subTypeCount[s.sub_type] = (subTypeCount[s.sub_type] || 0) + 1;
+  }
+  return { total, subTypeCount };
+});
+
+const printFiltered = computed(() => {
+  return printSubscribers.value.filter((s) => {
+    if (printSearch.value) {
+      const q = printSearch.value.trim().toLowerCase();
+      const hay = `${s.email || ""} ${s.recipient_name || ""} ${s.reader_name || ""} ${s.phone || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (printFilterSubType.value && s.sub_type !== printFilterSubType.value) return false;
+    return true;
+  });
+});
+
+async function deletePrintSubscriber(id) {
+  if (!confirm("確定要刪除此紙本訂閱者？此操作無法還原。")) return;
+  const { error } = await supabase.from("print_subscribers").delete().eq("id", id);
+  if (!error) printSubscribers.value = printSubscribers.value.filter((s) => s.id !== id);
+  else alert("刪除失敗：" + error.message);
+}
+
+function exportPrintCsv() {
+  const header = [
+    "ID", "訂閱時間", "Email", "訂閱方式", "期數",
+    "收件人姓名", "收件地址", "聯絡電話", "寄送備註",
+    "讀者姓名", "性別", "年齡層", "信仰背景", "得知來源", "留言",
+  ];
+  const rows = printFiltered.value.map((s) => [
+    s.id,
+    s.created_at ? s.created_at.slice(0, 10) : "",
+    s.email || "",
+    `"${(s.sub_type || "").replace(/"/g, '""')}"`,
+    `"${(Array.isArray(s.issues) ? s.issues.join("、") : "").replace(/"/g, '""')}"`,
+    `"${(s.recipient_name || "").replace(/"/g, '""')}"`,
+    `"${(s.address || "").replace(/"/g, '""')}"`,
+    `"${(s.phone || "").replace(/"/g, '""')}"`,
+    `"${(s.note || "").replace(/"/g, '""')}"`,
+    `"${(s.reader_name || "").replace(/"/g, '""')}"`,
+    s.gender || "",
+    s.age_group || "",
+    `"${(s.faith_background || "").replace(/"/g, '""')}"`,
+    `"${(s.how_found || "").replace(/"/g, '""')}"`,
+    `"${(s.message || "").replace(/"/g, '""')}"`,
+  ]);
+  const csvContent = "﻿" + [header, ...rows].map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `print_subscribers_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ════════════════════════════════════════════════════════════════
+// TAB 3：發送電子報
 // ════════════════════════════════════════════════════════════════
 
 // 預設範本（參考截圖格式）
@@ -237,11 +319,18 @@ async function sendAll() {
         :class="['tab-btn', { active: activeTab === 'list' }]"
         @click="activeTab = 'list'"
       >
-        👥 訂閱者列表
+        👥 電子報訂閱者
         <span class="tab-badge">{{ subscribers.length }}</span>
         <span v-if="pendingUnsubscribe.length > 0" class="tab-badge-alert">
           {{ pendingUnsubscribe.length }} 待確認
         </span>
+      </button>
+      <button
+        :class="['tab-btn', { active: activeTab === 'print' }]"
+        @click="activeTab = 'print'"
+      >
+        📦 紙本訂閱者
+        <span class="tab-badge">{{ printSubscribers.length }}</span>
       </button>
       <button
         :class="['tab-btn', { active: activeTab === 'compose' }]"
@@ -375,7 +464,112 @@ async function sendAll() {
     </div>
 
     <!-- ══════════════════════════════════════════════════════════
-         TAB 2：發送電子報
+         TAB 2：紙本訂閱者
+    ══════════════════════════════════════════════════════════ -->
+    <div v-show="activeTab === 'print'">
+
+      <!-- 統計 -->
+      <div class="stats-row" v-if="!printLoading">
+        <div class="stat-card">
+          <div class="stat-num">{{ printStats.total }}</div>
+          <div class="stat-label">紙本訂閱總數</div>
+        </div>
+        <div class="stat-breakdown" v-if="Object.keys(printStats.subTypeCount).length">
+          <div class="breakdown-title">訂閱方式</div>
+          <div v-for="(count, k) in printStats.subTypeCount" :key="k" class="breakdown-row">
+            <span class="breakdown-key">{{ k }}</span>
+            <span class="breakdown-val">{{ count }} 人</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 工具列 -->
+      <div class="toolbar">
+        <input v-model="printSearch" type="text" placeholder="搜尋 Email / 姓名 / 電話…" class="search-input" />
+        <select v-model="printFilterSubType" class="filter-select">
+          <option value="">全部訂閱方式</option>
+          <option v-for="k in Object.keys(printStats.subTypeCount)" :key="k" :value="k">{{ k }}</option>
+        </select>
+        <button class="btn-export" @click="exportPrintCsv">⬇ 匯出 CSV</button>
+      </div>
+
+      <div v-if="printLoading" class="loading-msg">載入中…</div>
+      <div v-else-if="printFiltered.length === 0" class="empty-msg">
+        {{ printSubscribers.length === 0 ? "尚無紙本訂閱者" : "找不到符合條件的紙本訂閱者" }}
+      </div>
+
+      <div v-else class="subscriber-list">
+        <div
+          v-for="s in printFiltered"
+          :key="s.id"
+          class="subscriber-card"
+        >
+          <div class="card-header" @click="printExpandedId = printExpandedId === s.id ? null : s.id">
+            <div class="card-main">
+              <span class="s-name">{{ s.recipient_name }}</span>
+              <span class="s-tags">
+                <span class="tag age">{{ s.sub_type }}</span>
+                <span v-if="s.issues && s.issues.length" class="tag gender">{{ s.issues.length }} 期</span>
+              </span>
+            </div>
+            <div class="card-meta">
+              <span class="s-email">{{ s.email }}</span>
+              <span class="s-date">{{ formatDate(s.created_at) }}</span>
+            </div>
+            <span class="expand-icon">{{ printExpandedId === s.id ? "▲" : "▼" }}</span>
+          </div>
+
+          <div v-if="printExpandedId === s.id" class="card-detail">
+            <div class="detail-row">
+              <span class="detail-label">訂閱方式</span>
+              <span class="detail-val">{{ s.sub_type }}</span>
+            </div>
+            <div class="detail-row" v-if="s.issues && s.issues.length">
+              <span class="detail-label">期數</span>
+              <span class="detail-val">{{ s.issues.join("、") }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">收件地址</span>
+              <span class="detail-val">{{ s.address }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">聯絡電話</span>
+              <span class="detail-val">{{ s.phone }}</span>
+            </div>
+            <div class="detail-row" v-if="s.note">
+              <span class="detail-label">寄送備註</span>
+              <span class="detail-val msg">{{ s.note }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">讀者姓名</span>
+              <span class="detail-val">{{ s.reader_name }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">性別 / 年齡</span>
+              <span class="detail-val">{{ s.gender }} / {{ s.age_group }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">信仰背景</span>
+              <span class="detail-val">{{ s.faith_background || "—" }}</span>
+            </div>
+            <div class="detail-row" v-if="s.how_found">
+              <span class="detail-label">得知來源</span>
+              <span class="detail-val">{{ s.how_found }}</span>
+            </div>
+            <div class="detail-row" v-if="s.message">
+              <span class="detail-label">留言</span>
+              <span class="detail-val msg">{{ s.message }}</span>
+            </div>
+            <div class="card-actions">
+              <button class="btn-delete" @click="deletePrintSubscriber(s.id)">刪除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         TAB 3：發送電子報
     ══════════════════════════════════════════════════════════ -->
     <div v-show="activeTab === 'compose'" class="compose-wrap">
 

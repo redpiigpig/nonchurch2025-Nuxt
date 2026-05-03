@@ -33,8 +33,6 @@ AI 獲得**明確授權**可以直接讀取 `.env` 並操作下列資源（登�
 - 核心頁面：期刊瀏覽、文章閱讀、投稿系統
 - 管理後台：`/admin/`、`/admin/editor/`、`/admin/submissions_manager/` 等
 
-> **2026-05-03**：原本共用 repo 的「龐君華會督記念文集典藏」(pong-archive) 已分離至獨立的 `pong-archive-nuxt` 專案，所有相關 pages / layouts / composables / server API / supabase schema / scripts / stores 已從本 repo 移除。
-
 ---
 
 ## 一、必讀參考檔案

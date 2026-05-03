@@ -154,12 +154,6 @@
 #   anon        → INSERT only（公開投稿）
 #   authenticated → SELECT / UPDATE / DELETE
 
-# 註：原本本檔記載的 pong_* 系列資料表（pong_media / pong_sermons / pong_writings /
-# pong_manuscripts / pong_daily_office / pong_photos / pong_remembrance / pong_users /
-# pong_reports / pong_lectionary_*）已隨 pong-archive 子站搬離本 repo，
-# 改由獨立專案 pong-archive-nuxt 管理（2026-05-03 分離完成）。
-# 上述表格與主站完全不互相 JOIN，移除後本 repo 不再需要其 schema 定義。
-
 # ════════════════════════════════════════════════════════════════════════════════
 # Cloudinary 資料夾結構
 # ════════════════════════════════════════════════════════════════════════════════
