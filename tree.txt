@@ -1419,11 +1419,7 @@
     │   ├── formatSpecWatcher.js
     │   ├── geminiAPI.js
     │   └── metaTemplates.js
-    ├── add_columns.mjs
-    ├── add_columns2.mjs
     ├── app.vue
-    ├── check_db.js
-    ├── check_db.mjs
     ├── CLAUDE.md
     ├── cookies.txt
     ├── nuxt.config.ts
@@ -1433,5 +1429,4 @@
     ├── README.md
     ├── supabase.js
     ├── tree.txt
-    ├── tsconfig.json
-    └── verify_columns.mjs
+    └── tsconfig.json
