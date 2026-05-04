@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 
 definePageMeta({
   layout: "admin",
@@ -11,6 +11,8 @@ useHead({
 });
 
 const authors = ref([]);
+const articles = ref([]);
+const expanded = ref(new Set());
 const loading = ref(false);
 const saving = ref(false);
 const supabase = useSupabaseClient();
@@ -27,17 +29,60 @@ const currentAuthor = ref({
   is_published: false,
 });
 
+const getArticleOrder = (id) => {
+  const m = (id || "").match(/-(\d+)/);
+  return m ? parseInt(m[1]) : 0;
+};
+
+// 比對某篇文章是否屬於某位作者
+// 規則：以作者 name + aliases 任一字串，去比對 article.author / author_display 是否包含
+const matchAuthor = (article, author) => {
+  const haystack = `${article.author || ""}\n${article.author_display || ""}`;
+  const needles = [author.name, ...(author.aliases || [])].filter(Boolean);
+  return needles.some((n) => haystack.includes(n));
+};
+
+// 每位作者對應的文章（已排序：期數新→舊，期數內依 id 內序號小→大）
+const articlesByAuthor = computed(() => {
+  const map = {};
+  for (const a of authors.value) {
+    map[a.id] = articles.value
+      .filter((art) => matchAuthor(art, a))
+      .sort((x, y) => {
+        if ((x.issue || 0) !== (y.issue || 0))
+          return (y.issue || 0) - (x.issue || 0);
+        return getArticleOrder(x.id) - getArticleOrder(y.id);
+      });
+  }
+  return map;
+});
+
+const toggleExpand = (id) => {
+  const s = new Set(expanded.value);
+  if (s.has(id)) s.delete(id);
+  else s.add(id);
+  expanded.value = s;
+};
+
 const fetchAuthors = async () => {
   loading.value = true;
-  const { data, error } = await supabase
-    .from("authors")
-    .select("*")
-    .order("id", { ascending: true });
+  const [authorsRes, articlesRes] = await Promise.all([
+    supabase.from("authors").select("*").order("id", { ascending: true }),
+    supabase
+      .from("articles")
+      .select("id, title, issue, author, author_display, is_published, issues(is_published)")
+      .neq("title", "編輯室報告"),
+  ]);
 
-  if (error) {
-    alert("讀取失敗：" + error.message);
+  if (authorsRes.error) {
+    alert("讀取作者失敗：" + authorsRes.error.message);
   } else {
-    authors.value = data;
+    authors.value = authorsRes.data;
+  }
+  if (articlesRes.error) {
+    alert("讀取文章失敗：" + articlesRes.error.message);
+  } else {
+    articles.value = articlesRes.data;
   }
   loading.value = false;
 };
@@ -178,52 +223,101 @@ onMounted(() => {
             <th width="120">姓名</th>
             <th>簡介 (Bio)</th>
             <th width="100">所屬年份</th>
+            <th width="100">文章</th>
             <th width="80">狀態</th>
             <th width="140">操作</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="author in authors" :key="author.id">
-            <td class="text-center">{{ author.id }}</td>
-            <td class="text-center">
-              <div
-                class="avatar-thumb"
-                :style="{
-                  backgroundImage: author.author_image
-                    ? `url(${author.author_image})`
-                    : 'none',
-                }"
-              >
-                <span v-if="!author.author_image">無</span>
-              </div>
-            </td>
-            <td style="font-weight: bold">{{ author.name }}</td>
-            <td class="bio-cell">{{ author.bio }}</td>
-            <td class="text-center">
-              <span v-if="author.years && author.years.length">
-                {{ author.years.join(", ") }}
-              </span>
-              <span v-else class="text-muted">-</span>
-            </td>
-            <td class="text-center">
-              <span
-                :class="['badge', author.is_published ? 'published' : 'draft']"
-              >
-                {{ author.is_published ? "公開" : "隱藏" }}
-              </span>
-            </td>
-            <td class="text-center actions">
-              <button class="btn-edit" @click="openEditModal(author)">
-                編輯
-              </button>
-              <button
-                class="btn-delete"
-                @click="deleteAuthor(author.id, author.name)"
-              >
-                刪除
-              </button>
-            </td>
-          </tr>
+          <template v-for="author in authors" :key="author.id">
+            <tr>
+              <td class="text-center">{{ author.id }}</td>
+              <td class="text-center">
+                <div
+                  class="avatar-thumb"
+                  :style="{
+                    backgroundImage: author.author_image
+                      ? `url(${author.author_image})`
+                      : 'none',
+                  }"
+                >
+                  <span v-if="!author.author_image">無</span>
+                </div>
+              </td>
+              <td style="font-weight: bold">{{ author.name }}</td>
+              <td class="bio-cell">{{ author.bio }}</td>
+              <td class="text-center">
+                <span v-if="author.years && author.years.length">
+                  {{ author.years.join(", ") }}
+                </span>
+                <span v-else class="text-muted">-</span>
+              </td>
+              <td class="text-center">
+                <button
+                  v-if="articlesByAuthor[author.id]?.length"
+                  class="btn-expand"
+                  @click="toggleExpand(author.id)"
+                >
+                  {{ articlesByAuthor[author.id].length }} 篇
+                  {{ expanded.has(author.id) ? "▲" : "▼" }}
+                </button>
+                <span v-else class="text-muted">0 篇</span>
+              </td>
+              <td class="text-center">
+                <span
+                  :class="['badge', author.is_published ? 'published' : 'draft']"
+                >
+                  {{ author.is_published ? "公開" : "隱藏" }}
+                </span>
+              </td>
+              <td class="text-center actions">
+                <button class="btn-edit" @click="openEditModal(author)">
+                  編輯
+                </button>
+                <button
+                  class="btn-delete"
+                  @click="deleteAuthor(author.id, author.name)"
+                >
+                  刪除
+                </button>
+              </td>
+            </tr>
+            <tr
+              v-if="expanded.has(author.id) && articlesByAuthor[author.id]?.length"
+              class="article-detail-row"
+            >
+              <td colspan="8">
+                <div class="article-list-wrap">
+                  <div class="article-list-title">
+                    {{ author.name }} 名下文章（依文章 author / author_display 比對 name + aliases）
+                  </div>
+                  <ul class="article-list-ul">
+                    <li
+                      v-for="art in articlesByAuthor[author.id]"
+                      :key="art.id"
+                      class="article-li"
+                    >
+                      <span class="art-issue">Vol. {{ art.issue || "?" }}</span>
+                      <NuxtLink
+                        :to="`/admin/editor/${art.id}`"
+                        class="art-title"
+                        target="_blank"
+                      >
+                        {{ art.title }}
+                      </NuxtLink>
+                      <span
+                        v-if="art.is_published && art.issues?.is_published"
+                        class="badge published mini"
+                      >已發刊</span>
+                      <span v-else class="badge draft mini">
+                        {{ art.issues?.is_published === false ? "本期未發刊" : "草稿" }}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
@@ -475,6 +569,11 @@ th {
   font-size: 0.8rem;
   font-weight: bold;
 }
+.badge.mini {
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  margin-left: 8px;
+}
 .published {
   background: #d4edda;
   color: #155724;
@@ -482,6 +581,67 @@ th {
 .draft {
   background: #f8d7da;
   color: #721c24;
+}
+
+.btn-expand {
+  background: #ecf0f1;
+  border: 1px solid #bdc3c7;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #2c3e50;
+}
+.btn-expand:hover {
+  background: #dfe6e9;
+}
+.text-muted {
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+.article-detail-row td {
+  background: #fafbfc;
+  padding: 14px 24px;
+  border-bottom: 2px solid #e1e8ed;
+}
+.article-list-wrap {
+  font-size: 0.95rem;
+}
+.article-list-title {
+  font-weight: bold;
+  color: #555;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+.article-list-ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.article-li {
+  padding: 6px 0;
+  border-bottom: 1px dashed #e1e8ed;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.article-li:last-child {
+  border-bottom: none;
+}
+.art-issue {
+  display: inline-block;
+  min-width: 60px;
+  color: #888;
+  font-family: "Times New Roman", serif;
+}
+.art-title {
+  color: #2980b9;
+  text-decoration: none;
+  flex: 1;
+}
+.art-title:hover {
+  text-decoration: underline;
 }
 
 .modal-overlay {
