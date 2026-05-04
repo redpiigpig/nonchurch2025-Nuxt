@@ -1,11 +1,11 @@
 ﻿<script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { supabase } from "../supabase";
 import { useEditorMode } from "../composables/useEditorMode";
 import { useLanguage } from "../composables/useLanguage";
 import { cloudinaryUrl, CLD } from "../utils/cloudinary";
 
+const supabase = useSupabaseClient();
 const route = useRoute();
 const router = useRouter();
 const { isEditor } = useEditorMode();
