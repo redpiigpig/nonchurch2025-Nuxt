@@ -299,10 +299,9 @@ const translateCategory = (cat) => {
 };
 
 const fetchAuthors = async () => {
-  const { data, error } = await supabase
-    .from("authors")
-    .select("*")
-    .eq("is_published", true);
+  let query = supabase.from("authors").select("*");
+  if (!isEditor.value) query = query.eq("is_published", true);
+  const { data, error } = await query;
   if (!error && data) {
     dbAuthors.value = data;
   }
@@ -499,9 +498,14 @@ const currentIssueAuthors = computed(() => {
     ...new Set(currentIssue.value.content.map((a) => a.originalAuthor)),
   ];
 
-  let filteredAuthors = dbAuthors.value.filter((a) =>
-    appearingNames.some((name) => name && name.includes(a.name)),
-  );
+  // 比對規則：以 author.name + aliases 任一字串，去比對文章 author 欄是否包含
+  // （配合 articles_manager / authors_manager 一致的比對邏輯）
+  let filteredAuthors = dbAuthors.value.filter((a) => {
+    const needles = [a.name, ...(a.aliases || [])].filter(Boolean);
+    return appearingNames.some(
+      (rawName) => rawName && needles.some((n) => rawName.includes(n)),
+    );
+  });
 
   const orderList = currentIssue.value.authorOrder;
   if (orderList && Array.isArray(orderList)) {
