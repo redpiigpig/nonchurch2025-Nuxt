@@ -24,10 +24,11 @@ const TRANSLATIONS = {
   en: {
     title: "The Kingdom of God on Earth and Buddhism for Human Realm",
     date: "March-April 2026 Issue",
-    cfp_title: "The World Is My Parish: A Memorial Issue for Bishop Pang Chun-hua",
+    cfp_title:
+      "The World Is My Parish: A Memorial Issue for Bishop Pang Chun-hua",
     cfp_deadline: "June 15, 2026",
     intro_home:
-      'This issue of "Faith Without Boundary" begins from the most painful Lin Family Massacre during Taiwan\'s democratization process and the founding of Yi-Kuang Presbyterian Church, asking: when suffering and injustice come before us, does faith lead us to escape from reality, or does it grant us the courage to face the world directly? When Buddhist worldly compassion meets Christian social practice on this suffering land, can faith communities transform grief and indignation into love for the land, becoming vessels that bear suffering and advocate for justice?\n\nThe special feature and cover story of this issue interview Elder Tian Meng-shu and revisit Lin Yi-hsiung\'s fearless actions and the worldly development of Modern Chan Buddhism, witnessing the convergence of justice and compassion. The Theme Square begins from the memory and forgiveness of historical tragedies, and then explores—through the perspectives of religious sociology, Jungian psychology, and phenomenology—how the sacred sheds its veil and walks into the human world, while reflecting on how to refuse coercion in the name of the sacred. The Diverse Forum, in turn, rethinks church tradition and future visions through the conservative tensions of theological education, classical cosmological texts, and the historical evolution of episcopacy.\n\nFaith should not be a closed fortress, but a driving force that compels us to enter the world, face suffering, and embrace diversity. We invite readers to walk together into these historical intersections forged in suffering, and to ponder how, within highly complex contemporary society, we may transcend denominational and tangible boundaries, refusing to abandon our vows even when sentient beings do evil, and through concrete action become that light which illuminates all in the human world.',
+      "This issue of \"Faith Without Boundary\" begins from the most painful Lin Family Massacre during Taiwan's democratization process and the founding of Yi-Kuang Presbyterian Church, asking: when suffering and injustice come before us, does faith lead us to escape from reality, or does it grant us the courage to face the world directly? When Buddhist worldly compassion meets Christian social practice on this suffering land, can faith communities transform grief and indignation into love for the land, becoming vessels that bear suffering and advocate for justice?\n\nThe special feature and cover story of this issue interview Elder Tian Meng-shu and revisit Lin Yi-hsiung's fearless actions and the worldly development of Modern Chan Buddhism, witnessing the convergence of justice and compassion. The Theme Square begins from the memory and forgiveness of historical tragedies, and then explores—through the perspectives of religious sociology, Jungian psychology, and phenomenology—how the sacred sheds its veil and walks into the human world, while reflecting on how to refuse coercion in the name of the sacred. The Diverse Forum, in turn, rethinks church tradition and future visions through the conservative tensions of theological education, classical cosmological texts, and the historical evolution of episcopacy.\n\nFaith should not be a closed fortress, but a driving force that compels us to enter the world, face suffering, and embrace diversity. We invite readers to walk together into these historical intersections forged in suffering, and to ponder how, within highly complex contemporary society, we may transcend denominational and tangible boundaries, refusing to abandon our vows even when sentient beings do evil, and through concrete action become that light which illuminates all in the human world.",
     intro_cfp:
       'The next issue of "Faith Without Boundary" （May-June 2026） will be themed 「The World Is My Parish: A Memorial Issue for Bishop Pang Chun-hua」, commemorating the life and ministry of Bishop Pang and exploring the influence of Wesleyan thought on contemporary churches in Taiwan. During his lifetime, Bishop Pang devoted himself to liturgical renewal, discipleship training, and theological education, and was deeply concerned with ecumenical unity—like a contemporary John Wesley. We sincerely invite submissions regarding Bishop Pang\'s life and reminiscences, Wesleyan theology, ecumenical unity, and related topics, and invite you to ponder with us: in our contemporary context, how shall we inherit and embody this expansive vision that transcends boundaries and shepherds the world?',
     cfp_theme:
@@ -125,13 +126,17 @@ async function writeTranslations() {
     body: JSON.stringify({ translations: TRANSLATIONS }),
   });
   if (!r.ok) {
-    throw new Error(`寫入失敗 HTTP ${r.status}: ${(await r.text()).slice(0, 300)}`);
+    throw new Error(
+      `寫入失敗 HTTP ${r.status}: ${(await r.text()).slice(0, 300)}`,
+    );
   }
   return (await r.json()).length;
 }
 
 (async () => {
-  console.log(`🚀 Vol.${ISSUE_ID} 主題多語翻譯（手譯）${DRY ? "（DRY，僅印出）" : "（實寫入）"}`);
+  console.log(
+    `🚀 Vol.${ISSUE_ID} 主題多語翻譯（手譯）${DRY ? "（DRY，僅印出）" : "（實寫入）"}`,
+  );
 
   validate(TRANSLATIONS);
   console.log("✓ 翻譯通過校驗（5 語言 × 7 欄位 + 全形標點檢查）\n");
