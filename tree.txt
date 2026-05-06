@@ -508,6 +508,7 @@
     │   ├── migrate_content_to_html.mjs
     │   ├── normalize_footnotes.mjs
     │   ├── patch_docx.py
+    │   ├── rebuild_issue_docx.cjs
     │   ├── render_meta_docx.py
     │   ├── seed_finance.mjs
     │   └── seed_meta_articles.mjs
@@ -1389,7 +1390,11 @@
     │   │   │   ├── 7-書背.pdf
     │   │   │   └── issue7_plain.txt
     │   │   ├── 08-第八期/
+    │   │   │   ├── 8-0目次.docx
     │   │   │   ├── 8-11活在當下，還是逃避現實？.docx
+    │   │   │   ├── 8-1編輯室報告.docx
+    │   │   │   ├── 8-2本期作者簡介.docx
+    │   │   │   ├── 8-3精衛救火.docx
     │   │   │   ├── 8-4從苦難生發出的公義之光.docx
     │   │   │   ├── 8-5林家嬤孫遭害六週年追思禮拜.docx
     │   │   │   ├── 8-6尋找後基督紀元的靈魂中心.docx
