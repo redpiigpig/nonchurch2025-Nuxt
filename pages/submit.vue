@@ -516,9 +516,7 @@ useSeoMeta({
   ogTitle: () => `${t.value.title} - 無境界者雜誌`,
   description: () => translatedTheme.value?.cfp_theme || t.value.intro,
   ogDescription: () => translatedTheme.value?.cfp_theme || t.value.intro,
-  ogImage: () =>
-    translatedTheme.value?.cfp_image ||
-    "https://res.cloudinary.com/nonchurch2025/image/upload/default_cover.jpg",
+  ogImage: "https://res.cloudinary.com/nonchurch2025/image/upload/topic.jpg",
   twitterCard: "summary_large_image",
 });
 

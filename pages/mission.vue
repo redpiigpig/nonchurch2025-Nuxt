@@ -245,8 +245,7 @@ useSeoMeta({
   description: () => t.value.intro,
   ogTitle: () => seoTitleMap[currentLang.value] || seoTitleMap.default,
   ogDescription: () => t.value.intro,
-  ogImage:
-    "https://pottupypvdzamztdhsah.supabase.co/storage/v1/object/public/images/system/default_cover.jpg",
+  ogImage: "https://res.cloudinary.com/nonchurch2025/image/upload/topic.jpg",
 });
 </script>
 
