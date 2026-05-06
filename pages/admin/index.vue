@@ -188,10 +188,12 @@ const handlePublish = async (issueItem) => {
     if (issueErr) throw issueErr;
     if (!id1 || id1.length === 0) throw new Error("期次未發布（可能登入逾期或權限不足）");
 
+    // 目次／投稿資訊／編輯資訊預設保持未發布（前台用 footer 文字呈現，不需公開單篇）
     const { data: id2, error: artErr } = await supabase
       .from("articles")
       .update({ is_published: true })
       .eq("issue", issueItem.id)
+      .not("article_type", "in", "(toc,submission_info,editorial_info)")
       .select("id");
     if (artErr) throw artErr;
     if (!id2 || id2.length === 0) throw new Error("文章未發布（可能登入逾期或權限不足）");
