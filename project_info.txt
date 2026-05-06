@@ -59,6 +59,7 @@
 | proofread_by | text | YES | |
 | proofread_date | date | YES | |
 | article_type | text | NO | 'regular' |
+| linked_author_ids | jsonb | NO | '[]' |
 
 ## Table: authors
 | 欄位 | 類型 | 可空 | 預設 | 說明 |
