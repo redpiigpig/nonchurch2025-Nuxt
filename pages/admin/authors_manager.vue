@@ -34,25 +34,25 @@ const getArticleOrder = (id) => {
   return m ? parseInt(m[1]) : 0;
 };
 
-// 比對某篇文章是否屬於某位作者
-// 規則：以作者 name + aliases 任一字串，去比對 article.author / author_display 是否包含
-const matchAuthor = (article, author) => {
-  const haystack = `${article.author || ""}\n${article.author_display || ""}`;
-  const needles = [author.name, ...(author.aliases || [])].filter(Boolean);
-  return needles.some((n) => haystack.includes(n));
-};
+const sortArticles = (list) =>
+  [...list].sort((a, b) => {
+    const ia = Number(a.issue) || 0;
+    const ib = Number(b.issue) || 0;
+    if (ia !== ib) return ib - ia;
+    return getArticleOrder(a.id) - getArticleOrder(b.id);
+  });
 
-// 每位作者對應的文章（已排序：期數新→舊，期數內依 id 內序號小→大）
+// 比對：linked_author_ids 包含此 author.id
 const articlesByAuthor = computed(() => {
   const map = {};
   for (const a of authors.value) {
-    map[a.id] = articles.value
-      .filter((art) => matchAuthor(art, a))
-      .sort((x, y) => {
-        if ((x.issue || 0) !== (y.issue || 0))
-          return (y.issue || 0) - (x.issue || 0);
-        return getArticleOrder(x.id) - getArticleOrder(y.id);
-      });
+    map[a.id] = sortArticles(
+      articles.value.filter(
+        (art) =>
+          Array.isArray(art.linked_author_ids) &&
+          art.linked_author_ids.includes(a.id),
+      ),
+    );
   }
   return map;
 });
@@ -70,8 +70,9 @@ const fetchAuthors = async () => {
     supabase.from("authors").select("*").order("id", { ascending: true }),
     supabase
       .from("articles")
-      .select("id, title, issue, author, author_display, is_published, issues(is_published)")
-      .neq("title", "編輯室報告"),
+      .select(
+        "id, title, issue, author, author_display, is_published, linked_author_ids, issues(is_published)",
+      ),
   ]);
 
   if (authorsRes.error) {
@@ -85,6 +86,103 @@ const fetchAuthors = async () => {
     articles.value = articlesRes.data;
   }
   loading.value = false;
+};
+
+// ── 編輯文章歸屬 modal ──────────────────────────────────────────
+const showLinkModal = ref(false);
+const linkAuthor = ref(null);
+const linkSelectedIds = ref(new Set());
+const linkFilterIssue = ref("all");
+const linkSaving = ref(false);
+
+const openLinkModal = (author) => {
+  linkAuthor.value = author;
+  linkSelectedIds.value = new Set(
+    articles.value
+      .filter(
+        (a) =>
+          Array.isArray(a.linked_author_ids) &&
+          a.linked_author_ids.includes(author.id),
+      )
+      .map((a) => a.id),
+  );
+  linkFilterIssue.value = "all";
+  showLinkModal.value = true;
+};
+
+const toggleArticleLink = (articleId) => {
+  const s = new Set(linkSelectedIds.value);
+  if (s.has(articleId)) s.delete(articleId);
+  else s.add(articleId);
+  linkSelectedIds.value = s;
+};
+
+const linkAvailableIssues = computed(() => {
+  const set = new Set(articles.value.map((a) => Number(a.issue) || 0));
+  return Array.from(set).sort((a, b) => b - a);
+});
+
+const linkArticlesGrouped = computed(() => {
+  const target = Number(linkFilterIssue.value);
+  const filtered =
+    linkFilterIssue.value === "all"
+      ? articles.value
+      : articles.value.filter((a) => Number(a.issue) === target);
+  const sorted = sortArticles(filtered);
+  const map = new Map();
+  for (const art of sorted) {
+    const k = Number(art.issue) || 0;
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(art);
+  }
+  return Array.from(map.entries());
+});
+
+const saveArticleLinks = async () => {
+  if (!linkAuthor.value) return;
+  linkSaving.value = true;
+  try {
+    const authorId = linkAuthor.value.id;
+    const wanted = linkSelectedIds.value;
+    const updates = [];
+    for (const art of articles.value) {
+      const current = Array.isArray(art.linked_author_ids)
+        ? art.linked_author_ids
+        : [];
+      const has = current.includes(authorId);
+      const want = wanted.has(art.id);
+      if (has === want) continue;
+      const next = want
+        ? [...current, authorId].sort((a, b) => a - b)
+        : current.filter((id) => id !== authorId);
+      updates.push({ id: art.id, linked_author_ids: next });
+    }
+
+    if (updates.length === 0) {
+      showLinkModal.value = false;
+      return;
+    }
+
+    for (const u of updates) {
+      const { data, error } = await supabase
+        .from("articles")
+        .update({ linked_author_ids: u.linked_author_ids })
+        .eq("id", u.id)
+        .select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(`未更新 ${u.id}（可能登入已過期或權限不足）`);
+      }
+    }
+
+    alert(`已更新 ${updates.length} 篇文章的歸屬`);
+    showLinkModal.value = false;
+    await fetchAuthors();
+  } catch (e) {
+    alert("儲存失敗：" + e.message);
+  } finally {
+    linkSaving.value = false;
+  }
 };
 
 const openAddModal = () => {
@@ -254,14 +352,12 @@ onMounted(() => {
               </td>
               <td class="text-center">
                 <button
-                  v-if="articlesByAuthor[author.id]?.length"
                   class="btn-expand"
                   @click="toggleExpand(author.id)"
                 >
-                  {{ articlesByAuthor[author.id].length }} 篇
+                  {{ articlesByAuthor[author.id]?.length || 0 }} 篇
                   {{ expanded.has(author.id) ? "▲" : "▼" }}
                 </button>
-                <span v-else class="text-muted">0 篇</span>
               </td>
               <td class="text-center">
                 <span
@@ -283,15 +379,30 @@ onMounted(() => {
               </td>
             </tr>
             <tr
-              v-if="expanded.has(author.id) && articlesByAuthor[author.id]?.length"
+              v-if="expanded.has(author.id)"
               class="article-detail-row"
             >
               <td colspan="8">
                 <div class="article-list-wrap">
-                  <div class="article-list-title">
-                    {{ author.name }} 名下文章（依文章 author / author_display 比對 name + aliases）
+                  <div class="article-list-header">
+                    <div class="article-list-title">
+                      {{ author.name }} 名下文章
+                      <span class="article-list-hint">
+                        （依 articles.linked_author_ids 比對 author.id={{ author.id }}）
+                      </span>
+                    </div>
+                    <button class="btn-link-edit" @click="openLinkModal(author)">
+                      ✏️ 編輯文章歸屬
+                    </button>
                   </div>
-                  <ul class="article-list-ul">
+                  <p
+                    v-if="!articlesByAuthor[author.id]?.length"
+                    class="text-muted"
+                    style="margin: 6px 0 0"
+                  >
+                    目前沒有手動綁定文章。點「編輯文章歸屬」加入。
+                  </p>
+                  <ul v-else class="article-list-ul">
                     <li
                       v-for="art in articlesByAuthor[author.id]"
                       :key="art.id"
@@ -431,6 +542,77 @@ onMounted(() => {
           <button class="btn-cancel" @click="showModal = false">取消</button>
           <button class="btn-save" @click="saveAuthor" :disabled="saving">
             {{ saving ? "處理中..." : "確認儲存" }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showLinkModal" class="modal-overlay">
+      <div class="modal modal-lg">
+        <div class="modal-header">
+          <h3>
+            編輯文章歸屬
+            <small class="muted">— {{ linkAuthor?.name }} (id={{ linkAuthor?.id }})</small>
+          </h3>
+          <button class="btn-close" @click="showLinkModal = false">×</button>
+        </div>
+
+        <div class="modal-body link-modal-body">
+          <div class="link-toolbar">
+            <label>
+              篩選期數：
+              <select v-model="linkFilterIssue" class="input-select">
+                <option value="all">全部</option>
+                <option v-for="n in linkAvailableIssues" :key="n" :value="String(n)">
+                  Vol. {{ n || "?" }}
+                </option>
+              </select>
+            </label>
+            <span class="link-counter">
+              已勾選 <b>{{ linkSelectedIds.size }}</b> 篇
+            </span>
+          </div>
+
+          <div class="link-issue-list">
+            <div
+              v-for="[issueNum, list] in linkArticlesGrouped"
+              :key="issueNum"
+              class="link-issue-block"
+            >
+              <div class="link-issue-title">Vol. {{ issueNum || "?" }}</div>
+              <ul class="link-article-ul">
+                <li
+                  v-for="art in list"
+                  :key="art.id"
+                  class="link-article-li"
+                  :class="{ checked: linkSelectedIds.has(art.id) }"
+                >
+                  <label class="link-article-label">
+                    <input
+                      type="checkbox"
+                      :checked="linkSelectedIds.has(art.id)"
+                      @change="toggleArticleLink(art.id)"
+                    />
+                    <span class="link-art-id">{{ art.id }}</span>
+                    <span class="link-art-title">{{ art.title }}</span>
+                    <span v-if="art.author" class="link-art-author">
+                      author: {{ art.author }}
+                    </span>
+                  </label>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="showLinkModal = false">取消</button>
+          <button
+            class="btn-save"
+            @click="saveArticleLinks"
+            :disabled="linkSaving"
+          >
+            {{ linkSaving ? "儲存中..." : "確認儲存" }}
           </button>
         </div>
       </div>
@@ -642,6 +824,119 @@ th {
 }
 .art-title:hover {
   text-decoration: underline;
+}
+
+.article-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.article-list-hint {
+  font-weight: normal;
+  font-size: 0.8rem;
+  color: #999;
+  margin-left: 6px;
+}
+.btn-link-edit {
+  background: #16a085;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.btn-link-edit:hover {
+  background: #138d75;
+}
+
+.modal-lg {
+  max-width: 900px;
+}
+.muted {
+  color: #888;
+  font-weight: normal;
+  font-size: 0.85rem;
+  margin-left: 8px;
+}
+.link-modal-body {
+  padding: 20px 30px;
+}
+.link-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eee;
+}
+.input-select {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  margin-left: 6px;
+}
+.link-counter {
+  color: #555;
+}
+.link-issue-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.link-issue-block {
+  margin-bottom: 18px;
+}
+.link-issue-title {
+  font-weight: bold;
+  color: #2c3e50;
+  background: #ecf0f1;
+  padding: 6px 12px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+.link-article-ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.link-article-li {
+  padding: 6px 12px;
+  border-bottom: 1px dashed #eee;
+}
+.link-article-li.checked {
+  background: #fff8e1;
+}
+.link-article-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: normal;
+  margin: 0;
+  flex-wrap: wrap;
+}
+.link-article-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.link-art-id {
+  color: #999;
+  font-family: "Times New Roman", serif;
+  min-width: 80px;
+}
+.link-art-title {
+  flex: 1;
+  font-weight: 500;
+  color: #2c3e50;
+}
+.link-art-author {
+  color: #7f8c8d;
+  font-size: 0.85rem;
+  font-style: italic;
 }
 
 .modal-overlay {

@@ -80,9 +80,7 @@ const { data: asyncData, pending: loading } = await useAsyncData(
         .select(
           `id, title, subtitle, summary, author, category, issue, translations, issues (id, title, date, translations, is_published)`,
         )
-        .or(
-          `author.ilike.%${authorData.name}%,author_display.ilike.%${authorData.name}%`,
-        )
+        .contains("linked_author_ids", [authorData.id])
         .neq("title", "編輯室報告");
       if (articlesError) throw articlesError;
 

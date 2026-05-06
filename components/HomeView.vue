@@ -379,6 +379,9 @@ const currentIssueContent = computed(() => {
       title: trans.title || a.title,
       subtitle: trans.subtitle || a.subtitle,
       originalAuthor: a.author,
+      linkedAuthorIds: Array.isArray(a.linked_author_ids)
+        ? a.linked_author_ids
+        : [],
       authorDisplay:
         trans.author_display || trans.author || a.author_display || a.author,
       keyword: trans.keyword || a.keyword,
@@ -494,18 +497,13 @@ const currentIssueAuthors = computed(() => {
     currentLang.value === "default"
       ? "zh-TW"
       : currentLang.value.replace("-", "_");
-  const appearingNames = [
-    ...new Set(currentIssue.value.content.map((a) => a.originalAuthor)),
-  ];
 
-  // 比對規則：以 author.name + aliases 任一字串，去比對文章 author 欄是否包含
-  // （配合 articles_manager / authors_manager 一致的比對邏輯）
-  let filteredAuthors = dbAuthors.value.filter((a) => {
-    const needles = [a.name, ...(a.aliases || [])].filter(Boolean);
-    return appearingNames.some(
-      (rawName) => rawName && needles.some((n) => rawName.includes(n)),
-    );
-  });
+  // 比對規則：彙整本期所有文章的 linked_author_ids，過濾 dbAuthors
+  const appearingIds = new Set();
+  for (const art of currentIssue.value.content) {
+    for (const id of art.linkedAuthorIds || []) appearingIds.add(id);
+  }
+  let filteredAuthors = dbAuthors.value.filter((a) => appearingIds.has(a.id));
 
   const orderList = currentIssue.value.authorOrder;
   if (orderList && Array.isArray(orderList)) {
