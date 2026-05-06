@@ -567,7 +567,7 @@ const keywordContent = computed(() => {
   <article v-else class="article-content">
     <div class="title-header">
       <div
-        v-if="displayArticle.category"
+        v-if="displayArticle.category && displayArticle.category !== '編輯資訊'"
         class="featured-box"
         :style="{ backgroundColor: categoryColor }"
       >
