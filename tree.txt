@@ -497,6 +497,9 @@
     │   │   ├── Vol.4.pdf
     │   │   ├── Vol.5.pdf
     │   │   └── Vol.6.pdf
+    │   ├── apple-touch-icon.png
+    │   ├── favicon-192.png
+    │   ├── favicon-512.png
     │   ├── favicon.ico
     │   └── robots.txt
     ├── scripts/
