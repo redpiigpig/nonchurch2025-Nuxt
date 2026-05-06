@@ -13,6 +13,7 @@ useHead({
 
 const supabase = useSupabaseClient();
 const issues = ref([]);
+const allAuthors = ref([]);
 const loading = ref(false);
 const saving = ref(false);
 
@@ -74,16 +75,20 @@ const clearPdfField = (field) => {
 // 1. 讀取列表
 const fetchIssues = async () => {
   loading.value = true;
-  const { data, error } = await supabase
-    .from("issues")
-    .select("*")
-    .order("id", { ascending: false });
+  const [issuesRes, authorsRes] = await Promise.all([
+    supabase.from("issues").select("*").order("id", { ascending: false }),
+    supabase
+      .from("authors")
+      .select("id, name, is_published")
+      .order("id", { ascending: true }),
+  ]);
 
-  if (error) {
-    alert("讀取失敗：" + error.message);
-  } else {
-    issues.value = data;
-  }
+  if (issuesRes.error) alert("讀取失敗：" + issuesRes.error.message);
+  else issues.value = issuesRes.data;
+
+  if (authorsRes.error) console.error("讀取作者失敗", authorsRes.error);
+  else allAuthors.value = authorsRes.data;
+
   loading.value = false;
 };
 
@@ -91,17 +96,35 @@ const fetchIssues = async () => {
 const openEditModal = async (issue) => {
   suppressAutoSave = true;
   const tempIssue = JSON.parse(JSON.stringify(issue));
-  if (Array.isArray(tempIssue.author_order)) {
-    tempIssue.author_order_str = tempIssue.author_order.join("、");
-  } else {
-    tempIssue.author_order_str = "";
-  }
+  tempIssue.author_order_arr = Array.isArray(tempIssue.author_order)
+    ? [...tempIssue.author_order]
+    : [];
   editingIssue.value = tempIssue;
   showModal.value = true;
   autoSaveStatus.value = "idle";
   // 等 modal 渲染完，才開放 auto-save
   await nextTick();
   suppressAutoSave = false;
+};
+
+// ── 作者順序 picker 輔助函式 ─────────────────────────────────────
+const addAuthorToOrder = (name) => {
+  if (!editingIssue.value.author_order_arr) {
+    editingIssue.value.author_order_arr = [];
+  }
+  if (!editingIssue.value.author_order_arr.includes(name)) {
+    editingIssue.value.author_order_arr.push(name);
+  }
+};
+const removeAuthorFromOrder = (idx) => {
+  editingIssue.value.author_order_arr.splice(idx, 1);
+};
+const moveAuthorOrder = (idx, dir) => {
+  const arr = editingIssue.value.author_order_arr;
+  const target = idx + dir;
+  if (target < 0 || target >= arr.length) return;
+  const [item] = arr.splice(idx, 1);
+  arr.splice(target, 0, item);
 };
 
 const closeEditModal = () => {
@@ -116,13 +139,9 @@ const saveIssue = async (quiet = false) => {
   saving.value = true;
   if (quiet) autoSaveStatus.value = "saving";
   try {
-    let authorArray = [];
-    if (editingIssue.value.author_order_str) {
-      authorArray = editingIssue.value.author_order_str
-        .split(/[、,,，]/)
-        .map((name) => name.trim())
-        .filter((name) => name !== "");
-    }
+    const authorArray = Array.isArray(editingIssue.value.author_order_arr)
+      ? editingIssue.value.author_order_arr.filter(Boolean)
+      : [];
 
     const updates = {
       title: editingIssue.value.title,
@@ -395,15 +414,83 @@ onMounted(() => {
             </div>
             <div class="form-group">
               <label>專欄作者順序 (Author Order)</label>
-              <input
-                type="text"
-                v-model="editingIssue.author_order_str"
-                class="input-text"
-                placeholder="輸入作者姓名，以逗號或頓號分隔"
-              />
-              <small class="hint"
-                >請輸入作者姓名，使用「、」或「,」分隔。例如：約瑟、雅各、拉結</small
-              >
+              <small class="hint" style="margin-bottom: 8px">
+                左側點「＋」加入；右側用「↑」「↓」調整順序，「✕」移除。
+                順序即為首頁「本期作者」顯示順序（未列入的會排在最後）。
+              </small>
+              <div class="author-picker">
+                <div class="author-picker-col">
+                  <div class="author-picker-title">可選作者</div>
+                  <ul class="author-picker-list">
+                    <li
+                      v-for="a in allAuthors"
+                      :key="a.id"
+                      class="author-picker-item"
+                      :class="{
+                        disabled:
+                          editingIssue.author_order_arr?.includes(a.name),
+                      }"
+                    >
+                      <span class="ap-name">
+                        {{ a.name }}
+                        <span v-if="!a.is_published" class="ap-badge-hidden">
+                          隱藏
+                        </span>
+                      </span>
+                      <button
+                        class="btn-ap-add"
+                        :disabled="
+                          editingIssue.author_order_arr?.includes(a.name)
+                        "
+                        @click="addAuthorToOrder(a.name)"
+                        title="加入"
+                      >＋</button>
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="author-picker-col">
+                  <div class="author-picker-title">
+                    已選順序
+                    <span class="ap-counter">
+                      （{{ editingIssue.author_order_arr?.length || 0 }}）
+                    </span>
+                  </div>
+                  <ul
+                    v-if="editingIssue.author_order_arr?.length"
+                    class="author-picker-list selected"
+                  >
+                    <li
+                      v-for="(name, idx) in editingIssue.author_order_arr"
+                      :key="idx"
+                      class="author-picker-item"
+                    >
+                      <span class="ap-index">{{ idx + 1 }}.</span>
+                      <span class="ap-name">{{ name }}</span>
+                      <span class="ap-actions">
+                        <button
+                          class="btn-ap-move"
+                          :disabled="idx === 0"
+                          @click="moveAuthorOrder(idx, -1)"
+                          title="上移"
+                        >↑</button>
+                        <button
+                          class="btn-ap-move"
+                          :disabled="idx === editingIssue.author_order_arr.length - 1"
+                          @click="moveAuthorOrder(idx, 1)"
+                          title="下移"
+                        >↓</button>
+                        <button
+                          class="btn-ap-remove"
+                          @click="removeAuthorFromOrder(idx)"
+                          title="移除"
+                        >✕</button>
+                      </span>
+                    </li>
+                  </ul>
+                  <p v-else class="author-picker-empty">尚未選擇任何作者</p>
+                </div>
+              </div>
             </div>
           </fieldset>
 
@@ -791,6 +878,120 @@ label {
 .autosave-status.saving { background: #fff3cd; color: #856404; }
 .autosave-status.saved  { background: #d4edda; color: #155724; }
 .autosave-status.error  { background: #f8d7da; color: #721c24; }
+
+/* 作者順序 picker */
+.author-picker {
+  display: flex;
+  gap: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fafbfc;
+  padding: 12px;
+}
+.author-picker-col {
+  flex: 1;
+  min-width: 0;
+}
+.author-picker-title {
+  font-weight: bold;
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e1e8ed;
+}
+.ap-counter {
+  font-weight: normal;
+  color: #888;
+  font-size: 0.85rem;
+}
+.author-picker-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  background: white;
+  border-radius: 4px;
+}
+.author-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f3f5;
+  font-size: 0.9rem;
+}
+.author-picker-item:last-child {
+  border-bottom: none;
+}
+.author-picker-item.disabled {
+  opacity: 0.4;
+}
+.ap-name {
+  flex: 1;
+  color: #2c3e50;
+  word-break: break-all;
+}
+.ap-badge-hidden {
+  font-size: 0.7rem;
+  color: #c0392b;
+  background: #fdf0ef;
+  padding: 1px 5px;
+  border-radius: 8px;
+  margin-left: 4px;
+}
+.ap-index {
+  color: #999;
+  font-family: "Times New Roman", serif;
+  min-width: 24px;
+  font-size: 0.85rem;
+}
+.ap-actions {
+  display: flex;
+  gap: 4px;
+}
+.btn-ap-add,
+.btn-ap-move,
+.btn-ap-remove {
+  border: 1px solid #bdc3c7;
+  background: white;
+  color: #2c3e50;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  padding: 0;
+}
+.btn-ap-add:hover:not(:disabled),
+.btn-ap-move:hover:not(:disabled) {
+  background: #ecf0f1;
+}
+.btn-ap-add:disabled,
+.btn-ap-move:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.btn-ap-remove {
+  border-color: #e74c3c;
+  color: #e74c3c;
+}
+.btn-ap-remove:hover {
+  background: #fdf0ef;
+}
+.author-picker-empty {
+  color: #999;
+  font-size: 0.85rem;
+  padding: 20px 10px;
+  text-align: center;
+  margin: 0;
+  background: white;
+  border-radius: 4px;
+}
 
 @media (max-width: 768px) {
   .form-row {

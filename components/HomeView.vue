@@ -299,9 +299,9 @@ const translateCategory = (cat) => {
 };
 
 const fetchAuthors = async () => {
-  let query = supabase.from("authors").select("*");
-  if (!isEditor.value) query = query.eq("is_published", true);
-  const { data, error } = await query;
+  // 不過濾 is_published：本期作者區只看「有文章歸屬到」即顯示，
+  // is_published 旗標只用於 /authors 列表頁的展示控制。
+  const { data, error } = await supabase.from("authors").select("*");
   if (!error && data) {
     dbAuthors.value = data;
   }
