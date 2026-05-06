@@ -80,7 +80,9 @@ const { data: asyncData, pending: loading } = await useAsyncData(
         .select(
           `id, title, subtitle, summary, author, category, issue, translations, issues (id, title, date, translations, is_published)`,
         )
-        .contains("linked_author_ids", [authorData.id])
+        // jsonb 必須傳 JSON 字面量 `[id]`；若傳 array，supabase-js 會產出
+        // postgres array 語法 `cs.{id}` 在 jsonb 上會 400 (invalid json syntax)
+        .contains("linked_author_ids", `[${authorData.id}]`)
         .neq("title", "編輯室報告");
       if (articlesError) throw articlesError;
 
