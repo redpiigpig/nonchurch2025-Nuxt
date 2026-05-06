@@ -456,7 +456,7 @@ await useAsyncData(`articles-list-${isEditor.value}`, fetchAndGroupArticles);
                   >{{ item.display_id }}</span
                 >
                 <span
-                  v-if="item.category"
+                  v-if="item.category && item.category !== '編輯資訊'"
                   class="article-type"
                   :style="{
                     color: item.color,
