@@ -43,29 +43,22 @@ const seoLinks = computed(() => {
   return links;
 });
 
-// favicon：admin 模式仍用 🌑 emoji（data URI 只給瀏覽器分頁辨識），
-// 一般頁面用實體檔案 /favicon-*.png /favicon.ico，讓 Google 搜尋抓得到。
+// 瀏覽器分頁 favicon 用 emoji data URI（小尺寸好看）
+// Google 搜尋 logo 走 /favicon.ico 實體檔（disk 上存在，Google 自動抓）
+const faviconEmoji = computed(() => (isEditor.value ? "🌑" : "🌏"));
+
 useHead({
   htmlAttrs: {
     lang: computed(() => localeMap[currentLang.value] || "zh-TW"),
   },
-  link: computed(() => {
-    const iconLinks = isEditor.value
-      ? [
-          {
-            rel: "icon",
-            type: "image/svg+xml",
-            href: `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌑</text></svg>`,
-          },
-        ]
-      : [
-          { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
-          { rel: "icon", type: "image/png", sizes: "192x192", href: "/favicon-192.png" },
-          { rel: "icon", type: "image/png", sizes: "512x512", href: "/favicon-512.png" },
-          { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
-        ];
-    return [...iconLinks, ...seoLinks.value];
-  }),
+  link: computed(() => [
+    {
+      rel: "icon",
+      type: "image/svg+xml",
+      href: `data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>${faviconEmoji.value}</text></svg>`,
+    },
+    ...seoLinks.value,
+  ]),
 });
 
 // ✅ 方案 B：多語言網站標題
