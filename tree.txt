@@ -510,6 +510,7 @@
     │   ├── patch_docx.py
     │   ├── rebuild_issue_docx.cjs
     │   ├── render_meta_docx.py
+    │   ├── retranslate_issue8.cjs
     │   ├── seed_finance.mjs
     │   └── seed_meta_articles.mjs
     ├── server/
