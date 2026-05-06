@@ -284,9 +284,13 @@ const fetchAndGroupArticles = async () => {
       issue.submissionInfoId = submissionInfo?.id || null;
       issue.editorialInfoId = editorialInfo?.id || null;
 
-      // 過濾掉「編輯資訊」section 及「目錄」文章（目次在「主題介紹」section，不受影響）
+      // 過濾掉「編輯資訊」section、「編輯資訊」category 及「目錄」文章
+      // （category=編輯資訊 屬編輯後台用途，即便文章本身已發布也不在前台列出）
       issue.content = issue.content.filter(
-        (a) => a.section?.trim() !== "編輯資訊" && a.title?.trim() !== "目錄",
+        (a) =>
+          a.section?.trim() !== "編輯資訊" &&
+          a.category?.trim() !== "編輯資訊" &&
+          a.title?.trim() !== "目錄",
       );
       issue.content.forEach((art) => {
         art.routeId = art.id;
