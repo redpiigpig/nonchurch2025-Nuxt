@@ -512,6 +512,7 @@
     │   ├── normalize_footnotes.mjs
     │   ├── patch_docx.py
     │   ├── rebuild_issue_docx.cjs
+    │   ├── regenerate_favicon.cjs
     │   ├── render_meta_docx.py
     │   ├── retranslate_issue8.cjs
     │   ├── seed_finance.mjs
