@@ -1021,8 +1021,11 @@ const handleSubmit = async () => {
     if (wordFile.value) {
       submitProgress.value = t.value.uploadingWord;
       wordUrl = await uploadFile(wordFile.value, folder);
-      submitProgress.value = t.value.parsingWord;
-      parsedHtml = await parseWord(wordFile.value);
+      // ⚠️ 暫時停用線上 Word→HTML 自動轉錄（mammoth 效果不理想）
+      // 改為僅保留原始檔案於 Cloudinary，後台會收到 email 通知，編輯手動處理。
+      // 想恢復時，取消下兩行註解即可：
+      // submitProgress.value = t.value.parsingWord;
+      // parsedHtml = await parseWord(wordFile.value);
     }
 
     // 決定 PDF URL

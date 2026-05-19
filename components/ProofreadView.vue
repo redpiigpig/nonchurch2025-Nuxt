@@ -37,6 +37,10 @@ const editingAnnId = ref(null); // 非 null 時為編輯模式
 // 暫存高亮（popup 開啟期間維持選取底色，打字不消失）
 const tempHighlight = ref(null); // { paragraphIndex, startOffset, endOffset }
 
+// ── 編輯回覆校對員（status=completed 時的入口）──────────────────────
+const editorReplies = ref({}); // { [ann.id]: text }
+const sendingReplies = ref({}); // { [ann.id]: boolean }
+
 // ── 完成校對彈窗 ─────────────────────────────────────────────────────
 const showCompleteModal = ref(false);
 const completeConfirmed = ref(false);
@@ -289,6 +293,62 @@ const submitComplete = async () => {
     }).catch((e) => console.warn("[notify] 校對完成通知寄送失敗:", e));
   }
   saving.value = false;
+};
+
+// ── 編輯回覆：寫入 editorNote + 寄信給校對員 ─────────────────────────
+const sendEditorReply = async (ann) => {
+  const reply = (editorReplies.value[ann.id] || "").trim();
+  if (!reply) return;
+  sendingReplies.value[ann.id] = true;
+
+  // 1. 更新本地 + DB
+  const updated = annotations.value.map((a) =>
+    a.id === ann.id
+      ? { ...a, editorNote: reply, editorAction: "resolved", resolved: true }
+      : a,
+  );
+
+  const doWrite = () =>
+    supabase
+      .from("articles")
+      .update({ proofread_annotations: updated })
+      .eq("id", article.value.id)
+      .select("id");
+
+  let { data, error } = await doWrite();
+  if (!error && (!data || data.length === 0)) {
+    if (await tryRefreshSession()) ({ data, error } = await doWrite());
+  }
+
+  if (error) {
+    alert("儲存失敗：" + error.message);
+    sendingReplies.value[ann.id] = false;
+    return;
+  }
+  if (!data || data.length === 0) {
+    triggerRelogin();
+    sendingReplies.value[ann.id] = false;
+    return;
+  }
+
+  annotations.value = updated;
+  editorReplies.value[ann.id] = "";
+
+  // 2. 背景寄信給校對員
+  $fetch("/api/notify-proofreader-reply", {
+    method: "POST",
+    body: {
+      article_id: article.value.id,
+      article_title: article.value.title,
+      selected_text: ann.selectedText,
+      proofreader_note: ann.note,
+      editor_reply: reply,
+      action: "resolved",
+    },
+  }).catch((e) => console.warn("[notify] 校對員回覆通知寄送失敗:", e));
+
+  alert("✅ 回覆已寄出給校對員！");
+  sendingReplies.value[ann.id] = false;
 };
 
 // ── 自動儲存（debounce 2s，仿 EditorView）──────────────────────────
@@ -666,6 +726,27 @@ onBeforeUnmount(() => {
               <span class="ann-editor-reply-label">編輯：</span>{{ ann.editorNote }}
             </div>
             <div v-if="ann.editorAction === 'adopted'" class="ann-adopted-tag">✅ 已採用替換</div>
+
+            <!-- 校對已完成、編輯尚未處理：給編輯一個回覆入口 -->
+            <div
+              v-if="proofreadStatus === 'completed' && !ann.resolved"
+              class="ann-reply-form"
+              @click.stop
+            >
+              <textarea
+                v-model="editorReplies[ann.id]"
+                class="ann-reply-textarea"
+                placeholder="回覆校對員（會寄信通知 Noah）..."
+                rows="2"
+              ></textarea>
+              <button
+                class="btn-reply-send"
+                :disabled="sendingReplies[ann.id] || !(editorReplies[ann.id] || '').trim()"
+                @click="sendEditorReply(ann)"
+              >
+                {{ sendingReplies[ann.id] ? "寄送中..." : "✉️ 寄出回覆並標記解決" }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1078,6 +1159,49 @@ onBeforeUnmount(() => {
   color: #065f46;
   font-weight: 600;
   margin-top: 3px;
+}
+
+/* 編輯回覆表單（已校對完成且未處理時顯示）*/
+.ann-reply-form {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #ddd;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ann-reply-textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  resize: vertical;
+  box-sizing: border-box;
+  background: #fff;
+}
+.ann-reply-textarea:focus {
+  outline: none;
+  border-color: #3498db;
+}
+.btn-reply-send {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background: #2980b9;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-reply-send:hover:not(:disabled) {
+  background: #1f6391;
+}
+.btn-reply-send:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
 }
 
 .panel-footer {
