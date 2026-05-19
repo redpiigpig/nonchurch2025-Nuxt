@@ -44,6 +44,8 @@
     </div>
 
     <AppFooter />
+
+    <ReloginModal />
   </div>
 </template>
 
@@ -52,6 +54,7 @@ import { useRouter, useRoute } from "vue-router";
 import { computed } from "vue";
 import AppHeader from "~/components/AppHeader.vue";
 import AppFooter from "~/components/AppFooter.vue";
+import ReloginModal from "~/components/ReloginModal.vue";
 
 const supabase = useSupabaseClient();
 const router = useRouter();

@@ -1,6 +1,7 @@
 ﻿<script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useSessionGuard } from "~/composables/useSessionGuard";
 import { useEditor, EditorContent } from "@tiptap/vue-3";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -39,13 +40,20 @@ const loadTocArticles = async (issueId) => {
 
 const saveTocPageStart = async (article) => {
   tocSaving.value[article.id] = true;
-  const { data, error } = await supabase
-    .from("articles")
-    .update({ page_start: article.page_start })
-    .eq("id", article.id)
-    .select("id");
+  const doWrite = () =>
+    supabase
+      .from("articles")
+      .update({ page_start: article.page_start })
+      .eq("id", article.id)
+      .select("id");
+
+  let { data, error } = await doWrite();
+  if (!error && (!data || data.length === 0)) {
+    if (await tryRefreshSession()) ({ data, error } = await doWrite());
+  }
+
   if (error) alert("儲存頁數失敗：" + error.message);
-  else if (!data || data.length === 0) alert("⚠️ 頁數未寫入（可能登入逾期或權限不足）");
+  else if (!data || data.length === 0) triggerRelogin();
   tocSaving.value[article.id] = false;
 };
 
@@ -581,6 +589,7 @@ function normalizeEmojiVariant(text) {
 const route = useRoute();
 const router = useRouter();
 const supabase = useSupabaseClient();
+const { tryRefreshSession, triggerRelogin } = useSessionGuard();
 const loading = ref(false);
 const isEditMode = ref(false);
 const showSource = ref(false);
@@ -883,23 +892,30 @@ const saveArticle = async (silent = false) => {
 
   // 重要：編輯既有文章時改用 update，避免每次都走 upsert(on_conflict=id)
   // 某些 RLS/權限組合下 upsert 會觸發 401（尤其是只允許 update 不允許 insert 時）
-  const { data: writeRows, error } = isEditMode.value
-    ? await supabase
-      .from("articles")
-      .update(payload)
-      .eq("id", payload.id)
-      .select("id")
-    : await supabase
-      .from("articles")
-      .upsert(payload, { onConflict: "id" })
-      .select("id");
+  const doWrite = () =>
+    isEditMode.value
+      ? supabase.from("articles").update(payload).eq("id", payload.id).select("id")
+      : supabase.from("articles").upsert(payload, { onConflict: "id" }).select("id");
 
-  const noRowUpdated = !error && isEditMode.value && (!writeRows || writeRows.length === 0);
+  let { data: writeRows, error } = await doWrite();
+  let noRowUpdated = !error && isEditMode.value && (!writeRows || writeRows.length === 0);
+
+  // 0 row + 無錯誤 = 多半是 access token 過期被 RLS 過濾掉。先試著刷新再重試一次。
+  if (noRowUpdated) {
+    const recovered = await tryRefreshSession();
+    if (recovered) {
+      ({ data: writeRows, error } = await doWrite());
+      noRowUpdated = !error && (!writeRows || writeRows.length === 0);
+    }
+  }
+
   if (error || noRowUpdated) {
     autoSaveStatus.value = "error";
-    if (!silent) {
-      const msg = error?.message || "未更新任何資料（可能登入已過期或資料庫權限不足）";
-      alert("儲存失敗！\n" + msg);
+    if (noRowUpdated && !error) {
+      // 刷新後仍 0 row → session 真的無法復原，強制重新登入
+      triggerRelogin();
+    } else if (!silent) {
+      alert("儲存失敗！\n" + (error?.message || "未更新任何資料"));
     }
   } else {
     autoSaveStatus.value = "saved";

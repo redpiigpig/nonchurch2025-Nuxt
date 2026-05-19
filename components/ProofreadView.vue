@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useSessionGuard } from "~/composables/useSessionGuard";
 import { splitAuthorRemarkLines } from "~/utils/authorRemark";
 
 const route = useRoute();
 const router = useRouter();
 const supabase = useSupabaseClient();
+const { tryRefreshSession, triggerRelogin } = useSessionGuard();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -206,22 +208,28 @@ const saveProgress = async (quiet = false) => {
         ? "in_progress"
         : "pending";
 
-  const { data, error } = await supabase
-    .from("articles")
-    .update({ proofread_annotations: annotations.value, proofread_status: newStatus })
-    .eq("id", article.value.id)
-    .select("id");
+  const doWrite = () =>
+    supabase
+      .from("articles")
+      .update({ proofread_annotations: annotations.value, proofread_status: newStatus })
+      .eq("id", article.value.id)
+      .select("id");
+
+  let { data, error } = await doWrite();
+  if (!error && (!data || data.length === 0)) {
+    // 0 row + 無錯誤 → 多半是 token 過期被 RLS 過濾掉，先試著刷新再重試
+    if (await tryRefreshSession()) ({ data, error } = await doWrite());
+  }
 
   if (error) {
     autoSaveStatus.value = "error";
     if (quiet) console.error("[auto-save] 儲存失敗", error);
     else alert("儲存失敗：" + error.message);
   } else if (!data || data.length === 0) {
-    // RLS 過濾為 0 row：「靜默成功」陷阱的最後防線
+    // 刷新後仍 0 row → session 真的無法復原，強制重新登入
     autoSaveStatus.value = "error";
-    const msg = "⚠️ 儲存未生效（可能登入逾期或權限不足）。請重新登入後再試。";
-    if (quiet) console.warn("[auto-save] 0 row updated — possibly RLS / session expired");
-    else alert(msg);
+    if (quiet) console.warn("[auto-save] 0 row updated — session unrecoverable");
+    triggerRelogin();
   } else {
     proofreadStatus.value = newStatus;
     autoSaveStatus.value = "saved";
@@ -240,21 +248,27 @@ const submitComplete = async () => {
   if (!completeDate.value) return alert("請填寫校對日期");
 
   saving.value = true;
-  const { data, error } = await supabase
-    .from("articles")
-    .update({
-      proofread_annotations: annotations.value,
-      proofread_status: "completed",
-      proofread_by: completeName.value.trim(),
-      proofread_date: completeDate.value,
-    })
-    .eq("id", article.value.id)
-    .select("id");
+  const doWrite = () =>
+    supabase
+      .from("articles")
+      .update({
+        proofread_annotations: annotations.value,
+        proofread_status: "completed",
+        proofread_by: completeName.value.trim(),
+        proofread_date: completeDate.value,
+      })
+      .eq("id", article.value.id)
+      .select("id");
+
+  let { data, error } = await doWrite();
+  if (!error && (!data || data.length === 0)) {
+    if (await tryRefreshSession()) ({ data, error } = await doWrite());
+  }
 
   if (error) {
     alert("送出失敗：" + error.message);
   } else if (!data || data.length === 0) {
-    alert("⚠️ 送出未生效（可能登入逾期或權限不足）。請重新登入後再試。");
+    triggerRelogin();
   } else {
     proofreadStatus.value = "completed";
     proofreadBy.value = completeName.value.trim();

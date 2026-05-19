@@ -21,10 +21,12 @@
     │   ├── HomeView.vue
     │   ├── MainLayout.vue
     │   ├── ProofreadView.vue
+    │   ├── ReloginModal.vue
     │   └── SubmissionForm.vue
     ├── composables/
     │   ├── useEditorMode.js
-    │   └── useLanguage.js
+    │   ├── useLanguage.js
+    │   └── useSessionGuard.js
     ├── data/
     │   ├── authors.js
     │   ├── issues.js
