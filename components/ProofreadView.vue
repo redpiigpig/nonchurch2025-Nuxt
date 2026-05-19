@@ -276,6 +276,17 @@ const submitComplete = async () => {
     showCompleteModal.value = false;
     completeConfirmed.value = false;
     alert("✅ 校對完成！");
+    // 背景寄管理員通知信，失敗不影響使用者
+    $fetch("/api/notify-proofread-complete", {
+      method: "POST",
+      body: {
+        article_id: article.value.id,
+        title: article.value.title,
+        proofread_by: completeName.value.trim(),
+        proofread_date: completeDate.value,
+        annotation_count: annotations.value.length,
+      },
+    }).catch((e) => console.warn("[notify] 校對完成通知寄送失敗:", e));
   }
   saving.value = false;
 };

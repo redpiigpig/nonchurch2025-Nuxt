@@ -509,16 +509,19 @@
     │   │   └── generate_docx.cpython-314.pyc
     │   ├── footnote_stats.mjs
     │   ├── generate_docx.py
+    │   ├── insert_interview_article.cjs
     │   ├── merge_pdfs.py
     │   ├── migrate_content_to_html.mjs
     │   ├── normalize_footnotes.mjs
     │   ├── patch_docx.py
+    │   ├── query_interviews.cjs
     │   ├── rebuild_issue_docx.cjs
     │   ├── regenerate_favicon.cjs
     │   ├── render_meta_docx.py
     │   ├── retranslate_issue8.cjs
     │   ├── seed_finance.mjs
     │   ├── seed_meta_articles.mjs
+    │   ├── transcribe_interview_gemini.py
     │   └── translate_issue8_meta.cjs
     ├── server/
     │   ├── api/
@@ -532,6 +535,8 @@
     │   │   ├── media.js
     │   │   ├── media-assets.js
     │   │   ├── merge-pdfs.post.js
+    │   │   ├── notify-proofread-complete.post.js
+    │   │   ├── notify-proofreader-reply.post.js
     │   │   ├── send-newsletter.post.js
     │   │   ├── submission-lookup.post.js
     │   │   ├── submit.post.js
@@ -539,6 +544,7 @@
     │   │   ├── subscribe-print.post.js
     │   │   └── unsubscribe.post.js
     │   └── utils/
+    │       └── notifyAdmin.js
     ├── stores/
     │   ├── 無境界者雜誌/
     │   │   ├── 01-第一期/

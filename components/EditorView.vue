@@ -1582,17 +1582,23 @@ const applyReplacement = (ann) => {
     const newHtml = currentHtml.replace(selectedText, replaceWith);
     editor.value?.commands.setContent(newHtml);
     form.value.content = newHtml;
+    // 記住使用者實際打字的回覆（用於通知判斷）
+    const userTypedReply = (annEditorNotes.value[ann.id] || "").trim();
     // 自動標記為已解決
     const idx = proofreadAnnotations.value.findIndex((a) => a.id === ann.id);
     if (idx !== -1) {
       proofreadAnnotations.value[idx] = {
         ...proofreadAnnotations.value[idx],
         resolved: true,
-        editorNote: annEditorNotes.value[ann.id] || `已替換為：${replaceWith}`,
+        editorNote: userTypedReply || `已替換為：${replaceWith}`,
         editorAction: "adopted",
       };
     }
     activeAnnId.value = null;
+    // 使用者有打回覆才通知校對員
+    if (userTypedReply) {
+      notifyProofreaderReply(ann, userTypedReply, "adopted", replaceWith);
+    }
   } else {
     alert("找不到標記的原文，可能內文已被修改，請手動更改。");
   }
@@ -1601,10 +1607,11 @@ const applyReplacement = (ann) => {
 const resolveAnnotation = async (ann) => {
   const idx = proofreadAnnotations.value.findIndex((a) => a.id === ann.id);
   if (idx === -1) return;
+  const userTypedReply = (annEditorNotes.value[ann.id] || "").trim();
   proofreadAnnotations.value[idx] = {
     ...proofreadAnnotations.value[idx],
     resolved: true,
-    editorNote: annEditorNotes.value[ann.id] || "",
+    editorNote: userTypedReply,
     editorAction: "resolved",
   };
   // 自動儲存 annotations 回資料庫
@@ -1617,6 +1624,26 @@ const resolveAnnotation = async (ann) => {
   else if (!r1 || r1.length === 0)
     console.warn("[resolveAnnotation] 0 row updated — 可能登入逾期");
   activeAnnId.value = null;
+  // 使用者有打回覆才通知校對員
+  if (userTypedReply) {
+    notifyProofreaderReply(ann, userTypedReply, "resolved");
+  }
+};
+
+// ── 通知校對員：編輯回覆 ─────────────────────────────────────────
+const notifyProofreaderReply = (ann, reply, action, replacedWith) => {
+  $fetch("/api/notify-proofreader-reply", {
+    method: "POST",
+    body: {
+      article_id: form.value.id,
+      article_title: form.value.title,
+      selected_text: ann.selectedText,
+      proofreader_note: ann.note,
+      editor_reply: reply,
+      action,
+      replaced_with: replacedWith,
+    },
+  }).catch((e) => console.warn("[notify] 校對員回覆通知寄送失敗:", e));
 };
 
 const unresolveAnnotation = async (id) => {

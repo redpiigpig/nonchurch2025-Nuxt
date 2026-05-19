@@ -43,6 +43,26 @@ export default defineEventHandler(async (event) => {
     parsed_html: parsed_html || null,
   };
 
+  // ── 共用：寄出管理員通知（不阻塞主流程）─────────────────────────
+  const fireNotify = async (mode, submissionId) => {
+    const html = adminMailTemplate({
+      title: mode === "updated" ? "📝 投稿已修改" : "📥 新投稿送達",
+      lines: [
+        { label: "標題", value: title },
+        { label: "投稿者", value: `${real_name}${display_name ? `（${display_name}）` : ""}` },
+        { label: "Email", value: email },
+        { label: "類別", value: category },
+        { label: "期別", value: issue_number ? `Vol.${issue_number}` : "未指定" },
+        { label: "投稿 ID", value: submissionId },
+      ],
+      link: { url: `${config.siteUrl}/admin/submissions_manager`, label: "前往投稿管理" },
+    });
+    await notifyAdmin({
+      subject: mode === "updated" ? `投稿修改：${title}` : `新投稿：${title}`,
+      html,
+    });
+  };
+
   // ── 修改模式 ──────────────────────────────────────────────────────
   if (submission_id) {
     // 先驗證 email 對應
@@ -65,6 +85,7 @@ export default defineEventHandler(async (event) => {
       .eq("id", submission_id);
 
     if (error) throw createError({ statusCode: 500, message: error.message });
+    fireNotify("updated", submission_id).catch(() => {}); // 背景寄信，失敗不影響回應
     return { success: true, id: submission_id, mode: "updated" };
   }
 
@@ -76,5 +97,6 @@ export default defineEventHandler(async (event) => {
     .single();
 
   if (error) throw createError({ statusCode: 500, message: error.message });
+  fireNotify("created", data.id).catch(() => {});
   return { success: true, id: data.id, mode: "created" };
 });
