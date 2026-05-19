@@ -40,3 +40,8 @@ supabase/.temp/
 
 # Browser cookies / sensitive browser data
 cookies.txt
+
+# Interview article skill - 中間檔（音檔切片、轉錄逐字稿、暫存 JSON）
+_tmp_audio/
+scripts/_iv_*.json
+scripts/_interview_dump.json

@@ -103,7 +103,12 @@ description: 把《無境界者》本期人物專訪的「音檔 + 訪綱 docx�
 ### 結構檢查清單
 
 - [ ] **三大區塊順序固定**：`訪談簡介` → `受訪者簡介` → 〔可選作品/組織簡介〕→ 訪談主體（多個 h3）→ `訪談後記`
-- [ ] `<div class="custom-divider"></div>` **只在「大區塊之間」用**，訪談主體的 h3 之間不放
+- [ ] `<div class="custom-divider"></div>` **只在以下三類交界處放**，其他地方都不放：
+  - 訪談簡介 → 受訪者簡介
+  - 受訪者簡介（或作品/組織簡介）→ 第一個訪談主體 h3
+  - 最後一個訪談主體段落 → 訪談後記
+  
+  **訪談主體內部多個 h3 之間「絕對」不放 hr**（這是新手最容易犯的錯）。換句話說：「簡介類 h3 後面」+「訪談後記前面」放 hr，其他都不放。
 - [ ] 訪談主體 **3-5 個 h3 小節**，依訪綱主題分類（不要全部塞一個 h3）
 - [ ] 每節 **2-5 個獨立的 `<strong>訪問者：</strong>` 問句**，回答每 1-3 段一斷
 - [ ] **段落間不重貼說話者標籤**（只在新發言才貼）
@@ -287,7 +292,37 @@ done
 10. **挑重點句加粗**：每節 1-3 句
 
 ### Step 3 — 寫進 Supabase
-用 [`scripts/insert_interview_article.cjs`](../../../scripts/insert_interview_article.cjs)（如不存在則建立，連線方式同 [project_db](../../../../C:/Users/user/.claude/projects/c--Users-user-Desktop-nonchurch-nuxt/memory/project_db.md)）：
+
+**優先用 REST 版**：[`scripts/insert_interview_article.mjs`](../../../scripts/insert_interview_article.mjs)（走 supabase-js + `SUPABASE_SERVICE_KEY`，不需直連 DB）：
+
+```bash
+node scripts/insert_interview_article.mjs scripts/_iv_9-6.json
+```
+
+**為什麼用 REST 不用 pg 直連**：Supabase 的直連 DB（`db.{ref}.supabase.co`）已只解析 IPv6 位址；本機 ISP 若無 IPv6 出口，Node `pg` 會出 `ENOTFOUND`。`insert_interview_article.cjs`（pg 版）保留供有 IPv6 環境 / pgcli debug 使用。
+
+JSON 描述檔放在 `scripts/_iv_{id}.json`（已在 `.gitignore`，不會 push）：
+
+```json
+{
+  "id": "9-6循道精神的同行者",
+  "title": "循道精神的同行者",
+  "subtitle": "吳昶興教授追憶龐君華會督",
+  "issue": 9,
+  "author": "受訪者：吳昶興副教授<br>訪問者：張辰瑋",
+  "author_display": "吳昶興副教授",
+  "keyword": "🌿關鍵字：...",
+  "summary": "...",
+  "remark": "訪問時間：YYYY年MM月DD日<br>訪問地點：XXX",
+  "content": "<h3>訪談簡介</h3>...🌏</p>",
+  "footnotes": [{"id":"1","text":"...","refId":"ref-1"}],
+  "sort_order": 6
+}
+```
+
+腳本自動填 `category=人物專訪`、`section=特稿專區`、`article_type=regular`、`is_published=false`。
+
+如要直連 pg（pg 版）：
 
 ```js
 require('dotenv').config();
@@ -408,7 +443,149 @@ node scripts/query_interviews.cjs
 
 ---
 
-## 九、不適用此 Skill 的情況
+## 九、坑與應對（Lessons learned）
+
+> 從 9-6 / 9-7 吳昶興教授兩篇訪談整理時踩過的坑歸納而來。下次接 Job 前先掃一遍。
+
+### 9.1 找不到音檔 → Google Drive File Stream 串流模式
+
+Drive 預設只在雲端、本地是 stub。`find` / `ls` 看得到名稱，但 `ffprobe` / `cat` 會回「檔案大小 0」或讀不到內容。
+
+**對策**：請使用者在檔案總管選取要用的音檔 → 右鍵 → 「**永遠保留在這部裝置上**」，等檔名前出現綠色勾勾（已下載到本地）再開工。`ls -la` 看到實際 size > 0 才算 OK。
+
+### 9.2 Gemini free-tier 配額耗盡 → 多重 fallback
+
+`.env` 的 `GEMINI_API_KEYS` 即使逗號分隔放多把，**每 key 仍各自每天 20 req**（per-key per-day per-model）。平行 7 段轉錄會把 5 把活 key 全部跑光。
+
+- **過期 key 要清掉**：腳本會逐 key 嘗試，若某 key 已 expired 會白白浪費 fallback 嘗試（看到「API key expired」就該從 `.env` 移除那把）
+- **24 小時滑動窗口**：reset 不是 calendar day，是 24h sliding window。隔天再跑會通
+- **付費版替代**：升級到付費 tier 一次 ~$0.5 內跑完一場訪談的音檔
+- **本地 Whisper 替代**（見 9.3）
+
+### 9.3 Whisper fallback：本地 GPU 跑 faster-whisper
+
+當 Gemini 配額耗光、需要立刻跑時，用 [`scripts/transcribe_interview_whisper.py`](../../../scripts/transcribe_interview_whisper.py)：
+
+```bash
+python scripts/transcribe_interview_whisper.py "_tmp_audio/iv_wu/83_part1.m4a" \
+  --out "_tmp_audio/iv_wu/raw_83_p1.txt" \
+  --model large-v3 --device cuda --compute-type float16
+```
+
+**設置坑**：
+- 缺 `cublas64_12.dll` → `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12`
+- pip 裝完 DLL 還是找不到 → 要設 `PATH` 環境變數，**不只 `os.add_dll_directory`**（CTranslate2 是 C++ 模組，`add_dll_directory` 對它無效）。腳本已內建 PATH 注入
+- `nvidia.cublas.__file__` 是 `None`（namespace package），改用 `mod.__path__` list
+- 沒有 NVIDIA GPU → `--device cpu --compute-type int8`，但 large-v3 在 CPU 約 5-10x realtime（70 分鐘音檔要 6-12 小時，難等）
+
+**Whisper 輸出特性**：
+- **沒有說話者標籤**（faster-whisper 沒 diarization）→ Claude 整理時靠語意分辨「辰瑋（問問題）」vs「吳教授（長段敘述）」
+- **可能 hallucinate**：尾段有大量「嗯，嗯，嗯，嗯……」重複（VAD/silence 觸發迴圈），整理時整段刪
+- 大致準確度跟 Gemini 2.5 Flash 差不多，但 Gemini 配上訪綱 docx context 時對人名/專名辨識較強
+
+### 9.4 Supabase 直連 DB IPv6-only → 改用 REST API
+
+`db.{ref}.supabase.co` 只解析到 IPv6 位址。本機 ISP 若無 IPv6 出口，Node `pg` 直連會 `ENOTFOUND`。
+
+**對策**：用 `supabase-js` + `SUPABASE_SERVICE_KEY` 走 HTTPS REST：
+```js
+import { createClient } from "@supabase/supabase-js";
+const supabase = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+await supabase.from("articles").upsert(row, { onConflict: "id" }).select(...);
+```
+
+[`scripts/insert_interview_article.mjs`](../../../scripts/insert_interview_article.mjs) 是此版本。pg 版（cjs）保留供 IPv6 環境用。
+
+### 9.5 多訪談同場：一位受訪者跨主題穿插
+
+若一位受訪者一次回答了兩個主題（分屬不同訪綱），對話內容會「混著聊」——主題切換沒有明確邊界，受訪者可能在 B 主題講到一半跳回 A 主題。
+
+**對策**：
+1. **開工前先讀兩份訪綱**，整理「關鍵字差異表」：
+   - A 主題關鍵字：龐君華、城中教會、循道精神、義務傳道……
+   - B 主題關鍵字：1970年代、自立、唐培禮、方大林、東吳大學……
+2. **切音檔做 Gemini 轉錄時，依預判每段大致屬哪個主題，選對應訪綱當 context**（避免 Gemini 用錯主題的訪綱措辭）
+3. **整理時純按主題拆，不照音檔順序**——同一個 Q 可能拆給兩篇
+4. **「個人自述」如何拆**：若整期專輯有特定主題（如紀念某位前輩），則「受訪者自述 + 對該前輩的描述」全部歸到紀念那篇，其他純歷史內容歸另一篇
+5. **每篇都要有完整訪談簡介、受訪者簡介、訪談後記**，不能因兩篇共用受訪者就省略一篇的簡介
+
+### 9.6 ⚠️ Subagent 整理 bio 時會捏造事實
+
+委派 subagent 整理 HTML 時，**subagent 會把訪談沒提的細節（生卒年、學歷系所、書名、過世年）當「合理推測」寫進 bio 和 footnotes**。常見假事實類型：
+
+| 類型 | 範例 |
+|------|------|
+| 生卒年捏造 | 龐君華「1958-2026」（實 1957/10/3 生）；Thornberry「2025」（實 2017） |
+| 中間名捏造 | Thornberry「Milo **Lynn**」（實 Milo **Lancaster**） |
+| 系所捏造 | 「東吳大學**物理系**」（吳老師只說讀東吳，沒提系所） |
+| 書名捏造 | 「《從中國到日本：早期景教東傳研究》」（博客來無此書） |
+| 漢字音轉錯 | 「曾紀一」（實 誠靜怡）、「戴文俊」（實 戴俊男）、「王崔濤」（實 王翠濤）、「史彌迪」（實 彌迪理 Daniel Beeby）、「Donald Wilson」（實 H. Daniel Beeby）|
+| 機構錯位 | 「新加坡善醫神學院」（吳老師口誤，實 新加坡三一神學院 TTC）；「《國事宣言》」（實〈國是聲明〉）|
+| 術語誤聽未修 | 「進神」「進科講道」（實「浸神」「經課講道」）|
+
+**對策**（每次接 Job 一定要做的 fact-check 階段）：
+1. **bio 預設保守**：只寫訪談原話明確提到的內容；其他用「現任 X」「任教於 Y」這類可驗證敘述
+2. **所有人名 / 書名 / 機構名 / 年份**逐項 WebSearch 查證：
+   - 受訪者本人：機構官網、博客來作者頁
+   - 提及的歷史人物：維基百科、新使者雜誌、教會官網
+   - 提及的書：博客來、Google Books、機構出版品
+   - 提及的機構：官網「歷史沿革」「歷任」頁
+3. **腳注中 subagent 寫「按：受訪者口誤」「按音譯」「（暫名）」**這類引導語，全部刪除——這些是 subagent 在掩飾不確定。要嘛直接用確定的版本，要嘛整段重寫成保守敘述
+4. **過世年特別小心**：Brueggemann 2025、Thornberry 2017、Beeby 2017 都很容易混淆
+5. **發布前讓使用者預覽**：請使用者開 `/admin/proofread/{id}` 逐項核對 bio 和 footnotes，主動列出「我用 WebSearch 查不到的人事物」請使用者口頭確認
+
+### 9.8 hr（custom-divider）位置：只放三處
+
+新手最常犯的錯：把訪談主體每個 h3 之間都塞 `<div class="custom-divider"></div>`。實際上現有 6 篇範本（4-4 / 4-5 / 6-4 / 6-5 / 7-5 / 8-4）的 hr **只放三處**：
+
+1. 訪談簡介結束 → 受訪者簡介 之前
+2. 受訪者簡介（或作品/組織簡介）結束 → 第一個訪談主體 h3 之前
+3. 最後一個訪談主體段落結束 → 訪談後記 之前
+
+訪談主體內部多個 h3（小節）之間「**絕對不放**」hr。連結兩節靠 h3 標題本身就足夠視覺分隔。
+
+整理時若 subagent 亂塞，用這段 JS 一鍵清理：
+```js
+let c = article.content;
+c = c.replace(/<div class=\"custom-divider\"><\/div>\s*/g, '');
+const parts = c.split(/(?=<h3>)/);
+const out = [parts[0] || ''];
+for (let i = 1; i < parts.length; i++) {
+  const prevH3 = (parts[i-1].match(/^<h3>([^<]+)<\/h3>/)||[])[1] || '';
+  const curH3 = (parts[i].match(/^<h3>([^<]+)<\/h3>/)||[])[1] || '';
+  if (/簡介$/.test(prevH3) || /^(訪談後記|結語|採訪後記)/.test(curH3)) {
+    out.push('\n<div class="custom-divider"></div>\n\n' + parts[i]);
+  } else {
+    out.push(parts[i]);
+  }
+}
+article.content = out.join('');
+```
+
+### 9.7 教會 / 神學領域常見聽錯修正（吳昶興訪談新增）
+
+接續第八節的修正表，補：
+
+| 錯（Gemini/Whisper/subagent）| 對 |
+|---|---|
+| 進神（中華浸信會神學院簡稱）| **浸神** |
+| 進科講道 / 進科式講道 | **經課講道 / 經課式講道**（Lectionary preaching）|
+| 國事宣言 / 國是宣言 | **〈國是聲明〉**（1971/12/29 長老教會發表，文件非書名所以用〈〉）|
+| 史彌迪 / Donald Wilson | **彌迪理（H. Daniel Beeby, 1920-2017）**，英國循道公會宣教士，1972/3 被驅逐 |
+| 善醫神學院（新加坡）| **新加坡三一神學院（Trinity Theological College, Singapore）**，1948 成立，聖公會 / 衛理 / 長老 / 信義 四宗派聯合 |
+| 王崔濤 | **王翠濤**（草頭翠、三點水濤）|
+| 戴文俊 | **戴俊男**（衛理神學研究院創院院長，1999/9/1 開學）|
+| 曾紀一 | **誠靜怡（1881-1939）** |
+| 留亭坊 / 劉廷方 | **劉廷芳（1891-1947）** |
+| 魁建華 | **蕢建華**（第一任華人會督，1987-1992 / 2004-2010）|
+| 黃寬玉 / 黃冠玉 | **黃寬裕**（現任會督，2022-）|
+| Milo Lynn Thornberry, 1937-2025 | **Milo Lancaster Thornberry, 1937-2017**（唐培禮）|
+| 1972 年正式自立 | **1972/4 中止隸屬、1973 年完成自立**（依《衛理重大記事》）|
+| 1987 改會督制 | 對的；蕢建華為第一任華人會督 |
+
+---
+
+## 十、不適用此 Skill 的情況
 
 - 一般文章稿（非訪談） → 用 [`/admin/editor`](../../../pages/admin/editor.vue) 直接編輯
 - 投稿轉文章 → 走投稿管理流程（`/admin/submissions_manager` → 轉文章）

@@ -510,6 +510,7 @@
     │   ├── footnote_stats.mjs
     │   ├── generate_docx.py
     │   ├── insert_interview_article.cjs
+    │   ├── insert_interview_article.mjs
     │   ├── merge_pdfs.py
     │   ├── migrate_content_to_html.mjs
     │   ├── normalize_footnotes.mjs
@@ -522,6 +523,7 @@
     │   ├── seed_finance.mjs
     │   ├── seed_meta_articles.mjs
     │   ├── transcribe_interview_gemini.py
+    │   ├── transcribe_interview_whisper.py
     │   └── translate_issue8_meta.cjs
     ├── server/
     │   ├── api/
