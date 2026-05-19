@@ -295,6 +295,43 @@ const submitComplete = async () => {
   saving.value = false;
 };
 
+// ── 退回校對（從 completed 改回 in_progress / pending）──────────────
+const reopenProofread = async () => {
+  if (!article.value?.id) return;
+  if (!confirm("確定要退回校對狀態嗎？\n\n退回後將清除校對者姓名與完成日期，可重新編輯標記。")) return;
+
+  saving.value = true;
+  const newStatus = annotations.value.length > 0 ? "in_progress" : "pending";
+
+  const doWrite = () =>
+    supabase
+      .from("articles")
+      .update({
+        proofread_status: newStatus,
+        proofread_by: null,
+        proofread_date: null,
+      })
+      .eq("id", article.value.id)
+      .select("id");
+
+  let { data, error } = await doWrite();
+  if (!error && (!data || data.length === 0)) {
+    if (await tryRefreshSession()) ({ data, error } = await doWrite());
+  }
+
+  if (error) {
+    alert("退回失敗：" + error.message);
+  } else if (!data || data.length === 0) {
+    triggerRelogin();
+  } else {
+    proofreadStatus.value = newStatus;
+    proofreadBy.value = "";
+    proofreadDate.value = "";
+    alert("✅ 已退回為「" + (newStatus === "in_progress" ? "校對中" : "待校對") + "」");
+  }
+  saving.value = false;
+};
+
 // ── 編輯回覆：寫入 editorNote + 寄信給校對員 ─────────────────────────
 const sendEditorReply = async (ann) => {
   const reply = (editorReplies.value[ann.id] || "").trim();
@@ -621,6 +658,14 @@ onBeforeUnmount(() => {
         >
           ✓ 完成校對
         </button>
+        <button
+          v-else
+          class="btn btn-reopen"
+          @click="reopenProofread"
+          :disabled="saving"
+        >
+          ↩ 退回校對
+        </button>
       </div>
     </div>
 
@@ -926,6 +971,9 @@ onBeforeUnmount(() => {
 .btn-complete      { background: #27ae60; color: white; }
 .btn-complete:hover:not(:disabled) { background: #219150; }
 .btn-complete:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-reopen        { background: #e67e22; color: white; }
+.btn-reopen:hover:not(:disabled) { background: #c86d1a; }
+.btn-reopen:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── 主體 ── */
 .proofread-layout {
