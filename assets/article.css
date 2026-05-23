@@ -710,6 +710,72 @@
 }
 
 /* --------------------------------------------------------------------------
+   6b. Timeline Table (年表 — 三欄不等寬版)
+   -------------------------------------------------------------------------- */
+.timeline-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 30px 0;
+  font-size: 1.1rem;
+  table-layout: fixed;
+}
+
+.timeline-table thead {
+  background-color: #f2f2f2;
+}
+
+.timeline-table th {
+  padding: 10px 8px;
+  text-align: center;
+  font-weight: bold;
+  border: 1px solid #999;
+  color: #333;
+}
+
+.timeline-table td {
+  border: 1px solid #999;
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+.timeline-table td:first-child {
+  text-align: center;
+  font-weight: 600;
+  color: #555;
+  font-family: sans-serif;
+}
+
+.timeline-table col:nth-child(1) {
+  width: 5rem;
+}
+.timeline-table col:nth-child(2) {
+  width: 47%;
+}
+.timeline-table col:nth-child(3) {
+  width: 47%;
+}
+
+@media (max-width: 768px) {
+  .timeline-table {
+    font-size: 0.92rem;
+  }
+  .timeline-table th,
+  .timeline-table td {
+    padding: 6px 4px;
+  }
+  .timeline-table col:nth-child(1) {
+    width: 4rem !important;
+  }
+  .timeline-table col:nth-child(2),
+  .timeline-table col:nth-child(3) {
+    width: auto !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
    7. Info Card Component
    -------------------------------------------------------------------------- */
 .info-card {
