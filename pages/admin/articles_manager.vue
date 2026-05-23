@@ -880,7 +880,7 @@ const fetchPendingSubmissions = async () => {
   loadingSubmissions.value = true;
   const { data } = await supabase
     .from("submissions")
-    .select("id, title, real_name, display_name, category, created_at, word_url, parsed_html, article_summary, keywords, author_bio")
+    .select("id, title, real_name, display_name, category, created_at, word_url, pdf_url, article_summary, keywords, author_bio")
     .eq("status", "accepted")
     .eq("issue_number", selectedIssueId.value);
   pendingSubmissions.value = data || [];
@@ -895,84 +895,80 @@ const fetchPendingSubmissions = async () => {
 // 當選擇期數變更時重新抓
 watch(selectedIssueId, fetchPendingSubmissions);
 
+// 不再做線上 AI 轉換／轉錄。建立空白草稿（或關聯到現有文章），
+// 內容由編輯後續在編輯頁手動填入（音檔以本地 interview-article skill 等流程處理）。
 const convertToArticle = async (sub) => {
   const mode = submissionMode.value[sub.id] || "new";
   const isExisting = mode === "existing";
   const targetId = submissionTargetId.value[sub.id];
 
-  if (isExisting && !targetId) return alert("請先選擇要更新的目標文章");
-  if (!sub.parsed_html?.trim()) return alert("此投稿沒有已解析的 Word 內容，無法轉換");
-  if (!confirm(`確定要將「${sub.title}」${isExisting ? `的內容更新到文章 ${targetId}` : "建立為新文章草稿"}？`)) return;
+  if (isExisting && !targetId) return alert("請先選擇要關聯的目標文章");
+  if (!confirm(`確定要將「${sub.title}」${isExisting ? `關聯到文章 ${targetId}` : "建立為空白草稿"}？`)) return;
 
   convertingId.value = sub.id;
   try {
-    // ── 1. 呼叫 AI 分類 ──────────────────────────────────────
-    const issueInfo = issuesOptions.value.find((i) => i.id === selectedIssueId.value);
-    const issueTitle = issueInfo?.title || "";
+    if (isExisting) {
+      // 關聯既有文章：不修改文章內容，只更新投稿狀態
+      const { data: sd, error: subErr } = await supabase
+        .from("submissions")
+        .update({ status: "converted", article_id: targetId })
+        .eq("id", sub.id)
+        .select("id");
+      if (subErr) throw subErr;
+      if (!sd || sd.length === 0) throw new Error("投稿狀態未更新（可能登入逾期或權限不足）");
+      pendingSubmissions.value = pendingSubmissions.value.filter((s) => s.id !== sub.id);
+      await initData();
+      alert(`✅ 已關聯到文章：${targetId}`);
+      return;
+    }
+
+    // 建立空白草稿：帶入投稿 metadata，content 留空，後續手動填寫
     const issueArticles = editedArticles.value.filter((a) => a.issue === selectedIssueId.value);
     const maxSeq = issueArticles.reduce((max, a) => {
       const m = a.id.match(/-(\d+)/);
       return m ? Math.max(max, parseInt(m[1], 10)) : max;
     }, 0);
     const nextSeq = maxSeq + 1;
-
-    let classified = null;
-    try {
-      const res = await $fetch("/api/classify-article", {
-        method: "POST",
-        body: { html: sub.parsed_html, issueNumber: selectedIssueId.value, issueTitle, nextSeq },
-      });
-      classified = res.classified;
-    } catch (aiErr) {
-      if (!confirm(`⚠️ AI 分類失敗（${aiErr.message}）\n要改用原始內容繼續轉換嗎？`)) return;
-    }
-
-    // ── 2. 組合文章資料 ──────────────────────────────────────
     const authorName = sub.display_name || sub.real_name;
     const section = submissionSection.value[sub.id] || "主題廣場";
-    const articleData = {
-      title:    classified?.title    || sub.title,
-      author:   classified?.author   || authorName,
-      subtitle: classified?.subtitle || "",
-      category: classified?.category || sub.category,
-      summary:  classified?.summary  || sub.article_summary || "",
-      keyword:  classified?.keyword  || (Array.isArray(sub.keywords) ? sub.keywords.join("、") : (sub.keywords || "")),
-      content:  classified?.content  || sub.parsed_html,
-      footnotes: classified?.footnotes || [],
-      seo: classified?.seo ? { description: classified.seo.description, keywords: classified.seo.keywords } : {},
+    const titleShort = sub.title.replace(/\s/g, "").slice(0, 4);
+    const newId = `${selectedIssueId.value}-${nextSeq}${titleShort}`;
+
+    const newArticle = {
+      id: newId,
+      issue: selectedIssueId.value,
+      sort_order: nextSeq,
+      title: sub.title,
+      author: authorName,
+      subtitle: "",
+      category: sub.category,
+      summary: sub.article_summary || "",
+      keyword: Array.isArray(sub.keywords) ? sub.keywords.join("、") : (sub.keywords || ""),
+      content: "",
+      footnotes: [],
+      seo: {},
       section,
       is_published: false,
       article_type: "regular",
     };
 
-    // ── 3a. 更新現有文章 ──────────────────────────────────────
-    if (isExisting) {
-      const { data: ud, error: updateErr } = await supabase.from("articles").update(articleData).eq("id", targetId).select("id");
-      if (updateErr) throw updateErr;
-      if (!ud || ud.length === 0) throw new Error("文章未更新（可能登入逾期或權限不足）");
-      const { data: sd, error: subErr } = await supabase.from("submissions").update({ status: "converted", article_id: targetId }).eq("id", sub.id).select("id");
-      if (subErr) throw subErr;
-      if (!sd || sd.length === 0) throw new Error("投稿狀態未更新（可能登入逾期或權限不足）");
-      pendingSubmissions.value = pendingSubmissions.value.filter((s) => s.id !== sub.id);
-      await initData();
-      alert(`✅ 已成功更新文章：${targetId}`);
-    } else {
-      // ── 3b. 建立新文章 ──────────────────────────────────────
-      const titleShort = articleData.title.replace(/\s/g, "").slice(0, 4);
-      const newId = `${selectedIssueId.value}-${nextSeq}${titleShort}`;
-      const newArticle = { id: newId, issue: selectedIssueId.value, sort_order: nextSeq, ...articleData };
-      const { data: nd, error: insertErr } = await supabase.from("articles").insert([newArticle]).select("id");
-      if (insertErr) throw insertErr;
-      if (!nd || nd.length === 0) throw new Error("文章未建立（可能登入逾期或權限不足）");
-      const { data: sd2, error: subErr2 } = await supabase.from("submissions").update({ status: "converted", article_id: newId }).eq("id", sub.id).select("id");
-      if (subErr2) throw subErr2;
-      if (!sd2 || sd2.length === 0) throw new Error("投稿狀態未更新（可能登入逾期或權限不足）");
-      pendingSubmissions.value = pendingSubmissions.value.filter((s) => s.id !== sub.id);
-      await initData();
-      alert(`✅ 已成功建立草稿：${newId}`);
-    }
+    const { data: nd, error: insertErr } = await supabase.from("articles").insert([newArticle]).select("id");
+    if (insertErr) throw insertErr;
+    if (!nd || nd.length === 0) throw new Error("文章未建立（可能登入逾期或權限不足）");
+
+    const { data: sd2, error: subErr2 } = await supabase
+      .from("submissions")
+      .update({ status: "converted", article_id: newId })
+      .eq("id", sub.id)
+      .select("id");
+    if (subErr2) throw subErr2;
+    if (!sd2 || sd2.length === 0) throw new Error("投稿狀態未更新（可能登入逾期或權限不足）");
+
+    pendingSubmissions.value = pendingSubmissions.value.filter((s) => s.id !== sub.id);
+    await initData();
+    alert(`✅ 已建立空白草稿：${newId}（請至編輯頁填入內容）`);
   } catch (err) {
-    alert("❌ 轉換失敗：" + err.message);
+    alert("❌ 建立失敗：" + err.message);
   } finally {
     convertingId.value = null;
   }
@@ -1228,7 +1224,7 @@ const convertToArticle = async (sub) => {
         <h3>📥 待轉換投稿
           <span class="pending-count" v-if="pendingSubmissions.length > 0">{{ pendingSubmissions.length }}</span>
         </h3>
-        <p class="pending-desc">已接受、尚未轉換為文章的投稿。設定分區後點「跑 AI 分類」即可建立草稿。</p>
+        <p class="pending-desc">已接受、尚未轉文章的投稿。設定分區後點「建立草稿」會建立空白文章稿件，內容請至編輯頁手動填入。</p>
       </div>
 
       <div v-if="loadingSubmissions" class="pending-loading">載入中...</div>
@@ -1241,7 +1237,7 @@ const convertToArticle = async (sub) => {
             <tr>
               <th>標題 / 作者</th>
               <th>類型</th>
-              <th>轉換設定</th>
+              <th>處理設定</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -1292,7 +1288,7 @@ const convertToArticle = async (sub) => {
                     :disabled="convertingId === sub.id"
                     @click="convertToArticle(sub)"
                   >
-                    {{ convertingId === sub.id ? 'AI 處理中...' : '✨ AI 轉換' }}
+                    {{ convertingId === sub.id ? '處理中...' : (submissionMode[sub.id] === 'existing' ? '🔗 關聯文章' : '📝 建立草稿') }}
                   </button>
                 </div>
               </td>
