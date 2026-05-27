@@ -342,7 +342,13 @@ class ProfessionalDocxGenerator:
 
     def _add_footnote_ref(self, paragraph, fn_num_str):
         """在段落插入 Word 腳注引用標記（右上角小字）"""
-        fn_text  = self._fn_map.get(fn_num_str, f'[腳注 {fn_num_str}]')
+        # 找不到 key 用 [腳注 N] 佔位；找到但為空字串改用 [腳注 N 內容未填]，
+        # 避免 Word 出現完全看不出來的空腳注
+        fn_text = self._fn_map.get(fn_num_str)
+        if fn_text is None:
+            fn_text = f'[腳注 {fn_num_str}]'
+        elif not str(fn_text).strip():
+            fn_text = f'[腳注 {fn_num_str} 內容未填]'
         word_id  = self._fn_counter
         self._fn_counter += 1
         self._footnotes.append((word_id, fn_text))

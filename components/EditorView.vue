@@ -779,8 +779,10 @@ const loadArticle = async (id) => {
       summary: data.summary || "",
       content: normalizeEmojiVariant(data.content || ""),
       keyword: data.keyword || "",
-      footnotes: (data.footnotes || []).map((fn) => ({
+      footnotes: (data.footnotes || []).map((fn, idx) => ({
         ...fn,
+        // 強制 id 為 Number，避免字串拼接 bug（"6" + 1 = "61"）
+        id: Number(fn?.id) || (idx + 1),
         // 相容舊資料：若腳注文字被存成 escaped HTML，載入時還原
         text: normalizeEmojiVariant(normalizeInlineTags(fn?.text || "")),
       })),
@@ -1343,7 +1345,12 @@ const insertFootnoteRef = () => {
   ).run();
 
   // 5. 同步更新 footnotes 陣列（後方的 id +1，再於正確位置插入新空白項）
-  form.value.footnotes.forEach((fn) => { if (fn.id >= newId) fn.id += 1; });
+  //    用 Number(fn.id) 強制數值運算，避免舊資料 id 是字串時被拼接成 "61"、"611"
+  form.value.footnotes.forEach((fn) => {
+    const n = Number(fn.id) || 0;
+    if (n >= newId) fn.id = n + 1;
+    else fn.id = n;
+  });
   form.value.footnotes.splice(beforeCount, 0, { id: newId, text: "" });
 };
 
@@ -1370,6 +1377,33 @@ const addFootnote = () => {
 };
 
 const removeFootnote = (index) => {
+  const target = form.value.footnotes[index];
+  if (!target) return;
+  const removedId = Number(target.id) || (index + 1);
+  const prevMax = form.value.footnotes.length;
+
+  // 1. 同步改寫內文 HTML：移除被刪編號的引用，把較大的編號 -1
+  if (form.value.content) {
+    let html = form.value.content;
+    // 移除 <sup class="footnote-ref"><a ...>removedId</a></sup>
+    const refPattern = new RegExp(
+      `<sup\\s+class="footnote-ref"[^>]*>\\s*<a[^>]*>\\s*${removedId}\\s*</a>\\s*</sup>`,
+      "gi",
+    );
+    html = html.replace(refPattern, "");
+
+    // 從小到大把 removedId+1 ~ prevMax 全部 -1（避免覆寫）
+    for (let n = removedId + 1; n <= prevMax; n++) {
+      html = html
+        .replaceAll(`#footnote-${n}"`,    `#footnote-${n - 1}"`)
+        .replaceAll(`footnote-ref-${n}"`, `footnote-ref-${n - 1}"`)
+        .replaceAll(`>${n}</a></sup>`,    `>${n - 1}</a></sup>`);
+    }
+    form.value.content = html;
+    editor.value?.commands.setContent(html);
+  }
+
+  // 2. 移除陣列項目並重編號（強制 Number）
   form.value.footnotes.splice(index, 1);
   form.value.footnotes.forEach((fn, idx) => { fn.id = idx + 1; });
 };
@@ -1392,8 +1426,12 @@ const insertFootnoteAfter = (afterIndex) => {
     editor.value?.commands.setContent(html);
   }
 
-  // 遞增後續腳注 id
-  form.value.footnotes.forEach((fn) => { if (fn.id >= insertId) fn.id += 1; });
+  // 遞增後續腳注 id（用 Number 強制數值，避免字串拼接）
+  form.value.footnotes.forEach((fn) => {
+    const n = Number(fn.id) || 0;
+    if (n >= insertId) fn.id = n + 1;
+    else fn.id = n;
+  });
 
   // 插入新空白腳注
   form.value.footnotes.splice(afterIndex + 1, 0, { id: insertId, text: "" });
