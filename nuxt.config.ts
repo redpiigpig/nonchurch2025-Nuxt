@@ -13,7 +13,7 @@ export default defineNuxtConfig({
     supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
     gmailUser: process.env.GMAIL_USER,
     gmailAppPassword: process.env.GMAIL_APP_PASSWORD,
-    adminNotifyEmail: process.env.ADMIN_NOTIFY_EMAIL || "redpiigpig@gmail.com",
+    adminNotifyEmail: process.env.ADMIN_NOTIFY_EMAIL || "redpiigpig@gmail.com,nonchurch2025@gmail.com",
     proofreaderNotifyEmail: process.env.PROOFREADER_NOTIFY_EMAIL || "noah110742@gmail.com",
     siteUrl: process.env.SITE_URL || "https://nonchurch2025.com",
 
