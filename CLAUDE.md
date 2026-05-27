@@ -62,17 +62,33 @@ AI 獲得**明確授權**可以直接讀取 `.env` 並操作下列資源（登�
 | ProseMirror 樣式 | ~L.2513 | 主編輯器字型、行距 |
 | `.mini-editor-field` 樣式 | ~L.2818 | 腳注輸入欄樣式（與文章顯示一致） |
 
-### `server/api/export-word.post.js`（Word 匯出 API，Node.js 版）
-- **純 Node.js 實作，使用 `docx` npm 套件，不需要 Python**
-- 處理邏輯：讀取文章 JSON → 解析 HTML 內容 → 建立 Word 文件 → 回傳 base64
-- 支援格式：`<p>` / `<h2>` / `<h3>` / `<blockquote>` / `.book-quote` / `.reference-box` / `.special-box` / `.custom-divider` / `<figure>` / inline 格式
-- 圖片：顯示「【圖片】」佔位符（不下載遠端圖片）
-- 腳注：文末列表（非 Word 原生腳注）
+### `server/api/export-word.post.js` / `export-issue-word.post.js`（Word 匯出 API）
+- **三模式**，由 `WORD_EXPORT_MODE` 環境變數切換：
+  - `disabled`（線上預設）：直接回 503
+  - `local_python`：用 `child_process.exec` 跑本機 `python3 scripts/generate_docx.py`
+    （production 強制禁止）
+  - `remote_python`：把 body 轉送到外部 Python 微服務（`word-export-service/`）
+- 線上要能下載：必須部署 `word-export-service/` 到 Render（或其他支援
+  Python 的平台），並在 Vercel 設定：
+  ```
+  WORD_EXPORT_MODE=remote_python
+  WORD_EXPORT_SERVICE_URL=https://<render-service>.onrender.com
+  WORD_EXPORT_SERVICE_TOKEN=<與服務一致的 token>
+  ```
 
-### `scripts/generate_docx.py`（舊版 Python 腳本，~1800 行）
-> ⚠️ **此腳本目前未被使用**（部署平台無 Python 環境）。
-> 僅做為格式參考保留，不要在 server API 中呼叫它。
-> 若未來要移回 Python，需自架有 Python 的伺服器（如 Railway + Dockerfile）。
+### `scripts/generate_docx.py` + `scripts/render_meta_docx.py`（Python 排版引擎）
+- 真正的排版邏輯都在這兩支 Python 腳本（~2000 行）
+- 支援格式：`<p>` / `<h2>` / `<h3>` / `<blockquote>` / `.book-quote` /
+  `.reference-box` / `.special-box` / `.custom-divider` / `<figure>` / inline 格式
+- 圖片：實際下載 Cloudinary 圖片並嵌入 Word
+- 腳注：Word 原生 footnote.xml（頁底）
+- 本地與線上**共用同一份程式碼**，`word-export-service/app.py` 透過
+  `sys.path` 加 repo 根目錄後直接 import，不複製
+
+### `word-export-service/`（Render 微服務）
+- Flask wrapper（`app.py`）+ `requirements.txt` + `render.yaml`
+- 部署指南見 `word-export-service/README.md`
+- 修改 `scripts/*.py` 後 push 即會觸發 Render 自動重新部署
 
 ---
 
@@ -206,11 +222,28 @@ SITE_URL
 
 ## 八、已知問題與修復紀錄
 
-### ✅ Word 下載改用 Node.js（原 Python 腳本無法部署）
-- **問題**：`generate_docx.py` 依賴 Python + python-docx + Pillow，serverless 平台（Vercel、Render 等）無法執行。
-- **修復**：`server/api/export-word.post.js` 完全改用 `docx` npm 套件。
-- **限制**：目前圖片顯示為「【圖片】」佔位符；腳注為文末列表（非 Word 原生頁底腳注）。
-- **未來強化方向**：可在 `convertBlock('figure')` 段落加入從 Cloudinary 下載圖片並嵌入的邏輯（需加 `https` fetch）。
+### ✅ Word 下載分拆 Python 微服務（線上也能下載）
+- **問題**：原本想用純 Node.js (`docx` npm) 取代 Python，但圖片佔位符跟
+  腳注用文末清單呈現都不符合排版需求；改回 Python 後線上又因為
+  Vercel 沒有 Python runtime 而壞掉，導致長期只剩本地能下載。
+- **修復**：把 `scripts/generate_docx.py` 包成獨立的 Flask 微服務
+  （`word-export-service/`），部署到 Render，Vercel 端用
+  `WORD_EXPORT_MODE=remote_python` 轉送請求。本地照舊用
+  `local_python` 模式直接 exec。
+- **限制**：Render 免費版有 15 分鐘冷啟動（第一次下載要等 ~30 秒）。
+
+### ✅ 腳注編號 bug（`fix(editor)` bd19122）
+- **問題 1**：`insertFootnoteRef` 內 `fn.id += 1` 在 id 是字串時做拼接
+  → 6 → 61 → 611 → 6111。
+- **問題 2**：`removeFootnote` 重編陣列 id 但沒同步改寫 `form.content`
+  裡的 `<sup>` 引用，刪除後內外編號對不上。
+- **問題 3**：Python 端對「空字串內容」直接寫進 Word，產生看不見的
+  空腳注。
+- **修復**：
+  - `loadArticle` 載入時強制 `id: Number(fn.id)`
+  - 所有 `fn.id += 1` 改成 `fn.id = Number(fn.id) + 1`
+  - `removeFootnote` 補上 HTML 編號位移
+  - Python 端對空內容改顯示 `[腳注 N 內容未填]` 佔位符
 
 ### ✅ 腳注輸入欄字型與前台顯示不一致
 - **問題**：`.mini-editor-field` 使用 `font-size: inherit`（繼承 body 的 1.2rem），前台 `articles/[id]` 腳注顯示為 1rem，視覺落差大。

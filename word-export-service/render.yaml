@@ -1,0 +1,23 @@
+# Render Blueprint — 一次性建立 Word 匯出微服務
+# 使用方式：
+#   1. 把這個 repo 連到 Render（Dashboard → New → Blueprint）
+#   2. 它會讀取本檔，自動建立 Web Service
+#   3. 部署完成後拿到的 URL 設到 Vercel：
+#      WORD_EXPORT_MODE=remote_python
+#      WORD_EXPORT_SERVICE_URL=https://<service>.onrender.com
+#      WORD_EXPORT_SERVICE_TOKEN=<與此服務一致的 token>
+
+services:
+  - type: web
+    name: nonchurch-word-export
+    runtime: python
+    plan: free
+    rootDir: word-export-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: WORD_EXPORT_SERVICE_TOKEN
+        sync: false  # 在 Dashboard 手動填，避免進 git

@@ -1440,6 +1440,13 @@
     │   ├── formatSpecWatcher.js
     │   ├── geminiAPI.js
     │   └── metaTemplates.js
+    ├── word-export-service/
+    │   ├── app.py
+    │   ├── requirements.txt
+    │   ├── render.yaml
+    │   ├── .python-version
+    │   ├── .gitignore
+    │   └── README.md
     ├── app.vue
     ├── CLAUDE.md
     ├── cookies.txt
