@@ -512,6 +512,8 @@
     │   ├── insert_interview_article.cjs
     │   ├── insert_interview_article.mjs
     │   ├── merge_pdfs.py
+    │   ├── migrate_cloudinary_naming.cjs
+    │   ├── migration_map.txt
     │   ├── migrate_content_to_html.mjs
     │   ├── normalize_footnotes.mjs
     │   ├── patch_docx.py
@@ -536,6 +538,7 @@
     │   │   ├── export-word.post.js
     │   │   ├── media.js
     │   │   ├── media-assets.js
+    │   │   ├── media-download-zip.js
     │   │   ├── merge-pdfs.post.js
     │   │   ├── notify-proofread-complete.post.js
     │   │   ├── notify-proofreader-reply.post.js

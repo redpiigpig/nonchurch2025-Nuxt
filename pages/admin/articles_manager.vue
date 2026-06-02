@@ -722,7 +722,7 @@ const openImgPicker = async (article) => {
       if (seqMatch) {
         const issueNum = seqMatch[1];
         const seqNum = seqMatch[2];
-        const prefix = `issue${issueNum}_${seqNum}-`; // e.g. "issue7_5-"
+        const prefix = `${issueNum}-${seqNum}-`; // 正規命名 e.g. "7-5-"
         try {
           const res = await $fetch("/api/media", {
             method: "GET",

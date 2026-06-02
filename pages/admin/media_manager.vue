@@ -29,6 +29,26 @@ const selectedArticle = ref(null);
 const loadingUI = ref(false);
 const uploadingArt = ref(false);
 const fileInputArt = ref(null);
+const downloadingZip = ref(false);
+
+// 一鍵下載本期所有文章圖片（Cloudinary 打包成 zip）
+const downloadIssueImages = async () => {
+  if (!selectedIssue.value) return;
+  downloadingZip.value = true;
+  try {
+    const res = await $fetch("/api/media-download-zip", {
+      method: "GET",
+      query: { issue: selectedIssue.value },
+    });
+    if (!res.success) throw new Error(res.error);
+    // 直接導向簽名 zip 連結，瀏覽器自動下載
+    window.location.href = res.url;
+  } catch (err) {
+    alert("下載失敗：" + err.message);
+  } finally {
+    downloadingZip.value = false;
+  }
+};
 
 // 1. 載入期數與文章
 const loadIssuesAndArticles = async () => {
@@ -109,7 +129,7 @@ const loadArticleImages = async () => {
 
     const response = await $fetch(`/api/media`, {
       method: "GET",
-      query: { path: `articles/issue-${selectedIssue.value}` },
+      query: { path: `images/articles/issue-${selectedIssue.value}` },
     });
 
     if (response.success && response.data) {
@@ -206,11 +226,12 @@ const uploadArtImage = async (event) => {
       const issueNum = selectedIssue.value;
       const artSort = selectedArticle.value.sort_order;
       const imgOrder = nextOrder;
-      const filename = `issue${issueNum}_${artSort}-${imgOrder}`;
+      // 正規命名：images/articles/issue-{N}/{N}-{篇序}-{圖序}
+      const filename = `${issueNum}-${artSort}-${imgOrder}`;
 
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("path", `articles/issue-${issueNum}`);
+      formData.append("path", `images/articles/issue-${issueNum}`);
       formData.append("filename", filename);
 
       const uploadRes = await $fetch("/api/media", { method: "POST", body: formData });
@@ -522,6 +543,13 @@ onMounted(() => {
               Vol.{{ iss.id }} - {{ iss.title }}
             </option>
           </select>
+          <button
+            class="btn-download-issue"
+            :disabled="downloadingZip || !selectedIssue"
+            @click="downloadIssueImages"
+          >
+            {{ downloadingZip ? "打包中..." : "⬇️ 下載本期所有圖片" }}
+          </button>
         </div>
 
         <div class="selector-group list-group">
@@ -878,6 +906,26 @@ onMounted(() => {
   border-radius: 6px;
   font-size: 1rem;
   outline: none;
+}
+.btn-download-issue {
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px;
+  border: none;
+  border-radius: 6px;
+  background: #1565c0;
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-download-issue:hover:not(:disabled) {
+  background: #0d47a1;
+}
+.btn-download-issue:disabled {
+  background: #b0bec5;
+  cursor: not-allowed;
 }
 .article-list {
   flex: 1;
