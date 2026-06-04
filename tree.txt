@@ -507,6 +507,9 @@
     ├── scripts/
     │   ├── __pycache__/
     │   │   └── generate_docx.cpython-314.pyc
+    │   ├── backfill_media_assets.cjs
+    │   ├── fix_asset_folders.cjs
+    │   ├── fix_seo_images.cjs
     │   ├── footnote_stats.mjs
     │   ├── generate_docx.py
     │   ├── insert_interview_article.cjs
