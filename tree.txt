@@ -1456,7 +1456,10 @@
     ├── app.vue
     ├── CLAUDE.md
     ├── cookies.txt
-    ├── Dockerfile.wordexport  ← word-export-service 容器（Zeabur 用；刻意非標準檔名以免誤建 Nuxt）
+    ├── .github/
+    │   └── workflows/
+    │       └── keep-word-export-warm.yml  ← 定時 ping Render word-export /healthz 保溫
+    ├── Dockerfile.wordexport  ← word-export-service 容器（Docker 平台用；刻意非標準檔名以免誤建 Nuxt）
     ├── .dockerignore
     ├── nuxt.config.ts
     ├── package.json

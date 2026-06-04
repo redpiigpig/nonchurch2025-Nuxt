@@ -1,0 +1,29 @@
+# 定時 ping Render 上的 word-export 服務的 /healthz，避免免費版冷啟動（閒置 15 分鐘會休眠）。
+# 需要在 GitHub repo → Settings → Secrets and variables → Actions → Variables
+# 新增一個 Repository variable：WORD_EXPORT_SERVICE_URL = https://<你的 render 服務>.onrender.com
+# 變數沒設時這個 workflow 會自動略過，不會報錯。
+name: keep-word-export-warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # 每 10 分鐘（GitHub 排程為盡力而為，偶爾會延遲幾分鐘）
+  workflow_dispatch: {} # 也可在 Actions 頁手動觸發測試
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /healthz
+        run: |
+          url="${{ vars.WORD_EXPORT_SERVICE_URL }}"
+          if [ -z "$url" ]; then
+            echo "WORD_EXPORT_SERVICE_URL 變數尚未設定，略過（Render 部署後到 repo Variables 補上）。"
+            exit 0
+          fi
+          echo "Pinging ${url%/}/healthz ..."
+          # --max-time 90：給 Render 冷啟動喚醒的時間
+          if curl -fsS --max-time 90 "${url%/}/healthz"; then
+            echo " ✓ 服務溫熱"
+          else
+            echo " (ping 失敗，可能正在冷啟動，下次再保溫)"
+          fi
