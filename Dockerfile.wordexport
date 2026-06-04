@@ -1,10 +1,11 @@
-# Dockerfile — 「Word 匯出微服務」容器（給 Google Cloud Run 用）
+# Dockerfile.wordexport — 「Word 匯出微服務」容器（Python/Flask）
 #
-# ⚠️ 這個 Dockerfile 是給 word-export-service（Python/Flask）部署到 Cloud Run 用的，
-#    與網站本體（Nuxt → Vercel）無關。Vercel 不會使用這個檔案。
+# ⚠️ 刻意「不」叫 Dockerfile，避免 Zeabur 把它誤當成 Nuxt 網站本體的建置方式。
+#    這支只給 word-export-service 用；Nuxt 網站走自己的 Node 建置，不碰這個檔。
 #
-# build context 必須是 repo 根目錄，因為 app.py 會 import ../scripts/ 並讀取 ../templates/
-# 部署指令見 word-export-service/README.md（gcloud run deploy --source .）
+# build context 必須是 repo 根目錄（才能 COPY scripts/ 與 templates/，與本地共用同一份）。
+# 在 Zeabur：新服務 → 同一個 repo → 用環境變數 ZBPACK_DOCKERFILE_NAME=Dockerfile.wordexport 指定此檔。
+# 部署步驟見 word-export-service/README.md。
 FROM python:3.11-slim
 
 WORKDIR /app

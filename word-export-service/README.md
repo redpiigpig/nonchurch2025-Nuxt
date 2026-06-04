@@ -4,61 +4,45 @@
 微服務。Vercel 上的 Nuxt 後端在 `WORD_EXPORT_MODE=remote_python` 下會
 轉送請求過來。線上匯出的 .docx 與本地**完全相同**（同一份 Python 渲染程式）。
 
-> 部署方式擇一：**推薦 Google Cloud Run**（冷啟動 2–5 秒、免費額度大、按用量計費）。
-> 也可用 Render（見後段，免費版有 ~30 秒冷啟動）。
+> 部署方式：**推薦在同一個 Zeabur 專案內，再開一個服務**跑這支 Python（見下）。
+> 也可用 Render（見後段）或 Google Cloud Run（需綁卡）。
+
+容器化檔案：repo 根目錄的 `Dockerfile.wordexport` 與 `.dockerignore`（已備妥）。
+它會把 `word-export-service/`、`scripts/`、`templates/` 一起打包，與本地共用同一份渲染程式。
+> 檔名刻意不是標準的 `Dockerfile`，免得 Zeabur 拿它去建 Nuxt 網站本體。
 
 ---
 
-## 一、Google Cloud Run 部署步驟（推薦）
+## 一、Zeabur 部署步驟（推薦，與網站同平台）
 
-容器化檔案：repo 根目錄的 `Dockerfile` 與 `.dockerignore`（已備妥）。
-`Dockerfile` 會把 `word-export-service/`、`scripts/`、`templates/` 一起打包，
-保持與本地相同的相對結構。
+1. Zeabur Dashboard → 進入**跟網站同一個專案** → **Add Service** → **Git** → 選同一個 repo（`nonchurch2025-Nuxt`）。
+2. 這個新服務的設定：
+   - **Root Directory**：留 `/`（repo 根，才能讀到 `scripts/`、`templates/`）。
+   - 加環境變數 **`ZBPACK_DOCKERFILE_NAME = Dockerfile.wordexport`** ← 關鍵：叫 Zeabur 用這支 Dockerfile 來建這個服務。
+   - 加環境變數 **`WORD_EXPORT_SERVICE_TOKEN`** = 一段隨機字串（自己產，例如線上產生器或 `[guid]`，**勿進 git**）。
+3. 部署完成後，Zeabur 會給這個服務一個網域（Networking 分頁）：
+   - 可開 **Public Domain**（如 `xxx.zeabur.app`），或用專案內 **Private 網域**讓 Nuxt 服務內部呼叫。
+4. 到**網站（Nuxt）那個服務**的環境變數，加上：
+   ```
+   WORD_EXPORT_MODE=remote_python
+   WORD_EXPORT_SERVICE_URL=https://<word-export 服務的網域>
+   WORD_EXPORT_SERVICE_TOKEN=<與步驟 2 一模一樣的值>
+   ```
+   存檔後重新部署網站服務即可。
 
-**前置（一次性）：**
-```bash
-# 1. 安裝 gcloud CLI 後登入、設定專案（沒有專案就先在 console 建一個）
-gcloud auth login
-gcloud config set project <YOUR_PROJECT_ID>
+> 若 `ZBPACK_DOCKERFILE_NAME` 那招在你的 Zeabur 版本沒生效（建置時沒用到 Python），
+> 回報建置 log，改用「Dockerfile 路徑」設定或改 root directory 方案。
 
-# 2. 啟用所需 API
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
-```
-
-**部署（在 repo 根目錄執行）：**
-```bash
-gcloud run deploy nonchurch-word-export \
-  --source . \
-  --region asia-east1 \
-  --allow-unauthenticated \
-  --memory 512Mi \
-  --cpu 1 \
-  --timeout 120 \
-  --set-env-vars WORD_EXPORT_SERVICE_TOKEN=<貼上你產生的隨機字串>
-```
-- `--source .`：Cloud Build 會讀根目錄 `Dockerfile` 自動建映像（不需本機裝 Docker）。
-- `--allow-unauthenticated`：Vercel 呼叫時不帶 GCP 身分；改用下方的 Bearer token 把關。
-- `--region asia-east1`：台灣節點，延遲低。
-- token 產生：`openssl rand -hex 24`，**絕對不要寫進 git**。
-
-部署完成會印出服務網址，例如：
-```
-https://nonchurch-word-export-xxxxxxxxxx.a.run.app
-```
-
-**最後在 Vercel 設環境變數，再重新 Deploy：**
-```
-WORD_EXPORT_MODE=remote_python
-WORD_EXPORT_SERVICE_URL=https://nonchurch-word-export-xxxxxxxxxx.a.run.app
-WORD_EXPORT_SERVICE_TOKEN=<與 Cloud Run 上一模一樣的值>
-```
-
-**更新服務**（改了 `scripts/*.py` 或 `app.py` 之後）：重跑上面那行
-`gcloud run deploy ...` 即可（會建新版本並自動切流量）。
+**更新服務**：改了 `scripts/*.py` 或 `app.py` 後 push，Zeabur 會自動重建此服務。
 
 ---
 
-## 一-B、Render 部署步驟（替代方案）
+## 一-B、Render / Cloud Run（替代方案）
+
+- **Render**：用 `render.yaml` 藍圖（New → Blueprint），免費版有 ~30 秒冷啟動。
+- **Cloud Run**：需綁信用卡；`gcloud run deploy --source . `（但要把 `Dockerfile.wordexport` 改回 `Dockerfile` 或加 `--dockerfile` 旗標）。
+
+舊版 Render 步驟保留如下：
 
 1. 登入 Render → **New** → **Blueprint**
 2. 選 GitHub 中的這個 repo（`nonchurch2025-Nuxt`）
