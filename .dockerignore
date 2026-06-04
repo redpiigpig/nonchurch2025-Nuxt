@@ -1,0 +1,22 @@
+# Cloud Run 容器只需要 word-export-service/、scripts/、templates/
+# 其餘一律排除，縮小 build context 與映像體積
+node_modules
+.nuxt
+.output
+.git
+.vercel
+.env
+.env.*
+temp
+public
+assets
+components
+pages
+layouts
+stores
+server
+middleware
+composables
+plugins
+*.md
+!word-export-service/README.md

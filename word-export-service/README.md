@@ -1,10 +1,64 @@
-# Word 匯出微服務（部署到 Render）
+# Word 匯出微服務
 
 把 `scripts/generate_docx.py` 與 `scripts/render_meta_docx.py` 包成 Flask
 微服務。Vercel 上的 Nuxt 後端在 `WORD_EXPORT_MODE=remote_python` 下會
-轉送請求過來。
+轉送請求過來。線上匯出的 .docx 與本地**完全相同**（同一份 Python 渲染程式）。
 
-## 一、Render 部署步驟（第一次）
+> 部署方式擇一：**推薦 Google Cloud Run**（冷啟動 2–5 秒、免費額度大、按用量計費）。
+> 也可用 Render（見後段，免費版有 ~30 秒冷啟動）。
+
+---
+
+## 一、Google Cloud Run 部署步驟（推薦）
+
+容器化檔案：repo 根目錄的 `Dockerfile` 與 `.dockerignore`（已備妥）。
+`Dockerfile` 會把 `word-export-service/`、`scripts/`、`templates/` 一起打包，
+保持與本地相同的相對結構。
+
+**前置（一次性）：**
+```bash
+# 1. 安裝 gcloud CLI 後登入、設定專案（沒有專案就先在 console 建一個）
+gcloud auth login
+gcloud config set project <YOUR_PROJECT_ID>
+
+# 2. 啟用所需 API
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+```
+
+**部署（在 repo 根目錄執行）：**
+```bash
+gcloud run deploy nonchurch-word-export \
+  --source . \
+  --region asia-east1 \
+  --allow-unauthenticated \
+  --memory 512Mi \
+  --cpu 1 \
+  --timeout 120 \
+  --set-env-vars WORD_EXPORT_SERVICE_TOKEN=<貼上你產生的隨機字串>
+```
+- `--source .`：Cloud Build 會讀根目錄 `Dockerfile` 自動建映像（不需本機裝 Docker）。
+- `--allow-unauthenticated`：Vercel 呼叫時不帶 GCP 身分；改用下方的 Bearer token 把關。
+- `--region asia-east1`：台灣節點，延遲低。
+- token 產生：`openssl rand -hex 24`，**絕對不要寫進 git**。
+
+部署完成會印出服務網址，例如：
+```
+https://nonchurch-word-export-xxxxxxxxxx.a.run.app
+```
+
+**最後在 Vercel 設環境變數，再重新 Deploy：**
+```
+WORD_EXPORT_MODE=remote_python
+WORD_EXPORT_SERVICE_URL=https://nonchurch-word-export-xxxxxxxxxx.a.run.app
+WORD_EXPORT_SERVICE_TOKEN=<與 Cloud Run 上一模一樣的值>
+```
+
+**更新服務**（改了 `scripts/*.py` 或 `app.py` 之後）：重跑上面那行
+`gcloud run deploy ...` 即可（會建新版本並自動切流量）。
+
+---
+
+## 一-B、Render 部署步驟（替代方案）
 
 1. 登入 Render → **New** → **Blueprint**
 2. 選 GitHub 中的這個 repo（`nonchurch2025-Nuxt`）

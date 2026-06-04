@@ -1456,6 +1456,8 @@
     ├── app.vue
     ├── CLAUDE.md
     ├── cookies.txt
+    ├── Dockerfile          ← Cloud Run 用（word-export-service 容器，Vercel 忽略）
+    ├── .dockerignore
     ├── nuxt.config.ts
     ├── package.json
     ├── package-lock.json
