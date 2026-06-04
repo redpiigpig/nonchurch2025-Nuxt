@@ -1,5 +1,5 @@
 // 重新產生 /public 下的 favicon 系列實檔（給 Google 搜尋用）。
-// 來源：Cloudinary web_Logo.png，先 e_trim 切邊，再 c_fit 縮到 90% 留白後 c_pad 補成正方。
+// 來源：Cloudinary images/system/web_Logo.png，先 e_trim 切邊，再 c_fit 縮到 90% 留白後 c_pad 補成正方。
 // 用法：node scripts/regenerate_favicon.cjs
 
 const fs = require("fs");
@@ -7,7 +7,7 @@ const path = require("path");
 const pngToIco = require("png-to-ico").default;
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
-const SOURCE = "v1774248992/web_Logo.png";
+const SOURCE = "images/system/web_Logo.png";
 const BASE = "https://res.cloudinary.com/nonchurch2025/image/upload";
 
 // 切邊 → 縮到目標尺寸的 90%（留 5% 邊框） → 補正方

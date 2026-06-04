@@ -4,9 +4,9 @@ import { useLanguage } from "~/composables/useLanguage";
 
 const { currentLang } = useLanguage();
 
-const IMG_BOOK = "https://res.cloudinary.com/nonchurch2025/image/upload/v1776522457/000605878_01_500_500-removebg-preview.png";
-const IMG_CAMP = "https://res.cloudinary.com/nonchurch2025/image/upload/v1776521960/2025%E7%84%A1%E5%A2%83%E7%95%8C%E8%80%85%E6%94%A4%E4%BD%8D.jpg";
-const IMG_LECTURE = "https://res.cloudinary.com/nonchurch2025/image/upload/v1776521965/2025%E6%BC%94%E8%AC%9B%E6%9C%83%E5%90%88%E7%85%A7.jpg";
+const IMG_BOOK = "https://res.cloudinary.com/nonchurch2025/image/upload/images/system/000605878_01_500_500-removebg-preview.png";
+const IMG_CAMP = "https://res.cloudinary.com/nonchurch2025/image/upload/images/system/2025%E7%84%A1%E5%A2%83%E7%95%8C%E8%80%85%E6%94%A4%E4%BD%8D.jpg";
+const IMG_LECTURE = "https://res.cloudinary.com/nonchurch2025/image/upload/images/system/2025%E6%BC%94%E8%AC%9B%E6%9C%83%E5%90%88%E7%85%A7.jpg";
 
 const contentMap = {
   "zh-TW": {

@@ -174,7 +174,7 @@ const editLink = computed(() => {
       <div class="logo">
         <NuxtLink :to="isEditMode ? '/admin/home' : '/'">
           <img
-            :src="cloudinaryUrl('https://res.cloudinary.com/nonchurch2025/image/upload/Header_Logo.png', CLD.logoIcon)"
+            :src="cloudinaryUrl('https://res.cloudinary.com/nonchurch2025/image/upload/images/system/Header_Logo.png', CLD.logoIcon)"
             alt="無境界者雜誌 Logo"
             width="60"
             height="65"
@@ -182,7 +182,7 @@ const editLink = computed(() => {
             fetchpriority="high"
           />
           <img
-            :src="cloudinaryUrl('https://res.cloudinary.com/nonchurch2025/image/upload/Header_text.png', CLD.logoText)"
+            :src="cloudinaryUrl('https://res.cloudinary.com/nonchurch2025/image/upload/images/system/Header_text.png', CLD.logoText)"
             alt="無境界者"
             width="180"
             height="65"

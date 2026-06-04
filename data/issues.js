@@ -10,7 +10,7 @@ export const issues = [
     title: "火燒島上的《耶穌傳》",
     date: "2026年01-02月號",
     coverImg: "https://res.cloudinary.com/nonchurch2025/image/upload/cover-7.png",
-    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/Vol.7.pdf",
+    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/magazines/Vol.7.pdf",
     authorIds: [],
     description: "",
     content: [],
@@ -25,7 +25,7 @@ export const issues = [
     title: "異端者的權利",
     date: "2025年11-12月號",
     coverImg: "/images/covers/cover-6.png",
-    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/Vol.6.pdf",
+    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/magazines/Vol.6.pdf",
     // 👇 本期作者 ID 列表
     authorIds: [20, 21, 22, 23, 8, 24, 25, 2, 1, 3, 26, 10],
     description:
@@ -166,7 +166,7 @@ export const issues = [
     title: "誕神者",
     date: "2025年09-10月號",
     coverImg: "/images/covers/cover-5.png",
-    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/Vol.5.pdf",
+    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/magazines/Vol.5.pdf",
     // 👇 本期作者 ID 列表
     authorIds: [18, 19, 4, 2, 10, 5],
     description:
@@ -289,7 +289,7 @@ export const issues = [
     title: "跨界的酷兒與跨宗教的友誼",
     date: "2025年07-08月號",
     coverImg: "/images/covers/cover-4.png",
-    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/Vol.4.pdf",
+    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/magazines/Vol.4.pdf",
     // 👇 本期作者 ID 列表
     authorIds: [17, 15, 16, 3, 1, 2, 8, 10, 5, 14],
     description:
@@ -431,7 +431,7 @@ export const issues = [
     title: "馬丁‧路德的世紀婚禮",
     date: "2025年05-06月號",
     coverImg: "/images/covers/cover-3.png",
-    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/Vol.3.pdf",
+    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/magazines/Vol.3.pdf",
     // 👇 本期作者 ID 列表
     authorIds: [2, 11, 12, 5, 1, 10, 13, 14],
     description:
@@ -586,7 +586,7 @@ export const issues = [
     title: "流浪者的詩歌",
     date: "2025年03-04月號",
     coverImg: "/images/covers/cover-2.png",
-    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/Vol.2.pdf",
+    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/magazines/Vol.2.pdf",
     // 👇 本期作者 ID 列表
     authorIds: [8, 7, 9, 2, 10, 4, 3, 1, 5],
     description:
@@ -726,7 +726,7 @@ export const issues = [
     title: "無教會主義與二十一世紀的東亞",
     date: "2025年01-02月號",
     coverImg: "/images/covers/cover-1.png",
-    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/Vol.1.pdf",
+    pdfLink: "https://res.cloudinary.com/nonchurch2025/image/upload/magazines/Vol.1.pdf",
     // 👇 本期作者 ID 列表
     authorIds: [2, 1, 3, 4, 5, 6],
     description:
