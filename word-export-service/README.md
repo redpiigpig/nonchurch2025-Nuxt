@@ -7,9 +7,10 @@
 > 部署方式：**推薦在同一個 Zeabur 專案內，再開一個服務**跑這支 Python（見下）。
 > 也可用 Render（見後段）或 Google Cloud Run（需綁卡）。
 
-容器化檔案：repo 根目錄的 `Dockerfile.wordexport` 與 `.dockerignore`（已備妥）。
-它會把 `word-export-service/`、`scripts/`、`templates/` 一起打包，與本地共用同一份渲染程式。
+容器化檔案：repo 根目錄的 `Dockerfile.wordexport`（已備妥）。
+它會用明確 COPY 把 `word-export-service/`、`scripts/`、`templates/` 打包，與本地共用同一份渲染程式。
 > 檔名刻意不是標準的 `Dockerfile`，免得 Zeabur 拿它去建 Nuxt 網站本體。
+> 不放 `.dockerignore`：那會被 Zeabur 的 Nuxt Docker 建置一起讀到、誤排除 assets/pages 等而 build 失敗。
 
 ---
 
