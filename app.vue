@@ -43,9 +43,14 @@ const seoLinks = computed(() => {
   return links;
 });
 
+// 龐牧師典藏子站：獨立品牌（十字 favicon + 典藏站名），不掛雜誌的地球 logo
+const isPongArchive = computed(() => route.path.startsWith("/pong-archive"));
+
 // 瀏覽器分頁 favicon 用 emoji data URI（小尺寸好看）
 // Google 搜尋 logo 走 /favicon.ico 實體檔（disk 上存在，Google 自動抓）
-const faviconEmoji = computed(() => (isEditor.value ? "🌑" : "🌏"));
+const faviconEmoji = computed(() =>
+  isPongArchive.value ? "✝️" : isEditor.value ? "🌑" : "🌏",
+);
 
 useHead({
   htmlAttrs: {
@@ -63,6 +68,8 @@ useHead({
 
 // ✅ 方案 B：多語言網站標題
 const siteName = computed(() => {
+  // 龐牧師典藏子站用自己的站名，標題後綴不掛「無境界者雜誌」
+  if (isPongArchive.value) return "龐君華會督紀念數位典藏";
   const langTitles = {
     "zh-TW": "無境界者雜誌",
     "zh-HK": "無境界者雜誌",
@@ -78,7 +85,11 @@ const siteName = computed(() => {
 // 全站預設 SEO
 useSeoMeta({
   titleTemplate: (titleChunk) =>
-    titleChunk ? `${titleChunk} - ${siteName.value}` : siteName.value,
+    isPongArchive.value
+      ? titleChunk || siteName.value
+      : titleChunk
+        ? `${titleChunk} - ${siteName.value}`
+        : siteName.value,
   ogSiteName: siteName,
   ogImage: "https://res.cloudinary.com/nonchurch2025/image/upload/topic.jpg",
   twitterCard: "summary_large_image",
