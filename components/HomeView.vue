@@ -655,6 +655,15 @@ onMounted(async () => {
       </div>
     </section>
 
+    <NuxtLink to="/pong-archive" class="pong-archive-banner" aria-label="龐君華會督紀念數位典藏">
+      <span class="pong-banner-icon">✝️</span>
+      <span class="pong-banner-text">
+        <strong>龐君華會督紀念數位典藏</strong>
+        <small>講道集 ‧ 著作文集 ‧ 三讀三禱晨禱 ‧ 影音媒體</small>
+      </span>
+      <span class="pong-banner-go">進入典藏 →</span>
+    </NuxtLink>
+
     <section v-if="specialFeatures.length" class="diverse-lectures">
       <h2>🎙️ {{ t.special }}</h2>
       <div class="article-container two-cols">
@@ -837,6 +846,54 @@ onMounted(async () => {
 
 <style scoped>
 @import "@/assets/shared.css";
+.pong-archive-banner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 28px 0;
+  padding: 20px 26px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2c3e50 0%, #4a6278 100%);
+  color: #fff;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(44, 62, 80, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.pong-archive-banner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(44, 62, 80, 0.35);
+}
+.pong-banner-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+.pong-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.pong-banner-text strong {
+  font-size: 1.25rem;
+  letter-spacing: 1px;
+}
+.pong-banner-text small {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+.pong-banner-go {
+  white-space: nowrap;
+  font-weight: bold;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  padding: 8px 16px;
+}
+@media (max-width: 600px) {
+  .pong-archive-banner {
+    flex-direction: column;
+    text-align: center;
+  }
+}
 .admin-toolbar {
   background-color: #fff3cd;
   padding: 15px;
