@@ -655,14 +655,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <NuxtLink to="/pong-archive" class="pong-archive-banner" aria-label="龐君華會督紀念數位典藏">
-      <span class="pong-banner-icon">✝️</span>
-      <span class="pong-banner-text">
-        <strong>龐君華會督紀念數位典藏</strong>
-        <small>講道集 ‧ 著作文集 ‧ 三讀三禱晨禱 ‧ 影音媒體</small>
-      </span>
-      <span class="pong-banner-go">進入典藏 →</span>
-    </NuxtLink>
+    <!-- 龐君華會督紀念數位典藏入口：典藏尚未完成，暫時隱藏，待內容就緒再重新掛上 -->
 
     <section v-if="specialFeatures.length" class="diverse-lectures">
       <h2>🎙️ {{ t.special }}</h2>
