@@ -521,9 +521,11 @@ const currentIssueAuthors = computed(() => {
   });
 });
 
-// ⭐ 第九期首頁背景音樂（YouTube IFrame API）
+// ⭐ 第九期首頁背景音樂（自架音檔：Cloudinary，不嵌 YouTube）
 // 僅在「第九期首頁」播放，其餘第九期頁面（文章、投稿等）為獨立元件，不受影響。
-const MUSIC_VIDEO_ID = "l08QoR2007g";
+// 音源：YouTube 影片 l08QoR2007g 下載轉 mp3 後上傳 Cloudinary。
+const MUSIC_SRC =
+  "https://res.cloudinary.com/nonchurch2025/video/upload/v1781707647/audio/issue-9/theme-song.mp3";
 // 此配樂屬於第九期：只要「目前首頁顯示的是第九期」就播放，
 // 因此第九期發布後的最新首頁 /home 也會有；待第十期成為最新時自動消失。
 // （綁定的是「顯示中的期數」而非路由，故 /home 與 /home/issue/9 皆生效）
@@ -531,47 +533,21 @@ const MUSIC_ISSUE_NUMBER = 9;
 const isIssue9Home = computed(
   () => Number(currentIssue.value?.number) === MUSIC_ISSUE_NUMBER,
 );
-let ytPlayer = null;
-let kickoffListenerAttached = false;
+const audioEl = ref(null);
 const isMusicPlaying = ref(false);
 const isMuted = ref(false);
 const musicVolume = ref(50);
-const playerReady = ref(false);
-
-const loadYouTubeAPI = () =>
-  new Promise((resolve) => {
-    if (window.YT && window.YT.Player) {
-      resolve();
-      return;
-    }
-    if (!document.getElementById("youtube-iframe-api")) {
-      const tag = document.createElement("script");
-      tag.id = "youtube-iframe-api";
-      tag.src = "https://www.youtube.com/iframe_api";
-      document.head.appendChild(tag);
-    }
-    const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      if (typeof prev === "function") prev();
-      resolve();
-    };
-    // 後備輪詢：避免 onYouTubeIframeAPIReady 已被觸發過導致 callback 不再呼叫
-    const timer = setInterval(() => {
-      if (window.YT && window.YT.Player) {
-        clearInterval(timer);
-        resolve();
-      }
-    }, 200);
-  });
+let kickoffListenerAttached = false;
 
 // 部分瀏覽器會擋「有聲自動播放」；註冊一次性互動監聽，使用者首次點擊／滑動即補播。
 const attachKickoffListener = () => {
   if (kickoffListenerAttached) return;
   kickoffListenerAttached = true;
   const kickoff = () => {
-    if (ytPlayer && !isMusicPlaying.value) {
-      if (!isMuted.value) ytPlayer.unMute?.();
-      ytPlayer.playVideo?.();
+    const el = audioEl.value;
+    if (el && el.paused) {
+      el.muted = isMuted.value;
+      el.play().catch(() => {});
     }
     removeKickoff();
   };
@@ -586,92 +562,62 @@ const attachKickoffListener = () => {
   );
 };
 
-const initMusicPlayer = async () => {
-  if (!import.meta.client) return;
-  if (!isIssue9Home.value || ytPlayer) return;
-  await loadYouTubeAPI();
+const startMusic = async () => {
+  if (!import.meta.client || !isIssue9Home.value) return;
   await nextTick();
-  // 等待 DOM 中的掛載點出現
-  if (!document.getElementById("issue9-music-player")) return;
-  // 先掛上互動監聽：即使 onReady 延遲，使用者點擊也能補播
-  attachKickoffListener();
+  const el = audioEl.value;
+  if (!el) return;
+  el.volume = musicVolume.value / 100;
+  el.muted = isMuted.value;
   try {
-    ytPlayer = new window.YT.Player("issue9-music-player", {
-      videoId: MUSIC_VIDEO_ID,
-      playerVars: {
-        autoplay: 1,
-        loop: 1,
-        playlist: MUSIC_VIDEO_ID, // loop 需指定 playlist 為同一支影片
-        controls: 0,
-        modestbranding: 1,
-        playsinline: 1,
-        rel: 0,
-      },
-      events: {
-        onReady: (e) => {
-          playerReady.value = true;
-          e.target.setVolume(musicVolume.value);
-          if (isMuted.value) e.target.mute();
-          else e.target.unMute();
-          e.target.playVideo();
-        },
-        onStateChange: (e) => {
-          const YT = window.YT;
-          if (e.data === YT.PlayerState.PLAYING) isMusicPlaying.value = true;
-          else if (
-            e.data === YT.PlayerState.PAUSED ||
-            e.data === YT.PlayerState.ENDED
-          )
-            isMusicPlaying.value = false;
-        },
-      },
-    });
-  } catch (err) {
-    console.error("[issue9 music] 播放器初始化失敗", err);
+    await el.play(); // 嘗試開頁即播
+  } catch (e) {
+    attachKickoffListener(); // 被擋下則等首次互動補播
   }
-};
-
-const destroyMusicPlayer = () => {
-  if (ytPlayer) {
-    ytPlayer.destroy?.();
-    ytPlayer = null;
-  }
-  isMusicPlaying.value = false;
-  playerReady.value = false;
 };
 
 const toggleMusic = () => {
-  if (!ytPlayer || typeof ytPlayer.playVideo !== "function") return;
-  if (isMusicPlaying.value) ytPlayer.pauseVideo();
-  else {
-    if (!isMuted.value) ytPlayer.unMute();
-    ytPlayer.playVideo();
+  const el = audioEl.value;
+  if (!el) return;
+  if (el.paused) {
+    el.muted = isMuted.value;
+    el.play().catch(() => {});
+  } else {
+    el.pause();
   }
 };
 
 const toggleMute = () => {
-  if (!ytPlayer || typeof ytPlayer.mute !== "function") return;
+  const el = audioEl.value;
+  if (!el) return;
   isMuted.value = !isMuted.value;
-  if (isMuted.value) ytPlayer.mute();
-  else ytPlayer.unMute();
+  el.muted = isMuted.value;
 };
 
 const onVolumeChange = () => {
-  if (!ytPlayer || typeof ytPlayer.setVolume !== "function") return;
-  ytPlayer.setVolume(musicVolume.value);
+  const el = audioEl.value;
+  if (!el) return;
+  el.volume = musicVolume.value / 100;
   // 拖動音量時自動解除靜音，符合「調聲音大小」的預期
   if (musicVolume.value > 0 && isMuted.value) {
     isMuted.value = false;
-    ytPlayer.unMute();
+    el.muted = false;
   }
 };
 
 watch(isIssue9Home, (on) => {
-  if (on) initMusicPlayer();
-  else destroyMusicPlayer();
+  if (on) startMusic();
+  else {
+    const el = audioEl.value;
+    if (el) el.pause();
+    isMusicPlaying.value = false;
+  }
 });
 
-onUnmounted(() => destroyMusicPlayer());
+onUnmounted(() => {
+  const el = audioEl.value;
+  if (el) el.pause();
+});
 
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
@@ -722,8 +668,8 @@ watch(isEditor, () => fetchIssues());
 onMounted(async () => {
   await fetchAuthors();
   await fetchIssues();
-  // 後備：watch 若因時序未觸發，這裡再嘗試一次（內部已防重複建立）
-  initMusicPlayer();
+  // 後備：watch 若因時序未觸發，這裡再嘗試一次播放
+  startMusic();
 });
 </script>
 
@@ -768,12 +714,16 @@ onMounted(async () => {
   </div>
 
   <div v-else class="home-container">
-    <!-- ⭐ 第九期首頁背景音樂播放器（可調音量／關閉） -->
+    <!-- ⭐ 第九期首頁背景音樂播放器（自架音檔，可調音量／關閉） -->
     <div v-if="isIssue9Home" class="music-player" role="group" aria-label="背景音樂控制">
-      <!-- YouTube IFrame 掛載點（外層持續存在並裁切，內層會被 API 換成 iframe，只取聲音） -->
-      <div class="music-player__yt" aria-hidden="true">
-        <div id="issue9-music-player"></div>
-      </div>
+      <audio
+        ref="audioEl"
+        :src="MUSIC_SRC"
+        loop
+        preload="auto"
+        @play="isMusicPlaying = true"
+        @pause="isMusicPlaying = false"
+      ></audio>
       <span class="music-player__icon">🎵</span>
       <button
         type="button"
@@ -1265,14 +1215,6 @@ h2 {
   background: rgba(44, 62, 80, 0.92);
   border-radius: 999px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-}
-.music-player__yt {
-  /* 保持在視窗內但視覺上收合，提高 YouTube 自動播放成功率 */
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
 }
 .music-player__icon {
   font-size: 1.1rem;
