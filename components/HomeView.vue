@@ -530,6 +530,7 @@ let kickoffListenerAttached = false;
 const isMusicPlaying = ref(false);
 const isMuted = ref(false);
 const musicVolume = ref(50);
+const playerReady = ref(false);
 
 const loadYouTubeAPI = () =>
   new Promise((resolve) => {
@@ -548,6 +549,13 @@ const loadYouTubeAPI = () =>
       if (typeof prev === "function") prev();
       resolve();
     };
+    // 後備輪詢：避免 onYouTubeIframeAPIReady 已被觸發過導致 callback 不再呼叫
+    const timer = setInterval(() => {
+      if (window.YT && window.YT.Player) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, 200);
   });
 
 // 部分瀏覽器會擋「有聲自動播放」；註冊一次性互動監聽，使用者首次點擊／滑動即補播。
@@ -579,34 +587,42 @@ const initMusicPlayer = async () => {
   await nextTick();
   // 等待 DOM 中的掛載點出現
   if (!document.getElementById("issue9-music-player")) return;
-  ytPlayer = new window.YT.Player("issue9-music-player", {
-    videoId: MUSIC_VIDEO_ID,
-    playerVars: {
-      autoplay: 1,
-      loop: 1,
-      playlist: MUSIC_VIDEO_ID, // loop 需指定 playlist 為同一支影片
-      controls: 0,
-      modestbranding: 1,
-      playsinline: 1,
-      rel: 0,
-    },
-    events: {
-      onReady: (e) => {
-        e.target.setVolume(musicVolume.value);
-        e.target.playVideo();
-        attachKickoffListener();
+  // 先掛上互動監聽：即使 onReady 延遲，使用者點擊也能補播
+  attachKickoffListener();
+  try {
+    ytPlayer = new window.YT.Player("issue9-music-player", {
+      videoId: MUSIC_VIDEO_ID,
+      playerVars: {
+        autoplay: 1,
+        loop: 1,
+        playlist: MUSIC_VIDEO_ID, // loop 需指定 playlist 為同一支影片
+        controls: 0,
+        modestbranding: 1,
+        playsinline: 1,
+        rel: 0,
       },
-      onStateChange: (e) => {
-        const YT = window.YT;
-        if (e.data === YT.PlayerState.PLAYING) isMusicPlaying.value = true;
-        else if (
-          e.data === YT.PlayerState.PAUSED ||
-          e.data === YT.PlayerState.ENDED
-        )
-          isMusicPlaying.value = false;
+      events: {
+        onReady: (e) => {
+          playerReady.value = true;
+          e.target.setVolume(musicVolume.value);
+          if (isMuted.value) e.target.mute();
+          else e.target.unMute();
+          e.target.playVideo();
+        },
+        onStateChange: (e) => {
+          const YT = window.YT;
+          if (e.data === YT.PlayerState.PLAYING) isMusicPlaying.value = true;
+          else if (
+            e.data === YT.PlayerState.PAUSED ||
+            e.data === YT.PlayerState.ENDED
+          )
+            isMusicPlaying.value = false;
+        },
       },
-    },
-  });
+    });
+  } catch (err) {
+    console.error("[issue9 music] 播放器初始化失敗", err);
+  }
 };
 
 const destroyMusicPlayer = () => {
@@ -615,10 +631,11 @@ const destroyMusicPlayer = () => {
     ytPlayer = null;
   }
   isMusicPlaying.value = false;
+  playerReady.value = false;
 };
 
 const toggleMusic = () => {
-  if (!ytPlayer) return;
+  if (!ytPlayer || typeof ytPlayer.playVideo !== "function") return;
   if (isMusicPlaying.value) ytPlayer.pauseVideo();
   else {
     if (!isMuted.value) ytPlayer.unMute();
@@ -627,14 +644,14 @@ const toggleMusic = () => {
 };
 
 const toggleMute = () => {
-  if (!ytPlayer) return;
+  if (!ytPlayer || typeof ytPlayer.mute !== "function") return;
   isMuted.value = !isMuted.value;
   if (isMuted.value) ytPlayer.mute();
   else ytPlayer.unMute();
 };
 
 const onVolumeChange = () => {
-  if (!ytPlayer) return;
+  if (!ytPlayer || typeof ytPlayer.setVolume !== "function") return;
   ytPlayer.setVolume(musicVolume.value);
   // 拖動音量時自動解除靜音，符合「調聲音大小」的預期
   if (musicVolume.value > 0 && isMuted.value) {
@@ -698,7 +715,9 @@ watch(isEditor, () => fetchIssues());
 
 onMounted(async () => {
   await fetchAuthors();
-  fetchIssues();
+  await fetchIssues();
+  // 後備：watch 若因時序未觸發，這裡再嘗試一次（內部已防重複建立）
+  initMusicPlayer();
 });
 </script>
 
@@ -807,24 +826,24 @@ onMounted(async () => {
         >
           {{ p }}
         </p>
-        <div v-if="isIssue9Home" class="music-credit">
-          <p>🎵 配樂：〈神，你正在重排我的前途〉</p>
-          <p>版權：臺灣福音書房</p>
-          <p>
-            來源：<a
-              href="https://www.youtube.com/watch?v=l08QoR2007g"
-              target="_blank"
-              rel="noopener"
-              >YouTube 影片</a
-            >
-          </p>
-        </div>
         <div class="cover-story" v-if="coverStory">
           <span class="icon">📰</span>
           <router-link :to="`/articles/${coverStory.routeId}`"
             >{{ t.coverStory }}{{ coverStory.title }}</router-link
           >
         </div>
+      </div>
+      <div v-if="isIssue9Home" class="music-credit">
+        <span>🎵 配樂：〈神，你正在重排我的前途〉</span>
+        <span>版權：臺灣福音書房</span>
+        <span
+          >來源：<a
+            href="https://www.youtube.com/watch?v=l08QoR2007g"
+            target="_blank"
+            rel="noopener"
+            >YouTube 影片</a
+          ></span
+        >
       </div>
     </section>
 
@@ -1122,6 +1141,7 @@ h2 {
 }
 .current-issue {
   display: flex;
+  flex-wrap: wrap;
   gap: 2rem;
   background: #fcc9d6;
   padding: 2rem;
@@ -1203,24 +1223,26 @@ h2 {
   font-size: 1.5rem;
   margin-right: 8px;
 }
-/* 第九期配樂版權說明 */
+/* 第九期配樂版權說明（整列全寬、單行，窄螢幕自動換行） */
 .music-credit {
+  flex: 0 0 100%;
+  width: 100%;
   margin-top: 1rem;
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 1.25rem;
   background: rgba(255, 255, 255, 0.55);
   border-left: 4px solid #e26d8a;
   border-radius: 6px;
-  font-size: 0.95rem;
+  font-size: 1rem;
   color: #555;
   line-height: 1.6;
-}
-.music-credit p {
-  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 2rem;
 }
 .music-credit a {
   color: #c2185b;
   text-decoration: underline;
-  word-break: break-all;
 }
 /* 第九期浮動音樂播放器 */
 .music-player {
@@ -1237,11 +1259,11 @@ h2 {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 .music-player__yt {
-  position: absolute;
+  /* 保持在視窗內但視覺上收合，提高 YouTube 自動播放成功率 */
   width: 1px;
   height: 1px;
-  left: -9999px;
-  top: -9999px;
+  opacity: 0;
+  overflow: hidden;
   pointer-events: none;
 }
 .music-player__icon {
