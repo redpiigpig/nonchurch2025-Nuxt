@@ -524,7 +524,13 @@ const currentIssueAuthors = computed(() => {
 // ⭐ 第九期首頁背景音樂（YouTube IFrame API）
 // 僅在「第九期首頁」播放，其餘第九期頁面（文章、投稿等）為獨立元件，不受影響。
 const MUSIC_VIDEO_ID = "l08QoR2007g";
-const isIssue9Home = computed(() => String(currentIssue.value?.number) === "9");
+// 此配樂屬於第九期：只要「目前首頁顯示的是第九期」就播放，
+// 因此第九期發布後的最新首頁 /home 也會有；待第十期成為最新時自動消失。
+// （綁定的是「顯示中的期數」而非路由，故 /home 與 /home/issue/9 皆生效）
+const MUSIC_ISSUE_NUMBER = 9;
+const isIssue9Home = computed(
+  () => Number(currentIssue.value?.number) === MUSIC_ISSUE_NUMBER,
+);
 let ytPlayer = null;
 let kickoffListenerAttached = false;
 const isMusicPlaying = ref(false);
@@ -764,8 +770,10 @@ onMounted(async () => {
   <div v-else class="home-container">
     <!-- ⭐ 第九期首頁背景音樂播放器（可調音量／關閉） -->
     <div v-if="isIssue9Home" class="music-player" role="group" aria-label="背景音樂控制">
-      <!-- YouTube IFrame 掛載點（隱藏，只取聲音） -->
-      <div id="issue9-music-player" class="music-player__yt" aria-hidden="true"></div>
+      <!-- YouTube IFrame 掛載點（外層持續存在並裁切，內層會被 API 換成 iframe，只取聲音） -->
+      <div class="music-player__yt" aria-hidden="true">
+        <div id="issue9-music-player"></div>
+      </div>
       <span class="music-player__icon">🎵</span>
       <button
         type="button"
