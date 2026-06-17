@@ -78,7 +78,7 @@ const { data: asyncData, pending: loading } = await useAsyncData(
       const { data: articlesData, error: articlesError } = await supabase
         .from("articles")
         .select(
-          `id, title, subtitle, summary, author, category, issue, translations, issues (id, title, date, translations, is_published)`,
+          `id, title, subtitle, summary, author, category, issue, is_published, translations, issues (id, title, date, translations, is_published)`,
         )
         // jsonb 必須傳 JSON 字面量 `[id]`；若傳 array，supabase-js 會產出
         // postgres array 語法 `cs.{id}` 在 jsonb 上會 400 (invalid json syntax)
@@ -129,9 +129,13 @@ const displayArticles = computed(() => {
     currentLang.value === "default"
       ? "zh_TW"
       : currentLang.value.replace("-", "_");
+  // 前台顯示條件：文章本身已發布，或其所屬期數已發布。
+  // （只要按下發布，文章就會在作者頁出現，不必等整期出刊）
   const source = props.showAll
     ? rawAuthorArticles.value
-    : rawAuthorArticles.value.filter((a) => a.issues?.is_published === true);
+    : rawAuthorArticles.value.filter(
+        (a) => a.is_published === true || a.issues?.is_published === true,
+      );
   return source.map((a) => {
     const tArt = a.translations?.[langKey] || {};
     const tIss = a.issues?.translations?.[langKey] || {};
