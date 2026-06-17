@@ -37,6 +37,34 @@ const statusColor = {
   converted: "#8e44ad",
 };
 
+// 投稿檔名清理：去除檔名不允許的字元，套上正確副檔名
+function safeFileName(base, ext) {
+  const name = (base || "投稿").replace(/[\\/:*?"<>|，。]+/g, "_").trim().slice(0, 60);
+  return `${name}.${ext}`;
+}
+
+// 直接下載投稿檔：Cloudinary raw 檔無副檔名，瀏覽器直接開會存成怪檔名，
+// 改用 blob 下載並指定正確檔名（Cloudinary 已開放 CORS）。
+async function downloadFile(fileUrl, filename) {
+  if (!fileUrl) return;
+  try {
+    const res = await fetch(fileUrl);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objUrl);
+  } catch (e) {
+    alert("下載失敗：" + e.message + "，將改為新分頁開啟。");
+    window.open(fileUrl, "_blank");
+  }
+}
+
 const filtered = computed(() => {
   if (filterStatus.value === "all") return submissions.value;
   return submissions.value.filter((s) => s.status === filterStatus.value);
@@ -232,10 +260,10 @@ onMounted(fetchSubmissions);
           <div class="files-section">
             <h4>投稿檔案</h4>
             <div class="file-links">
-              <a v-if="selectedSubmission.word_url" :href="selectedSubmission.word_url" target="_blank" class="file-link word">
+              <a v-if="selectedSubmission.word_url" href="#" @click.prevent="downloadFile(selectedSubmission.word_url, safeFileName((selectedSubmission.real_name || '') + '_' + selectedSubmission.title, 'docx'))" class="file-link word">
                 📄 下載 Word 檔
               </a>
-              <a v-if="selectedSubmission.pdf_url" :href="selectedSubmission.pdf_url" target="_blank" class="file-link pdf">
+              <a v-if="selectedSubmission.pdf_url" href="#" @click.prevent="downloadFile(selectedSubmission.pdf_url, safeFileName((selectedSubmission.real_name || '') + '_' + selectedSubmission.title, 'pdf'))" class="file-link pdf">
                 📑 下載 PDF 檔
               </a>
               <span v-if="!selectedSubmission.word_url && !selectedSubmission.pdf_url" class="no-file">（未上傳檔案）</span>
