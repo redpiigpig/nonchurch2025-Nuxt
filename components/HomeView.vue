@@ -792,7 +792,7 @@ onMounted(async () => {
         </div>
       </div>
       <div v-if="isIssue9Home" class="music-credit">
-        <span>🎵 配樂：〈神，你正在重排我的前途〉</span>
+        <span>🎵 背景音樂：〈神，你正在重排我的前途〉</span>
         <span>版權：臺灣福音書房</span>
         <span
           >來源：<a
@@ -802,6 +802,7 @@ onMounted(async () => {
             >YouTube 影片</a
           ></span
         >
+        <span>🔉 右下角有背景音樂播放鍵</span>
       </div>
     </section>
 
