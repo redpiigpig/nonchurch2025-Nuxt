@@ -45,3 +45,6 @@ cookies.txt
 _tmp_audio/
 scripts/_iv_*.json
 scripts/_interview_dump.json
+
+# upload-article skill - 文章上架描述檔（含本機圖片路徑，不 push）
+scripts/_pub_*.json

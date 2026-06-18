@@ -520,6 +520,8 @@
     │   ├── migrate_content_to_html.mjs
     │   ├── normalize_footnotes.mjs
     │   ├── patch_docx.py
+    │   ├── publish_article.mjs          # upload-article skill：文章+照片一鍵上架（含投稿備份）
+    │   ├── publish_article.test.mjs     # publish_article 純函式測試
     │   ├── query_interviews.cjs
     │   ├── rebuild_issue_docx.cjs
     │   ├── regenerate_favicon.cjs
