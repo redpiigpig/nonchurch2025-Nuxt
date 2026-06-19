@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive } from "vue";
+import Article9_9Slideshow from "./Article9_9Slideshow.vue";
 
 const props = defineProps({
   article: {
@@ -14,6 +15,7 @@ const sectionTitle = computed(
   () => mediaData.value.section_title || "龐牧師喜愛的音樂與詩歌",
 );
 const songs = computed(() => mediaData.value.songs || []);
+const slideshow = computed(() => mediaData.value.slideshow || null);
 const mediaAssets = computed(() => props.article.media_assets || []);
 
 // ─── HTML 內圖片佔位符解析（與 articles/[id].vue 邏輯一致）─────────
@@ -171,6 +173,9 @@ const loadVideo = (key) => {
         </div>
       </div>
     </article>
+
+    <!-- 影像記念幻燈片（含影片）-->
+    <Article9_9Slideshow v-if="slideshow" :slideshow="slideshow" />
   </section>
 </template>
 

@@ -9,7 +9,8 @@
     ├── components/
     │   ├── feature_articles/
     │   │   ├── Article7_6.vue
-    │   │   └── Article9_9.vue
+    │   │   ├── Article9_9.vue
+    │   │   └── Article9_9Slideshow.vue
     │   ├── icons/
     │   │   ├── IconCommunity.vue
     │   │   ├── IconDocumentation.vue
