@@ -368,6 +368,9 @@ const specialComponentsMap = {
   "7-6 In 是 Siáng？（他們是誰？）": defineAsyncComponent(
     () => import("~/components/feature_articles/Article7_6.vue"),
   ),
+  "9-9與龐牧師一起唱詩歌": defineAsyncComponent(
+    () => import("~/components/feature_articles/Article9_9.vue"),
+  ),
 };
 
 /** 與 special map 比對時忽略空白，避免後台改 id（例如 7-6In… 與 7-6 In…）後對不到有聲書元件 */
