@@ -99,6 +99,12 @@ const loadVideo = (key) => {
             title="歌譜整理中，敬請期待"
             aria-label="歌譜整理中"
           >🎼</span>
+          <span
+            v-if="song.narration && song.narration.length"
+            class="icon-link narr"
+            :title="`旁白朗讀：${song.narration.map((n) => n.narrator).join('、')}`"
+            aria-label="有旁白朗讀"
+          >🎙️</span>
         </div>
       </header>
 
@@ -111,6 +117,19 @@ const loadVideo = (key) => {
         class="song-intro markdown-body"
         v-html="resolveHtml(song.intro)"
       ></div>
+
+      <!-- 旁白朗讀 -->
+      <div v-if="song.narration && song.narration.length" class="narration">
+        <div
+          v-for="(nar, ni) in song.narration"
+          :key="ni"
+          class="narration-row"
+        >
+          <span class="narration-icon" aria-hidden="true">🎙️</span>
+          <span class="narration-name">旁白朗讀：{{ nar.narrator }}</span>
+          <audio class="narration-audio" controls preload="none" :src="nar.url"></audio>
+        </div>
+      </div>
 
       <!-- 歌詞（預設收合）-->
       <details v-if="song.lyrics" class="song-lyrics">
@@ -250,6 +269,44 @@ const loadVideo = (key) => {
   background: #f1f1f1;
   cursor: not-allowed;
   filter: grayscale(1);
+}
+
+.icon-link.narr {
+  color: #b8860b;
+  background: #fbf4e2;
+  cursor: default;
+}
+
+/* ── 旁白朗讀 ── */
+.narration {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.narration-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
+  padding: 0.7rem 0.9rem;
+  background: #fbf7ec;
+  border: 1px solid #f0e6cd;
+  border-radius: 8px;
+}
+.narration-icon {
+  font-size: 1.15rem;
+}
+.narration-name {
+  font-weight: bold;
+  color: #8a6d1b;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+.narration-audio {
+  flex: 1;
+  min-width: 200px;
+  height: 36px;
 }
 
 /* ── 作者 ── */
