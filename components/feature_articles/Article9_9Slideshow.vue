@@ -7,7 +7,8 @@ const props = defineProps({
 
 const items = computed(() => props.slideshow?.items || []);
 const audioUrl = computed(() => props.slideshow?.audio || "");
-const photoDur = computed(() => (props.slideshow?.photoDuration || 5) * 1000);
+// 每張照片的停留毫秒數（可逐張覆寫，fallback 7 秒）
+const curMs = () => (cur.value?.dur || props.slideshow?.photoDuration || 7) * 1000;
 
 const audioEl = ref(null);
 const videoEl = ref(null);
@@ -32,37 +33,39 @@ const clearSlideTimer = () => {
   }
 };
 
-// 進入第 i 張：照片→排 5 秒計時 + 配樂續播；影片→暫停配樂、播影片原聲
-const enter = async () => {
+// 進入某張：照片→依該張秒數計時 + 配樂續播；影片→暫停配樂（實際播放等過場結束）
+const enter = () => {
   clearSlideTimer();
   videoNeedsTap.value = false;
   const it = cur.value;
   if (!it) return;
 
   if (it.type === "video") {
+    // 暫停配樂；影片要等過場 transition 結束、<video> 真正掛載後才 play（見 onAfterEnter）
     if (audioEl.value) audioEl.value.pause();
-    await nextFrameVideo();
-    if (videoEl.value) {
-      videoEl.value.currentTime = 0;
-      videoEl.value.muted = muted.value;
-      videoEl.value.play().catch(() => {
-        videoNeedsTap.value = true;
-      });
-    }
   } else {
-    // 照片
     if (playing.value && audioEl.value && audioUrl.value) {
       audioEl.value.play().catch(() => {});
     }
     if (playing.value) {
-      slideTimer = setTimeout(() => advance(), photoDur.value);
+      slideTimer = setTimeout(() => advance(), curMs());
     }
   }
 };
 
-// 等 v-if 切到 <video> 後再抓 ref
-const nextFrameVideo = () =>
-  new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+// 過場結束、<video> 已在 DOM 後才播放影片（修正中段影片不自動播放）
+const onAfterEnter = () => {
+  const it = cur.value;
+  if (it && it.type === "video" && videoEl.value) {
+    videoEl.value.currentTime = 0;
+    videoEl.value.muted = muted.value;
+    if (playing.value) {
+      videoEl.value.play().catch(() => {
+        videoNeedsTap.value = true;
+      });
+    }
+  }
+};
 
 const goTo = (i) => {
   if (i < 0 || i >= items.value.length) return;
@@ -109,7 +112,7 @@ const togglePlay = () => {
       videoEl.value?.play().catch(() => (videoNeedsTap.value = true));
     } else {
       if (audioEl.value && audioUrl.value) audioEl.value.play().catch(() => {});
-      slideTimer = setTimeout(() => advance(), photoDur.value);
+      slideTimer = setTimeout(() => advance(), curMs());
     }
   } else {
     clearSlideTimer();
@@ -167,7 +170,7 @@ onUnmounted(() => {
       </button>
 
       <template v-else>
-        <transition name="ss-fade" mode="out-in">
+        <transition name="ss-fade" mode="out-in" @after-enter="onAfterEnter">
           <div :key="index" class="ss-slide">
             <div v-if="cur && cur.type === 'video'" class="ss-media ss-video-box">
               <video
