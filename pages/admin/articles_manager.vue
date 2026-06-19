@@ -399,8 +399,10 @@ const performUpdate = async (article) => {
   article.id = newId;
 };
 
-const syncOriginal = (article) => {
-  const i = allArticles.value.findIndex((o) => o.id === article.id);
+const syncOriginal = (article, oldId = article.id) => {
+  // 改 id 後 article.id 已是 newId，必須用「舊 id」找 orig，否則永遠找不到、
+  // allArticles 同步不到新 id，後續存檔的 if (!orig) return 就會全部失效。
+  const i = allArticles.value.findIndex((o) => o.id === oldId);
   if (i !== -1) allArticles.value[i] = JSON.parse(JSON.stringify(article));
 };
 
@@ -426,12 +428,14 @@ const saveAll = async () => {
 };
 
 const autoSaveRow = async (article) => {
-  delete saveTimers[article.id];
+  const oldId = article.id; // performUpdate 會把 article.id 改成 newId，先記住舊 id
+  delete saveTimers[oldId];
   article.isSaving = true;
-  rowSaveStatus.value[article.id] = "saving";
+  rowSaveStatus.value[oldId] = "saving";
   try {
     await performUpdate(article);
-    syncOriginal(article);
+    syncOriginal(article, oldId);
+    if (article.id !== oldId) delete rowSaveStatus.value[oldId]; // id 變了，狀態鍵跟著搬
     rowSaveStatus.value[article.id] = "saved";
     setTimeout(() => {
       if (rowSaveStatus.value[article.id] === "saved")
