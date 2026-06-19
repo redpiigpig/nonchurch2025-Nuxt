@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 
 const props = defineProps({
   slideshow: { type: Object, required: true },
@@ -10,8 +10,22 @@ const audioUrl = computed(() => props.slideshow?.audio || "");
 // 每張照片的停留毫秒數（可逐張覆寫，fallback 7 秒）
 const curMs = () => (cur.value?.dur || props.slideshow?.photoDuration || 7) * 1000;
 
+// 每一格對應的配樂時間點（只有照片會推進配樂，影片時配樂暫停）
+const musicStart = computed(() => {
+  const arr = [];
+  let acc = 0;
+  for (const it of items.value) {
+    arr.push(acc);
+    if (it.type === "photo")
+      acc += it.dur || props.slideshow?.photoDuration || 7;
+  }
+  return arr;
+});
+
 const audioEl = ref(null);
 const videoEl = ref(null);
+const rootEl = ref(null);
+const isFs = ref(false);
 
 const started = ref(false);
 const ended = ref(false);
@@ -34,11 +48,16 @@ const clearSlideTimer = () => {
 };
 
 // 進入某張：照片→依該張秒數計時 + 配樂續播；影片→暫停配樂（實際播放等過場結束）
-const enter = () => {
+// seek=true 時把配樂跳到該格對應時間（手動快進/倒退用，讓歌曲跟著照片走）
+const enter = (seek = false) => {
   clearSlideTimer();
   videoNeedsTap.value = false;
   const it = cur.value;
   if (!it) return;
+
+  if (seek && audioEl.value) {
+    audioEl.value.currentTime = musicStart.value[index.value] || 0;
+  }
 
   if (it.type === "video") {
     // 暫停配樂；影片要等過場 transition 結束、<video> 真正掛載後才 play（見 onAfterEnter）
@@ -67,15 +86,15 @@ const onAfterEnter = () => {
   }
 };
 
-const goTo = (i) => {
+const goTo = (i, seek = false) => {
   if (i < 0 || i >= items.value.length) return;
   index.value = i;
-  enter();
+  enter(seek);
 };
 
 const advance = () => {
   if (index.value < items.value.length - 1) {
-    goTo(index.value + 1);
+    goTo(index.value + 1); // 自然推進：配樂連續播放、不跳針
   } else {
     finish();
   }
@@ -121,8 +140,25 @@ const togglePlay = () => {
   }
 };
 
-const next = () => advance();
-const prev = () => goTo(Math.max(0, index.value - 1));
+// 手動快進/倒退：配樂同步跳到對應位置
+const next = () => {
+  if (index.value < items.value.length - 1) goTo(index.value + 1, true);
+};
+const prev = () => goTo(Math.max(0, index.value - 1), true);
+
+// 全螢幕
+const toggleFullscreen = () => {
+  const el = rootEl.value;
+  if (!el) return;
+  if (!document.fullscreenElement) {
+    (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+  }
+};
+const onFsChange = () => {
+  isFs.value = !!document.fullscreenElement;
+};
 
 const onVideoEnded = () => {
   if (playing.value) advance();
@@ -138,14 +174,16 @@ const toggleMute = () => {
   if (videoEl.value) videoEl.value.muted = muted.value;
 };
 
+onMounted(() => document.addEventListener("fullscreenchange", onFsChange));
 onUnmounted(() => {
   clearSlideTimer();
   audioEl.value?.pause();
+  document.removeEventListener("fullscreenchange", onFsChange);
 });
 </script>
 
 <template>
-  <section class="slideshow-block">
+  <section class="slideshow-block" ref="rootEl" :class="{ 'is-fs': isFs }">
     <div class="ss-head">
       <h2 class="ss-title"><span class="kaiti">影像記念</span></h2>
       <p class="ss-sub">與龐牧師同行的時光 · 願以影像與詩歌彼此擁抱思念</p>
@@ -224,6 +262,9 @@ onUnmounted(() => {
       <span class="ss-count">{{ index + 1 }} / {{ items.length }}</span>
       <button class="ss-btn" @click="toggleMute" :title="muted ? '取消靜音' : '靜音'">
         {{ muted ? "🔇" : "🔊" }}
+      </button>
+      <button class="ss-btn" @click="toggleFullscreen" :title="isFs ? '退出全螢幕' : '全螢幕'">
+        {{ isFs ? "🡼" : "⛶" }}
       </button>
     </div>
 
@@ -455,6 +496,44 @@ onUnmounted(() => {
   color: #666;
   font-family: monospace;
   white-space: nowrap;
+}
+
+/* 全螢幕 */
+.slideshow-block:fullscreen {
+  background: #000;
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 2vh 3vw;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.slideshow-block:fullscreen .ss-head {
+  display: none;
+}
+.slideshow-block:fullscreen .ss-stage {
+  height: 78vh;
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+}
+.slideshow-block:fullscreen .ss-caption {
+  color: #eee;
+}
+.slideshow-block:fullscreen .ss-controls {
+  background: rgba(255, 255, 255, 0.12);
+  max-width: 900px;
+  margin: 1rem auto 0;
+  width: 100%;
+}
+.slideshow-block:fullscreen .ss-btn {
+  color: #fff;
+}
+.slideshow-block:fullscreen .ss-count {
+  color: #ddd;
 }
 
 .ss-fade-enter-active,
