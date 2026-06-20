@@ -146,19 +146,44 @@ const next = () => {
 };
 const prev = () => goTo(Math.max(0, index.value - 1), true);
 
-// 全螢幕
+// 全螢幕（手機/iOS 不支援元素原生全螢幕 → 退回 CSS 偽全螢幕）
+const pseudoFs = ref(false);
+const fsActive = computed(() => isFs.value || pseudoFs.value);
+
+const setPseudoFs = (on) => {
+  pseudoFs.value = on;
+  document.body.style.overflow = on ? "hidden" : "";
+};
 const toggleFullscreen = () => {
   const el = rootEl.value;
   if (!el) return;
-  if (!document.fullscreenElement) {
-    (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
-  } else {
-    (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+  const reqFn = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!reqFn || !document.fullscreenEnabled) {
+    setPseudoFs(!pseudoFs.value);
+    return;
   }
+  if (!document.fullscreenElement) reqFn.call(el);
+  else (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
 };
 const onFsChange = () => {
   isFs.value = !!document.fullscreenElement;
 };
+
+// 暫停（離開畫面/切掉螢幕時用）
+const pausePlayback = () => {
+  if (!started.value || !playing.value) return;
+  playing.value = false;
+  clearSlideTimer();
+  audioEl.value?.pause();
+  videoEl.value?.pause();
+};
+const onVisibility = () => {
+  if (document.hidden) pausePlayback();
+};
+const onKey = (e) => {
+  if (e.key === "Escape" && pseudoFs.value) setPseudoFs(false);
+};
+let viewObserver = null;
 
 const onVideoEnded = () => {
   if (playing.value) advance();
@@ -174,16 +199,36 @@ const toggleMute = () => {
   if (videoEl.value) videoEl.value.muted = muted.value;
 };
 
-onMounted(() => document.addEventListener("fullscreenchange", onFsChange));
+onMounted(() => {
+  document.addEventListener("fullscreenchange", onFsChange);
+  document.addEventListener("visibilitychange", onVisibility);
+  document.addEventListener("keydown", onKey);
+  // 幻燈片滑出畫面 → 自動暫停
+  viewObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries[0] && !entries[0].isIntersecting) pausePlayback();
+    },
+    { threshold: 0.25 },
+  );
+  if (rootEl.value) viewObserver.observe(rootEl.value);
+});
 onUnmounted(() => {
   clearSlideTimer();
   audioEl.value?.pause();
   document.removeEventListener("fullscreenchange", onFsChange);
+  document.removeEventListener("visibilitychange", onVisibility);
+  document.removeEventListener("keydown", onKey);
+  viewObserver?.disconnect();
+  document.body.style.overflow = "";
 });
 </script>
 
 <template>
-  <section class="slideshow-block" ref="rootEl" :class="{ 'is-fs': isFs }">
+  <section
+    class="slideshow-block"
+    ref="rootEl"
+    :class="{ 'is-fs': isFs, 'is-pseudo-fs': pseudoFs }"
+  >
     <div class="ss-head">
       <h2 class="ss-title"><span class="kaiti">影像記念</span></h2>
       <p class="ss-sub">與龐牧師同行的時光 · 願以影像與詩歌彼此擁抱思念</p>
@@ -234,9 +279,10 @@ onUnmounted(() => {
           </div>
         </transition>
 
-        <div v-if="ended" class="ss-ended" @click="start">
-          <span class="ss-replay">↺ 重新播放</span>
-        </div>
+        <button v-if="ended" type="button" class="ss-ended" @click="start">
+          <span class="ss-replay-icon">↺</span>
+          <span class="ss-replay">重新播放</span>
+        </button>
       </template>
     </div>
 
@@ -263,8 +309,8 @@ onUnmounted(() => {
       <button class="ss-btn" @click="toggleMute" :title="muted ? '取消靜音' : '靜音'">
         {{ muted ? "🔇" : "🔊" }}
       </button>
-      <button class="ss-btn" @click="toggleFullscreen" :title="isFs ? '退出全螢幕' : '全螢幕'">
-        {{ isFs ? "🡼" : "⛶" }}
+      <button class="ss-btn" @click="toggleFullscreen" :title="fsActive ? '退出全螢幕' : '全螢幕'">
+        {{ fsActive ? "🡼" : "⛶" }}
       </button>
     </div>
 
@@ -406,20 +452,35 @@ onUnmounted(() => {
 .ss-ended {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  z-index: 5;
+}
+.ss-replay-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #27408b;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  z-index: 2;
+  font-size: 2.4rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
 }
 .ss-replay {
   color: #fff;
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-weight: bold;
-  border: 2px solid #fff;
-  border-radius: 30px;
-  padding: 0.6rem 1.6rem;
+  letter-spacing: 2px;
 }
 
 /* 圖說 */
@@ -498,8 +559,9 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-/* 全螢幕 */
-.slideshow-block:fullscreen {
+/* 全螢幕（原生 + 偽全螢幕共用） */
+.slideshow-block:fullscreen,
+.slideshow-block.is-pseudo-fs {
   background: #000;
   max-width: none;
   width: 100%;
@@ -511,28 +573,39 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: center;
 }
-.slideshow-block:fullscreen .ss-head {
+.slideshow-block.is-pseudo-fs {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+.slideshow-block:fullscreen .ss-head,
+.slideshow-block.is-pseudo-fs .ss-head {
   display: none;
 }
-.slideshow-block:fullscreen .ss-stage {
+.slideshow-block:fullscreen .ss-stage,
+.slideshow-block.is-pseudo-fs .ss-stage {
   height: 78vh;
   width: auto;
   max-width: 100%;
   margin: 0 auto;
 }
-.slideshow-block:fullscreen .ss-caption {
+.slideshow-block:fullscreen .ss-caption,
+.slideshow-block.is-pseudo-fs .ss-caption {
   color: #eee;
 }
-.slideshow-block:fullscreen .ss-controls {
+.slideshow-block:fullscreen .ss-controls,
+.slideshow-block.is-pseudo-fs .ss-controls {
   background: rgba(255, 255, 255, 0.12);
   max-width: 900px;
   margin: 1rem auto 0;
   width: 100%;
 }
-.slideshow-block:fullscreen .ss-btn {
+.slideshow-block:fullscreen .ss-btn,
+.slideshow-block.is-pseudo-fs .ss-btn {
   color: #fff;
 }
-.slideshow-block:fullscreen .ss-count {
+.slideshow-block:fullscreen .ss-count,
+.slideshow-block.is-pseudo-fs .ss-count {
   color: #ddd;
 }
 

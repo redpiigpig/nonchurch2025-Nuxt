@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive } from "vue";
+import { computed, reactive, ref, nextTick, onMounted, onUnmounted } from "vue";
 import Article9_9Slideshow from "./Article9_9Slideshow.vue";
 
 const props = defineProps({
@@ -8,6 +8,8 @@ const props = defineProps({
     required: true,
   },
 });
+
+const rootEl = ref(null);
 
 // ─── 資料 ─────────────────────────────────────────────────────────
 const mediaData = computed(() => props.article.media_data || {});
@@ -49,11 +51,57 @@ const ytThumb = (url) => {
 const loaded = reactive({});
 const loadVideo = (key) => {
   loaded[key] = true;
+  nextTick(() => observeSongMedia());
 };
+
+// ─── 切掉螢幕 / 滑離畫面時自動暫停各歌曲的音檔與影片 ───────────────
+const ytPause = (iframe) => {
+  try {
+    iframe.contentWindow?.postMessage(
+      '{"event":"command","func":"pauseVideo","args":""}',
+      "*",
+    );
+  } catch (_) {}
+};
+const pauseEl = (el) => {
+  if (!el) return;
+  if (el.tagName === "IFRAME") ytPause(el);
+  else if (typeof el.pause === "function") el.pause();
+};
+const songMedia = () =>
+  rootEl.value
+    ? rootEl.value.querySelectorAll(".song-card audio, .song-card iframe")
+    : [];
+const pauseAllSongMedia = () => songMedia().forEach(pauseEl);
+const onVisibility = () => {
+  if (document.hidden) pauseAllSongMedia();
+};
+
+let songObserver = null;
+const observeSongMedia = () => {
+  if (songObserver) songMedia().forEach((el) => songObserver.observe(el));
+};
+
+onMounted(() => {
+  document.addEventListener("visibilitychange", onVisibility);
+  songObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) pauseEl(e.target);
+      });
+    },
+    { threshold: 0.01 },
+  );
+  observeSongMedia();
+});
+onUnmounted(() => {
+  document.removeEventListener("visibilitychange", onVisibility);
+  songObserver?.disconnect();
+});
 </script>
 
 <template>
-  <section class="songlist">
+  <section class="songlist" ref="rootEl">
     <h2 class="songlist-title">
       <span class="kaiti">{{ sectionTitle }}</span>
     </h2>
@@ -152,7 +200,7 @@ const loadVideo = (key) => {
           <div class="video-screen">
             <iframe
               v-if="loaded[i + '-' + li]"
-              :src="`https://www.youtube-nocookie.com/embed/${ytId(lnk.url)}?autoplay=1&rel=0`"
+              :src="`https://www.youtube-nocookie.com/embed/${ytId(lnk.url)}?autoplay=1&rel=0&enablejsapi=1`"
               title="YouTube video player"
               frameborder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
