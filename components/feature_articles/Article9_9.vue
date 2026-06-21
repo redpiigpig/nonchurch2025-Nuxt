@@ -437,6 +437,9 @@ onUnmounted(() => {
 }
 .lyrics-body :deep(blockquote p) {
   margin: 0 0 0.7rem;
+  /* 凸排：節數（一、）與（副歌）標示凸出左側，歌詞本身對齊 */
+  padding-left: 2em;
+  text-indent: -2em;
 }
 .lyrics-body :deep(blockquote p:last-child) {
   margin-bottom: 0;
@@ -535,6 +538,13 @@ onUnmounted(() => {
   }
   .video-grid {
     grid-template-columns: 1fr;
+  }
+  /* 手機版：節內不硬斷句（讓它自然換行），一節結束才多空一行 */
+  .lyrics-body :deep(blockquote br) {
+    display: none;
+  }
+  .lyrics-body :deep(blockquote p) {
+    margin-bottom: 1.4rem;
   }
 }
 </style>
