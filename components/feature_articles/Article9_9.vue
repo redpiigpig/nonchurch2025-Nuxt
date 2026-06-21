@@ -539,12 +539,15 @@ onUnmounted(() => {
   .video-grid {
     grid-template-columns: 1fr;
   }
-  /* 手機版：節內不硬斷句（讓它自然換行），一節結束才多空一行 */
+  /* 手機版：節內不硬斷句（讓它自然換行），一節結束後明確空一行 */
   .lyrics-body :deep(blockquote br) {
     display: none;
   }
   .lyrics-body :deep(blockquote p) {
-    margin-bottom: 1.4rem;
+    margin-bottom: 2.4rem;
+  }
+  .lyrics-body :deep(blockquote p:last-child) {
+    margin-bottom: 0;
   }
 }
 </style>
