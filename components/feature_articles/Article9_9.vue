@@ -47,9 +47,17 @@ const ytThumb = (url) => {
   return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : "";
 };
 
-// 歌詞是否有節數/副歌標示（有才套用凸排；prose 如聖法蘭西斯不凸排）
-const hasVerseLabels = (html) =>
-  /[一二三四五六七八九十]、/.test(html || "") || (html || "").includes("副歌");
+// 歌詞排版：把每節的「節數/副歌」標示包成粗體、固定欄寬，使歌詞對齊；
+// 去掉節數後的「、」；無標示的散文段落（聖法蘭西斯）維持原樣不處理
+const formatLyrics = (html) => {
+  let h = resolveHtml(html || "");
+  h = h.replace(/<p>([\s\S]*?)<\/p>/g, (m, inner) => {
+    const lm = inner.match(/^(副歌|[一二三四五六七八九十])、?([\s\S]*)$/);
+    if (!lm) return m; // 無節數標示 → 原樣
+    return `<p class="v-line"><b class="v-label">${lm[1]}</b><span class="v-text">${lm[2]}</span></p>`;
+  });
+  return h;
+};
 
 // 點擊縮圖才載入 iframe（避免一次嵌入 10+ 支影片拖慢頁面）
 const loaded = reactive({});
@@ -193,8 +201,7 @@ onUnmounted(() => {
         </summary>
         <div
           class="lyrics-body markdown-body"
-          :class="{ 'lyrics-numbered': hasVerseLabels(song.lyrics) }"
-          v-html="resolveHtml(song.lyrics)"
+          v-html="formatLyrics(song.lyrics)"
         ></div>
       </details>
 
@@ -446,11 +453,19 @@ onUnmounted(() => {
 .lyrics-body :deep(blockquote p) {
   margin: 0 0 0.7rem;
 }
-/* 凸排：只有「有節數/副歌標示」的歌詞才套用，標示凸出左側、歌詞對齊；
-   無節數的（如聖法蘭西斯的祈禱）維持齊頭，不凸排 */
-.lyrics-body.lyrics-numbered :deep(blockquote p) {
-  padding-left: 2em;
-  text-indent: -2em;
+/* 有節數/副歌的段落：標示粗體 + 固定欄寬，歌詞對齊在同一欄；
+   節數約 1 字（後留約 2rem）、副歌約 2 字（後留約 1rem），歌詞統一切齊 3rem。
+   無標示的散文段落（聖法蘭西斯）不會有 .v-line，維持齊頭 */
+.lyrics-body :deep(.v-line) {
+  display: flex;
+  align-items: baseline;
+}
+.lyrics-body :deep(.v-label) {
+  flex: 0 0 3rem;
+  font-weight: bold;
+}
+.lyrics-body :deep(.v-text) {
+  flex: 1;
 }
 .lyrics-body :deep(blockquote p:last-child) {
   margin-bottom: 0;
