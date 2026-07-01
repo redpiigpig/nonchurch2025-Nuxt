@@ -1141,23 +1141,30 @@ h2 {
   margin: 0 0 0.5rem;
 }
 .title-link {
-  font-size: 1.6rem;
+  /* 桌機壓成一行（縮字級 + 不換行）；窄螢幕於下方 media query 放開 */
+  font-size: clamp(1.1rem, 2vw, 1.45rem);
   color: #007bff;
   text-decoration: none;
   font-weight: bold;
   transition: color 0.3s ease;
+  white-space: nowrap;
 }
 .title-link:hover {
   color: #0056b3;
   text-decoration: underline;
 }
+/* 標題太長時（平板／手機）允許換行，避免撐破粉紅框 */
+@media (max-width: 900px) {
+  .title-link {
+    white-space: normal;
+  }
+}
 .date {
   font-size: 1.2rem;
   color: #ff8000;
   font-weight: bold;
-  margin-top: 5px;
-  display: inline-block;
-  align-items: right;
+  margin-top: 6px;
+  display: block; /* 日期獨立一行，落在標題下方 */
 }
 .issue-desc {
   line-height: 1.8;
