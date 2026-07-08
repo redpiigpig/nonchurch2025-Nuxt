@@ -194,10 +194,10 @@ Response 用 `response_mime_type='application/json' + response_schema=PAGES_SCHE
 - **OCR 對封面頁常常空白**：封面通常只有大字書名 + 學校 logo，Gemini 容易直接 skip 不抽，或者抽得很短。**請務必 OCR 完後人工確認 DB 的 title 是否正確**。
 - **掃描歪斜會降低層級識別準確度**：subsection_title L3 vs L4 對 Gemini 是視覺判斷，掃描歪斜時可能 level 全部變 3。reader 對 L3/L4 樣式差異小，不致命，但若使用者明顯不滿意，可在 prompt 加更具體的層級規則。
 - **R2 沒有 public CDN**：PDF 必須走 server proxy `/api/pong-writing/{id}/pdf`，不能用 R2 直連 URL 嵌 iframe（沒 public domain）。`pages.get.ts` 也是 server-side 解 gzip 後回 JSON。
-- **bucket 容量 9 GB 上限**：依 [`upload_chunks_to_r2.py`](../../../scripts/upload_chunks_to_r2.py) 的 SAFETY_CEILING_GB。論文 PDF 通常 20-50MB，加 OCR JSONL 30-100KB，每本約 50MB。10 本以內安全。
+- **bucket 容量 9 GB 上限**：依 `upload_chunks_to_r2.py`（ebook pipeline 共用工具，在 **know-graph-lab repo** `scripts/upload_chunks_to_r2.py`，未隨 pong 遷移）的 SAFETY_CEILING_GB。論文 PDF 通常 20-50MB，加 OCR JSONL 30-100KB，每本約 50MB。10 本以內安全。
 - **`source_url='thesis-slug:<slug>'` 是唯一鍵**：upsert 靠這個欄位識別「已存在」。換 slug 等於開新 row，舊 row 不會被清掉 — 換 slug 前手動 DELETE 舊 row。
 - **OCR 時間**：Gemini 2.5 Flash 大約 4 秒/頁。BD 48 頁約 3 分鐘；MTh 91 頁約 6-7 分鐘；中型論文 200 頁 ~15 分鐘。Gemini Files API 上限 1000 頁，所以即使更厚也撐得住。
-- **PDF >50MB 走不了 Gemini Files API**：BD/MTh 都在 50MB 以下沒事。若要處理 >50MB 的論文，得改走 Haiku image-batch 路徑（參考 [`ocr_with_gemini.py`](../../../scripts/ocr_with_gemini.py) `_haiku_ocr_book`）— 目前 thesis pipeline 還沒接這條 fallback，必要時補。
+- **PDF >50MB 走不了 Gemini Files API**：BD/MTh 都在 50MB 以下沒事。若要處理 >50MB 的論文，得改走 Haiku image-batch 路徑（參考 `ocr_with_gemini.py` 的 `_haiku_ocr_book`；該檔在 **know-graph-lab repo** `scripts/ocr_with_gemini.py`，未隨 pong 遷移）— 目前 thesis pipeline 還沒接這條 fallback，必要時補。
 
 ## Reader 行為 (`PongThesisFlipbook.vue`)
 
