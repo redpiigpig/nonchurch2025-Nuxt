@@ -90,6 +90,7 @@ function buildEmailHtml(bodyHtml, pdfLink, unsubscribeUrl) {
 }
 
 export default defineEventHandler(async (event) => {
+  await requireAdminUser(event);
   const config = useRuntimeConfig();
   const body = await readBody(event);
 

@@ -13,6 +13,15 @@ export default defineEventHandler(async (event) => {
 
   const method = event.node.req.method;
 
+  // 驗證：GET（瀏覽媒體庫）與 PUT（刪除/改名）僅限登入的工作人員；
+  // POST 例外開放未登入的公開投稿，但只能上傳到 submissions/ 資料夾（見下方檢查）。
+  let authUser = null;
+  try {
+    authUser = await requireAdminUser(event);
+  } catch (err) {
+    if (method !== "POST") throw err;
+  }
+
   // 1. 讀取列表與資料夾 (GET)
   if (method === "GET") {
     const query = getQuery(event);
@@ -84,6 +93,13 @@ export default defineEventHandler(async (event) => {
 
       const folderPath = pathField ? pathField.data.toString() : "";
       const customFilename = filenameField ? filenameField.data.toString() : null;
+
+      // 未登入者（公開投稿表單）只能傳到 submissions/，且不得自訂檔名
+      if (!authUser) {
+        if (!folderPath.startsWith("submissions/") || customFilename) {
+          throw createError({ statusCode: 401, message: "請先登入" });
+        }
+      }
       const base64Data = `data:${fileField.type || "application/octet-stream"};base64,${fileField.data.toString("base64")}`;
 
       const uploadOptions = { resource_type: "auto" };
@@ -102,6 +118,7 @@ export default defineEventHandler(async (event) => {
 
       return { success: true, data: result };
     } catch (error) {
+      if (error.statusCode) throw error; // 驗證錯誤照原狀態碼回傳
       return { success: false, error: error.message };
     }
   }

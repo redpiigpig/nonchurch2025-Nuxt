@@ -13,7 +13,10 @@ export default defineEventHandler(async (event) => {
   const chiefPassword = process.env.PONG_CHIEF_PASSWORD || ''
 
   if (normalizedEmail === chiefEmail && password === chiefPassword) {
-    return { id: 0, name: '總編輯', email: chiefEmail, role: 'chief' }
+    const user = { id: 0, name: '總編輯', email: chiefEmail, role: 'chief' }
+    const session = await getPongSession(event)
+    await session.update(user)
+    return user
   }
 
   // Editor check — fixed code
@@ -46,5 +49,8 @@ export default defineEventHandler(async (event) => {
     .update({ last_login: new Date().toISOString() })
     .eq('id', data.id)
 
-  return { id: data.id, name: data.name, email: data.email, role: data.role || 'editor' }
+  const user = { id: data.id, name: data.name, email: data.email, role: data.role || 'editor' }
+  const session = await getPongSession(event)
+  await session.update(user)
+  return user
 })

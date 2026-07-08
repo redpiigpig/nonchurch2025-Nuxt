@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-export default defineEventHandler(async () => {
+export default defineEventHandler(async (event) => {
+  await requirePongChief(event)
   const supabase = createClient(
     process.env.VITE_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY,

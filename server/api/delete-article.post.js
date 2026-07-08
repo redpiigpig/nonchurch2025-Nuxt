@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { v2 as cloudinary } from "cloudinary";
 
 export default defineEventHandler(async (event) => {
+  await requireAdminUser(event);
   const config = useRuntimeConfig();
 
   const supabase = createClient(

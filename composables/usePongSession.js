@@ -38,7 +38,10 @@ export function usePongSession() {
   }
 
   function logout() {
-    if (import.meta.client) localStorage.removeItem(SESSION_KEY)
+    if (import.meta.client) {
+      localStorage.removeItem(SESSION_KEY)
+      $fetch('/api/pong-auth/logout', { method: 'POST' }).catch(() => {})
+    }
     session.value = null
   }
 

@@ -5,6 +5,7 @@ import { spawn } from "child_process";
 import { join } from "path";
 
 export default defineEventHandler(async (event) => {
+  await requireAdminUser(event);
   const config = useRuntimeConfig();
   const body = await readBody(event);
 

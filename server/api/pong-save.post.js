@@ -16,6 +16,7 @@ const ALLOWED_TABLES = [
 const NO_TIMESTAMP = new Set(['pong_lectionary_weeks', 'pong_lectionary_days'])
 
 export default defineEventHandler(async (event) => {
+  await requirePongEditor(event)
   const { table, id, fields } = await readBody(event)
 
   if (!ALLOWED_TABLES.includes(table))

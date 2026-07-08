@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 export default defineEventHandler(async (event) => {
+  await requirePongChief(event)
   const { id, action, approver } = await readBody(event)
 
   if (!id || !['approve', 'reject'].includes(action))

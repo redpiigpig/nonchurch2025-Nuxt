@@ -78,6 +78,7 @@ async function exportByLocalPython(articleData) {
 }
 
 export default defineEventHandler(async (event) => {
+  await requireAdminUser(event);
   const articleData = await readBody(event);
   const config = useRuntimeConfig();
   const mode = getWordExportMode(config);

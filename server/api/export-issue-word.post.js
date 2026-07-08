@@ -58,6 +58,7 @@ async function exportIssueByLocalPython(body) {
 }
 
 export default defineEventHandler(async (event) => {
+  await requireAdminUser(event);
   const body = await readBody(event);
   const { articles, filename } = body || {};
   if (!Array.isArray(articles) || articles.length === 0) {

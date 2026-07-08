@@ -5,6 +5,7 @@
 import { v2 as cloudinary } from "cloudinary";
 
 export default defineEventHandler(async (event) => {
+  await requireAdminUser(event);
   const config = useRuntimeConfig();
   cloudinary.config({
     cloud_name: config.cloudinaryCloudName,

@@ -20,6 +20,7 @@ const truncate = (s = "", max = 80) =>
   s.length > max ? s.slice(0, max) + "…" : s;
 
 export default defineEventHandler(async (event) => {
+  await requireAdminUser(event);
   const config = useRuntimeConfig();
   const body = await readBody(event);
   const {

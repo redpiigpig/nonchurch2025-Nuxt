@@ -1,9 +1,10 @@
 // server/api/notify-proofread-complete.post.js
 // 校對員按下「✓ 確認完成校對」並成功寫入 DB 後，由 ProofreadView 呼叫此端點通知管理員。
 // 這個 API 不重複寫 DB，只負責寄通知信，因此不需要 service key。
-// 不做嚴格驗證（避免擋住通知）——這是純通知，沒有資料寫入動作。
+// 校對頁在 /admin 下、校對者以 Supabase 帳號登入，故要求登入以防被當寄信跳板。
 
 export default defineEventHandler(async (event) => {
+  await requireAdminUser(event);
   const config = useRuntimeConfig();
   const body = await readBody(event);
   const { article_id, title, proofread_by, proofread_date, annotation_count } = body || {};

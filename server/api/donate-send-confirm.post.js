@@ -45,6 +45,7 @@ function buildDonorEmail(name, siteUrl) {
 }
 
 export default defineEventHandler(async (event) => {
+  await requireAdminUser(event);
   const config = useRuntimeConfig();
   const { name, email } = await readBody(event);
 
