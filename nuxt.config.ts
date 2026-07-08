@@ -34,6 +34,26 @@ export default defineNuxtConfig({
     public: {
       supabaseUrl: process.env.VITE_SUPABASE_URL,
       supabaseKey: process.env.VITE_SUPABASE_KEY,
+      siteUrl: process.env.SITE_URL || "https://nonchurch2025.com",
+    },
+  },
+
+  // 快取策略：公開頁用 SWR（背景再驗證），後台不快取；靜態資產壓縮
+  nitro: {
+    compressPublicAssets: true,
+    routeRules: {
+      // 幾乎不變的靜態內容頁：快取 1 小時
+      "/about": { swr: 3600 },
+      "/mission": { swr: 3600 },
+      "/publication": { swr: 3600 },
+      // 內容列表與文章頁：快取 5 分鐘（出刊/改稿最多延遲 5 分鐘可接受）
+      "/": { swr: 300 },
+      "/articles/**": { swr: 300 },
+      "/authors/**": { swr: 300 },
+      "/home/**": { swr: 300 },
+      // 後台與登入頁：不快取、不索引
+      "/admin/**": { headers: { "x-robots-tag": "noindex" } },
+      "/login": { headers: { "x-robots-tag": "noindex" } },
     },
   },
 

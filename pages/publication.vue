@@ -221,10 +221,10 @@ const issuesByYear = computed(() => {
                 <span class="upcoming-badge">{{ t.upcomingBadge }}</span>
               </div>
               <a v-else-if="card.coverImg && card.pdfLink" :href="card.pdfLink" target="_blank" rel="noopener" :title="t.clickToDownload">
-                <img :src="card.coverImg" :alt="`Vol.${card.number} ${card.title}`" class="cover-img" />
+                <img :src="cloudinaryUrl(card.coverImg, CLD.cover)" :alt="`Vol.${card.number} ${card.title}`" class="cover-img" loading="lazy" decoding="async" />
               </a>
               <div v-else-if="card.coverImg" class="cover-no-pdf">
-                <img :src="card.coverImg" :alt="`Vol.${card.number} ${card.title}`" class="cover-img" />
+                <img :src="cloudinaryUrl(card.coverImg, CLD.cover)" :alt="`Vol.${card.number} ${card.title}`" class="cover-img" loading="lazy" decoding="async" />
                 <div class="no-pdf-overlay">{{ t.noPdf }}</div>
               </div>
               <div v-else class="cover-placeholder">

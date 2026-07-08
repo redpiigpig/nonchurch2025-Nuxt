@@ -109,9 +109,10 @@ const initYear = () => {
     selectedYear.value = queryYear;
 };
 
-const fetchAuthors = async () => {
-  try {
-    isLoading.value = true;
+// ✅ SSR：setup 期抓作者列表（SEO 可收錄）；編輯模式切換時自動重抓
+const { data: authorsData } = await useAsyncData(
+  "authors-list",
+  async () => {
     let query = supabase
       .from("authors")
       .select("*")
@@ -119,25 +120,23 @@ const fetchAuthors = async () => {
     if (!isEditor.value) query = query.eq("is_published", true);
     const { data, error } = await query;
     if (error) throw error;
-    if (data) {
-      allAuthors.value = data;
-      updateAuthors();
-    }
-  } catch (err) {
-    console.error("Error:", err.message);
-  } finally {
-    isLoading.value = false;
-  }
-};
+    return data || [];
+  },
+  { watch: [isEditor] },
+);
 
-const updateAuthors = () => {
+// shuffle=false 時維持 id 排序：SSR 與 hydration 用固定順序避免 DOM 不一致，
+// mount 之後才洗牌成隨機順序。
+const updateAuthors = (shuffle = true) => {
   const filtered = allAuthors.value.filter((a) =>
     a.years?.includes(selectedYear.value),
   );
   const arr = [...filtered];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+  if (shuffle) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
   }
   randomizedAuthors.value = arr;
 };
@@ -162,11 +161,21 @@ watch(selectedYear, (v) => {
   router.replace({ query: { ...route.query, year: v } });
   updateAuthors();
 });
-watch(isEditor, fetchAuthors);
+
+// 資料到位（含 SSR 初始與編輯模式重抓）→ 先以固定順序渲染
+watch(
+  authorsData,
+  (data) => {
+    allAuthors.value = data || [];
+    isLoading.value = false;
+    updateAuthors(false);
+  },
+  { immediate: true },
+);
 
 onMounted(() => {
   initYear();
-  fetchAuthors();
+  updateAuthors(); // mount 後才隨機排序
 });
 </script>
 
@@ -207,9 +216,11 @@ onMounted(() => {
         </div>
         <div class="author-info">
           <img
-            :src="author.author_image"
+            :src="cloudinaryUrl(author.author_image, 'f_auto,q_auto,w_320,h_320,c_fill,g_face')"
             :alt="author.displayName"
             class="author-image"
+            loading="lazy"
+            decoding="async"
           />
           <h2>{{ author.displayName }}</h2>
         </div>

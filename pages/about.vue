@@ -274,7 +274,7 @@ useSeoMeta({
         <!-- 圖片靠右浮動，文字環繞 -->
         <div v-if="section.imgPosition === 'right'" class="section-with-float">
           <figure class="img-float-right">
-            <img :src="section.img" :alt="section.imgCaption" />
+            <img :src="cloudinaryUrl(section.img, 'f_auto,q_auto,w_600')" :alt="section.imgCaption" loading="lazy" decoding="async" />
             <figcaption v-html="section.imgCaption"></figcaption>
           </figure>
           <p v-for="(para, j) in section.paras" :key="j">{{ para }}</p>
@@ -285,7 +285,7 @@ useSeoMeta({
         <template v-else>
           <p v-for="(para, j) in section.paras" :key="j">{{ para }}</p>
           <figure v-if="section.img" class="img-below">
-            <img :src="section.img" :alt="section.imgCaption" />
+            <img :src="cloudinaryUrl(section.img, 'f_auto,q_auto,w_900')" :alt="section.imgCaption" loading="lazy" decoding="async" />
             <figcaption v-html="section.imgCaption.replace(/\n/g, '<br>')"></figcaption>
           </figure>
         </template>

@@ -247,8 +247,7 @@ const saveScrollPosition = (selector) => {
   }
 };
 
-const fetchAndGroupArticles = async () => {
-  loading.value = true;
+const buildGroupedIssues = async () => {
   let query = supabase
     .from("issues")
     .select(
@@ -258,12 +257,9 @@ const fetchAndGroupArticles = async () => {
   if (!isEditor.value) query = query.eq("is_published", true);
 
   const { data: issuesData, error } = await query;
-  if (error) {
-    loading.value = false;
-    return;
-  }
+  if (error) return [];
 
-  groupedIssues.value = issuesData.map((issue) => {
+  return issuesData.map((issue) => {
     const CDN = "https://res.cloudinary.com/nonchurch2025/image/upload";
     issue.hasCoverImg = !!issue.cover_img?.startsWith("http");
     issue.cover_img = issue.hasCoverImg
@@ -326,23 +322,39 @@ const fetchAndGroupArticles = async () => {
     }
     return issue;
   });
-
-  // 設定初始年份
-  const queryYear = parseInt(route.query.year);
-  if (yearOptions.value.some((o) => o.value === queryYear))
-    selectedYear.value = queryYear;
-  else {
-    const latestYear =
-      groupedIssues.value.length > 0
-        ? 2025 + Math.floor((groupedIssues.value[0].id - 1) / 6)
-        : new Date().getFullYear();
-    if (yearOptions.value.some((o) => o.value === latestYear))
-      selectedYear.value = latestYear;
-  }
-
-  loading.value = false;
-  if (import.meta.client) scrollToAnchor();
 };
+
+// ✅ SSR：資料由 useAsyncData 回傳（refs 的副作用寫法在 hydration 後會是空的），
+// 編輯模式切換時自動重抓，統一用單一 loading 狀態
+const { data: groupedData } = await useAsyncData(
+  "articles-list",
+  buildGroupedIssues,
+  { watch: [isEditor] },
+);
+
+watch(
+  groupedData,
+  (data) => {
+    groupedIssues.value = data || [];
+
+    // 設定初始年份
+    const queryYear = parseInt(route.query.year);
+    if (yearOptions.value.some((o) => o.value === queryYear))
+      selectedYear.value = queryYear;
+    else {
+      const latestYear =
+        groupedIssues.value.length > 0
+          ? 2025 + Math.floor((groupedIssues.value[0].id - 1) / 6)
+          : new Date().getFullYear();
+      if (yearOptions.value.some((o) => o.value === latestYear))
+        selectedYear.value = latestYear;
+    }
+
+    loading.value = false;
+    if (import.meta.client) scrollToAnchor();
+  },
+  { immediate: true },
+);
 
 // displayIssues：套用 Supabase translations 翻譯
 const filteredIssues = computed(() =>
@@ -385,9 +397,6 @@ const displayIssues = computed(() => {
 watch(selectedYear, (v) =>
   router.replace({ query: { ...route.query, year: v } }),
 );
-watch(isEditor, fetchAndGroupArticles);
-
-await useAsyncData(`articles-list-${isEditor.value}`, fetchAndGroupArticles);
 </script>
 
 <template>
@@ -505,9 +514,11 @@ await useAsyncData(`articles-list-${isEditor.value}`, fetchAndGroupArticles);
           <template v-else>
             <a :href="issue.pdf_link" target="_blank" :title="t.download">
               <img
-                :src="issue.cover_img"
+                :src="cloudinaryUrl(issue.cover_img, CLD.cover)"
                 :alt="`Vol.${issue.id} Cover`"
                 class="magazine-cover"
+                loading="lazy"
+                decoding="async"
               />
             </a>
             <p class="cover-description">{{ t.download }}</p>

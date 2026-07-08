@@ -196,9 +196,10 @@ useSeoMeta({
     <section class="author-container">
       <div class="author-left">
         <img
-          :src="displayAuthor.author_image"
+          :src="cloudinaryUrl(displayAuthor.author_image, 'f_auto,q_auto,w_480')"
           :alt="displayAuthor.displayName"
           class="author-photo"
+          decoding="async"
         />
       </div>
       <div class="author-info">

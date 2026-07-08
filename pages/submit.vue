@@ -636,8 +636,10 @@ onMounted(() => {
         </h2>
         <div class="theme-image" v-if="translatedTheme.cfp_image">
           <img
-            :src="translatedTheme.cfp_image"
+            :src="cloudinaryUrl(translatedTheme.cfp_image, 'f_auto,q_auto,w_900')"
             :alt="translatedTheme.cfp_title"
+            loading="lazy"
+            decoding="async"
           />
         </div>
         <br />

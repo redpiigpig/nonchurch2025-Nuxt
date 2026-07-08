@@ -519,6 +519,22 @@ const htmlContent = computed(() => {
     return `<a ${attrs} target="_blank" rel="noopener noreferrer">`;
   });
 
+  // 4. 內文圖延遲載入 + Cloudinary 自動格式/品質壓縮（f_auto,q_auto，寬度上限 1200）
+  html = html.replace(/<img\s([^>]*)>/gi, (match, attrs) => {
+    let out = attrs;
+    if (!/loading=/.test(out)) out += ' loading="lazy"';
+    if (!/decoding=/.test(out)) out += ' decoding="async"';
+    out = out.replace(/src="([^"]+)"/, (m, src) => {
+      const marker = "/image/upload/";
+      const idx = src.indexOf(marker);
+      if (idx === -1) return m;
+      const after = src.slice(idx + marker.length);
+      if (/^(f_|q_|w_|c_)/.test(after)) return m; // 已有轉換參數
+      return `src="${src.slice(0, idx + marker.length)}f_auto,q_auto,w_1200${"/"}${after}"`;
+    });
+    return `<img ${out}>`;
+  });
+
   return html;
 });
 

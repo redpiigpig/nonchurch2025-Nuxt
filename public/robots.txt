@@ -1,2 +1,6 @@
 User-Agent: *
-Disallow:
+Disallow: /admin
+Disallow: /login
+Disallow: /preview
+
+Sitemap: https://nonchurch2025.com/sitemap.xml

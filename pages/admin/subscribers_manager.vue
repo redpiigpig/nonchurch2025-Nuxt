@@ -22,11 +22,21 @@ onMounted(fetchAll);
 
 async function fetchAll() {
   loading.value = true;
-  const { data, error } = await supabase
-    .from("subscribers")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (!error) subscribers.value = data || [];
+  // 用 range 分批抓：Supabase 單次查詢預設上限 1000 筆，
+  // 訂閱者破千後單次 select 會默默截斷，這裡迴圈抓到取完為止。
+  const PAGE = 1000;
+  let all = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("subscribers")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error || !data) break;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+  }
+  subscribers.value = all;
   loading.value = false;
 }
 

@@ -298,17 +298,18 @@ const translateCategory = (cat) => {
   return categoryTranslations[lang]?.[cat] || cat;
 };
 
-const fetchAuthors = async () => {
+// 首頁列表只需要文章 metadata，不抓 content/footnotes 等大欄位（那些留給文章頁）
+const ARTICLE_LIST_COLUMNS =
+  "id, title, subtitle, issue, category, section, author, author_display, keyword, summary, linked_author_ids, translations, is_published, sort_order";
+
+const getAuthors = async () => {
   // 不過濾 is_published：本期作者區只看「有文章歸屬到」即顯示，
   // is_published 旗標只用於 /authors 列表頁的展示控制。
-  const { data, error } = await supabase.from("authors").select("*");
-  if (!error && data) {
-    dbAuthors.value = data;
-  }
+  const { data } = await supabase.from("authors").select("*");
+  return data || [];
 };
 
-const fetchIssues = async () => {
-  loading.value = true;
+const getIssues = async () => {
   let query = supabase
     .from("issues")
     .select("*")
@@ -316,28 +317,24 @@ const fetchIssues = async () => {
   if (!isEditor.value) {
     query = query.eq("is_published", true);
   }
-  const { data, error } = await query;
-  if (!error) {
-    issuesList.value = data || [];
-    await loadTargetIssue();
-  }
-  loading.value = false;
+  const { data } = await query;
+  return data || [];
 };
 
-const loadTargetIssue = async () => {
-  if (issuesList.value.length === 0) return;
+const pickTargetIssue = (issues) => {
+  if (!issues.length) return null;
   let target = null;
 
   // 1) 明確指定期數（/home/issue/:issueNumber）時，優先使用路由目標
   if (route.params.issueNumber) {
-    target = issuesList.value.find((i) => i.id == route.params.issueNumber);
+    target = issues.find((i) => i.id == route.params.issueNumber);
   }
 
   // 2) 管理員首頁（未指定期數）：
   //    優先顯示「最早尚未出版」的一期。
   //    例如第 8、9 期都未出刊時，顯示第 8 期。
   if (!target && isEditor.value) {
-    const drafts = [...issuesList.value]
+    const drafts = [...issues]
       .filter((i) => !i.is_published)
       .sort((a, b) => Number(a.id) - Number(b.id));
     if (drafts.length > 0) {
@@ -346,24 +343,47 @@ const loadTargetIssue = async () => {
   }
 
   // 3) 其餘情況維持原本：顯示列表第一筆（已依 id desc 排序）
-  if (!target) target = issuesList.value[0];
-  currentIssueData.value = target;
-  if (target) {
-    adminSelectedIssue.value = target.id;
-    let artQuery = supabase.from("articles").select("*").eq("issue", target.id);
-    if (!isEditor.value) artQuery = artQuery.eq("is_published", true);
-    const { data: articles, error } = await artQuery;
-    if (!error && articles) {
-      articles.sort((a, b) => {
-        return a.id.localeCompare(b.id, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        });
-      });
-      rawArticles.value = articles;
-    }
-  }
+  return target || issues[0];
 };
+
+const getIssueArticles = async (issueId) => {
+  let artQuery = supabase
+    .from("articles")
+    .select(ARTICLE_LIST_COLUMNS)
+    .eq("issue", issueId);
+  if (!isEditor.value) artQuery = artQuery.eq("is_published", true);
+  const { data: articles } = await artQuery;
+  return (articles || []).sort((a, b) =>
+    a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" }),
+  );
+};
+
+// ✅ SSR：setup 期就抓好資料（爬蟲、社群預覽看得到內容，首屏不再空白）。
+// 路由期數或編輯模式改變時自動重抓。
+const { data: homeData } = await useAsyncData(
+  "home-view",
+  async () => {
+    const [authors, issues] = await Promise.all([getAuthors(), getIssues()]);
+    const target = pickTargetIssue(issues);
+    const articles = target ? await getIssueArticles(target.id) : [];
+    return { authors, issues, target, articles };
+  },
+  { watch: [isEditor, () => route.params.issueNumber] },
+);
+
+watch(
+  homeData,
+  (d) => {
+    if (!d) return;
+    dbAuthors.value = d.authors;
+    issuesList.value = d.issues;
+    currentIssueData.value = d.target;
+    if (d.target) adminSelectedIssue.value = d.target.id;
+    rawArticles.value = d.articles;
+    loading.value = false;
+  },
+  { immediate: true },
+);
 
 const currentIssueContent = computed(() => {
   const langKey =
@@ -436,7 +456,9 @@ const currentIssue = computed(() => {
   };
 });
 
-const getCategoryColor = (category) => {
+// function 宣告（可提升）：SSR 時 useAsyncData 的資料在 setup 期就會觸發
+// currentIssueContent，若用 const 會踩到「定義前存取」的 TDZ 錯誤
+function getCategoryColor(category) {
   const map = {
     專題文章: "#8b0000",
     評論與回應: "#ff8000",
@@ -448,7 +470,7 @@ const getCategoryColor = (category) => {
     封面故事: "#7d6c29",
   };
   return map[category] || "#999";
-};
+}
 
 const getColorClass = (colorCode) => {
   const map = {
@@ -659,15 +681,8 @@ useHead({
   title: pageTitle,
 });
 
-watch(
-  () => route.params.issueNumber,
-  () => loadTargetIssue(),
-);
-watch(isEditor, () => fetchIssues());
-
-onMounted(async () => {
-  await fetchAuthors();
-  await fetchIssues();
+// 資料抓取已由上方 useAsyncData（含 watch）處理，這裡只負責音樂啟動
+onMounted(() => {
   // 後備：watch 若因時序未觸發，這裡再嘗試一次播放
   startMusic();
 });

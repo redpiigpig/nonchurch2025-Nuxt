@@ -18,8 +18,12 @@ const localeMap = {
 
 const canonicalPath = computed(() => route.path);
 
+// canonical 一律用正式網域（與 SITE_URL / sitemap 一致），舊值 nonchurch.tw 已停用
+// 注意：useRuntimeConfig 必須在 setup 頂層呼叫，不能在 computed 內（SSR 會失去 instance context）
+const runtimeConfig = useRuntimeConfig();
+
 const seoLinks = computed(() => {
-  const base = "https://nonchurch.tw";
+  const base = runtimeConfig.public.siteUrl || "https://nonchurch2025.com";
   const langs = ["default", "zh-HK", "zh-CN", "en", "ja", "ko"];
   const links = [
     { rel: "canonical", href: `${base}${canonicalPath.value}` },

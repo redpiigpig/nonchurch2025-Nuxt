@@ -142,9 +142,11 @@ async function submitDonate() {
 
       <div class="finance-img-wrap">
         <img
-          src="https://res.cloudinary.com/nonchurch2025/image/upload/images/system/Gemini_Generated_Image_g8c8ftg8c8ftg8c8_PhotoGrid.png"
+          src="https://res.cloudinary.com/nonchurch2025/image/upload/f_auto,q_auto,w_900/images/system/Gemini_Generated_Image_g8c8ftg8c8ftg8c8_PhotoGrid.png"
           alt="財務資訊圖示"
           class="finance-img"
+          loading="lazy"
+          decoding="async"
         />
       </div>
     </div>
