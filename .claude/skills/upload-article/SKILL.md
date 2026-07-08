@@ -15,6 +15,35 @@ description: 把使用者交付的「文章內文 + 照片（內文圖 / 作者�
 
 ---
 
+## 零、接件流程（使用者把檔案丟在專案根目錄）
+
+使用者的固定交付方式：**把要上架的檔案直接放在專案根目錄**（docx / txt / md 內文 + jpg/png 照片），然後說「幫我上架」。照下面順序做，每一步都不要跳：
+
+1. **盤點根目錄新檔案**：`ls` 根目錄，找出非專案檔的 docx/txt/md/jpg/png。docx 用 `npx mammoth 檔名.docx` 或 python-docx 讀出內文；分不清哪張圖是內文圖、哪張是大頭貼時**直接問使用者一次**問清全部。
+2. **辨識作者（常見作者對照表，先比對這張，不確定再查 DB）**：
+
+   | 作者 | author_id | 慣用 category/section |
+   |------|-----------|----------------------|
+   | 張辰瑋 | 2 | 生命故事 或 評論與回應 / 主題廣場（他的稿改用 [chenwei-essay](../chenwei-essay/SKILL.md)）|
+   | 金子煥 | 5 | 公告與剪影 或 專題文章 / 多元講堂 |
+   | 毛毛 | 10 | 評論與回應 / 多元講堂 |
+   | 廖本恩 | 1 | 專題文章 / 主題廣場 |
+   | Sunny Leung | 8 | 生命故事 / 主題廣場 |
+   | 奧斯定 | 4 | 評論與回應 / 主題廣場 |
+   | 邱詠恩 | 3 | 專題文章 / 主題廣場 |
+   | 淨智 | 14 | 時事評論 / 多元講堂 |
+   | 王微儂 | 47 | 生命故事 或 文藝創作 / 主題廣場 |
+
+   - 表上沒有的名字 → 查 DB：`SELECT id,name FROM authors`（走 REST，見第六節）。DB 也沒有才視為**新作者**（需要大頭貼與 bio，走 `newAuthor`）。
+   - 表是 2026-07 的快照，同名不同人或有疑慮時以 DB 為準。
+   - 既有作者一律填 `"linked_author_ids": [id]`，**不要**再建 `newAuthor`。
+3. **定分類**：先套上表該作者的慣用 category/section；主題與該期封面故事直接相關時改「封面故事/主題介紹」。拿不準跑 `SELECT id,category,section FROM articles WHERE issue=N` 看同期慣例。
+4. **定 id 與序號**：`SELECT id FROM articles WHERE issue=N` 看已佔用的 `{issue}-{order}`，取下一個空號（或依使用者指定的目次位置）。
+5. 之後照本 skill 一 → 二 → 三 → 五 執行（寫描述檔 → dry-run → 正式跑 → 驗證）。
+6. **收尾**：上架成功後把根目錄的交付檔案移到 `temp/`（已 gitignore）或問使用者是否可刪，**不要 commit 這些原始檔**。
+
+---
+
 ## 一、開工 checklist
 
 - [ ] 先跑測試確認工具沒壞：`node scripts/publish_article.test.mjs`
