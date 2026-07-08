@@ -21,7 +21,6 @@ logs
 # stores 整個忽略，只保留正式程式碼
 stores/*
 !stores/tempArticles.js
-!stores/finance_data.js
 
 # Office / system temp files
 ~$*.docx
