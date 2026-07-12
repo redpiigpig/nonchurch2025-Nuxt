@@ -1608,38 +1608,100 @@ const unresolvedAnnotations = computed(() =>
 );
 
 
+// 在 ProseMirror 文件中尋找 selectedText 的實際位置。
+// 校對員存的是「純文字」，但內文 HTML 可能夾著 kaiti/斜體/粗體等行內格式，
+// 直接對 HTML 字串做 includes 會找不到；改成逐段落串接文字並記錄字元位置。
+const findAnnRangeInDoc = (target) => {
+  const doc = editor.value?.state?.doc;
+  if (!doc || !target) return null;
+  let result = null;
+  doc.descendants((node, pos) => {
+    if (result) return false;
+    if (!node.isTextblock) return true;
+    let str = "";
+    const posMap = []; // str 每個字元對應的 doc 位置
+    node.content.forEach((child, offset) => {
+      const base = pos + 1 + offset;
+      if (child.isText) {
+        for (let i = 0; i < child.text.length; i++) posMap.push(base + i);
+        str += child.text;
+      } else {
+        // 非文字行內節點（如腳注引用）：放佔位符，避免匹配跨越它
+        posMap.push(-1);
+        str += String.fromCharCode(0); // NUL: 選取文字不可能包含此字元
+      }
+    });
+    const idx = str.indexOf(target);
+    if (idx !== -1) {
+      result = { from: posMap[idx], to: posMap[idx + target.length - 1] + 1 };
+    }
+    return false;
+  });
+  return result;
+};
+
+// 把標記原文替換為 replaceWith（空字串 = 刪除）。成功回傳 true。
+const replaceAnnText = (selectedText, replaceWith) => {
+  const range = findAnnRangeInDoc(selectedText);
+  if (range) {
+    editor.value.chain().focus().command(({ tr }) => {
+      if (replaceWith) tr.insertText(replaceWith, range.from, range.to);
+      else tr.delete(range.from, range.to);
+      return true;
+    }).run();
+    form.value.content = editor.value.getHTML();
+    return true;
+  }
+  // 後備：純文字段落仍可用舊的 HTML 字串替換
+  const currentHtml = form.value.content;
+  if (currentHtml.includes(selectedText)) {
+    const newHtml = currentHtml.replace(selectedText, replaceWith);
+    editor.value?.commands.setContent(newHtml);
+    form.value.content = newHtml;
+    return true;
+  }
+  return false;
+};
+
+// 標記為已解決 + 視需要通知校對員（替換/省略共用）
+const finishAnnotation = (ann, action, fallbackNote, replacedWith) => {
+  const userTypedReply = (annEditorNotes.value[ann.id] || "").trim();
+  const idx = proofreadAnnotations.value.findIndex((a) => a.id === ann.id);
+  if (idx !== -1) {
+    proofreadAnnotations.value[idx] = {
+      ...proofreadAnnotations.value[idx],
+      resolved: true,
+      editorNote: userTypedReply || fallbackNote,
+      editorAction: action,
+    };
+  }
+  activeAnnId.value = null;
+  // 使用者有打回覆才通知校對員
+  if (userTypedReply) {
+    notifyProofreaderReply(ann, userTypedReply, action, replacedWith);
+  }
+};
+
 const applyReplacement = (ann) => {
   const replaceWith = annReplaceTexts.value[ann.id] || "";
   if (!replaceWith.trim()) {
     alert("請輸入替換文字");
     return;
   }
-  const selectedText = ann.selectedText;
-  const currentHtml = form.value.content;
-  if (currentHtml.includes(selectedText)) {
-    const newHtml = currentHtml.replace(selectedText, replaceWith);
-    editor.value?.commands.setContent(newHtml);
-    form.value.content = newHtml;
-    // 記住使用者實際打字的回覆（用於通知判斷）
-    const userTypedReply = (annEditorNotes.value[ann.id] || "").trim();
-    // 自動標記為已解決
-    const idx = proofreadAnnotations.value.findIndex((a) => a.id === ann.id);
-    if (idx !== -1) {
-      proofreadAnnotations.value[idx] = {
-        ...proofreadAnnotations.value[idx],
-        resolved: true,
-        editorNote: userTypedReply || `已替換為：${replaceWith}`,
-        editorAction: "adopted",
-      };
-    }
-    activeAnnId.value = null;
-    // 使用者有打回覆才通知校對員
-    if (userTypedReply) {
-      notifyProofreaderReply(ann, userTypedReply, "adopted", replaceWith);
-    }
-  } else {
+  if (!replaceAnnText(ann.selectedText, replaceWith)) {
     alert("找不到標記的原文，可能內文已被修改，請手動更改。");
+    return;
   }
+  finishAnnotation(ann, "adopted", `已替換為：${replaceWith}`, replaceWith);
+};
+
+// 省略：直接把標記的原文從內文刪掉
+const omitAnnotation = (ann) => {
+  if (!replaceAnnText(ann.selectedText, "")) {
+    alert("找不到標記的原文，可能內文已被修改，請手動更改。");
+    return;
+  }
+  finishAnnotation(ann, "omitted", `已省略：「${ann.selectedText}」`);
 };
 
 const resolveAnnotation = async (ann) => {
@@ -2208,9 +2270,14 @@ const colorLabel = (color) => {
           class="ann-popup-reply"
           rows="2"
         ></textarea>
-        <button class="btn-popup-resolve" @click="resolveAnnotation(activeAnn)">
-          ✓ 標記解決
-        </button>
+        <div class="ann-popup-btn-row">
+          <button class="btn-popup-omit" @click="omitAnnotation(activeAnn)" title="直接刪除標記的原文">
+            🗑 省略
+          </button>
+          <button class="btn-popup-resolve" @click="resolveAnnotation(activeAnn)">
+            ✓ 標記解決
+          </button>
+        </div>
       </template>
 
       <!-- 已解決 -->
@@ -2220,6 +2287,7 @@ const colorLabel = (color) => {
         </div>
         <div class="ann-popup-action-row">
           <span v-if="activeAnn.editorAction === 'adopted'" class="ann-action-tag adopted">✅ 已採用</span>
+          <span v-else-if="activeAnn.editorAction === 'omitted'" class="ann-action-tag omitted">🗑 已省略</span>
           <span v-else class="ann-action-tag resolved">✓ 已標記解決</span>
           <button class="btn-popup-unresolve" @click="unresolveAnnotation(activeAnn.id)">↩ 重開</button>
         </div>
@@ -3502,6 +3570,25 @@ const colorLabel = (color) => {
   font-family: inherit;
 }
 
+.ann-popup-btn-row {
+  display: flex;
+  gap: 8px;
+}
+.ann-popup-btn-row .btn-popup-resolve { flex: 1; }
+
+.btn-popup-omit {
+  padding: 7px 14px;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.btn-popup-omit:hover { background: #fecaca; }
+
 .btn-popup-resolve {
   padding: 7px 0;
   background: #dcfce7;
@@ -3532,6 +3619,7 @@ const colorLabel = (color) => {
 }
 
 .ann-action-tag.resolved { background: #f0f9ff; color: #0369a1; }
+.ann-action-tag.omitted { background: #fee2e2; color: #b91c1c; }
 
 .btn-popup-unresolve {
   margin-left: auto;

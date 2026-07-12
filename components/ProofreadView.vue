@@ -771,6 +771,7 @@ onBeforeUnmount(() => {
               <span class="ann-editor-reply-label">編輯：</span>{{ ann.editorNote }}
             </div>
             <div v-if="ann.editorAction === 'adopted'" class="ann-adopted-tag">✅ 已採用替換</div>
+            <div v-else-if="ann.editorAction === 'omitted'" class="ann-omitted-tag">🗑 已省略原文</div>
 
             <!-- 校對已完成、編輯尚未處理：給編輯一個回覆入口 -->
             <div
@@ -1205,6 +1206,12 @@ onBeforeUnmount(() => {
 .ann-adopted-tag {
   font-size: 0.72rem;
   color: #065f46;
+  font-weight: 600;
+  margin-top: 3px;
+}
+.ann-omitted-tag {
+  font-size: 0.72rem;
+  color: #b91c1c;
   font-weight: 600;
   margin-top: 3px;
 }

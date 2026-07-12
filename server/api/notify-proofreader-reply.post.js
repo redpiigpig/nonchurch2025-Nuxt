@@ -5,6 +5,7 @@
 
 const ACTION_LABEL = {
   adopted: "✅ 採用替換",
+  omitted: "🗑 省略（刪除原文）",
   resolved: "✓ 標記解決",
 };
 
@@ -29,7 +30,7 @@ export default defineEventHandler(async (event) => {
     selected_text,
     proofreader_note,
     editor_reply,
-    action, // 'adopted' | 'resolved'
+    action, // 'adopted' | 'omitted' | 'resolved'
     replaced_with, // 替換時的新文字（選填）
   } = body || {};
 
