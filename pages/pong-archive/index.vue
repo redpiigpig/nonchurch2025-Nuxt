@@ -108,8 +108,8 @@
           <span class="pa-card-arrow">→</span>
         </NuxtLink>
 
-        <!-- 5. 手稿與書信 -->
-        <NuxtLink to="/pong-archive/manuscripts" class="pa-card pa-card--manuscripts">
+        <!-- 5. 手稿與書信（籌備中，尚無頁面） -->
+        <div class="pa-card pa-card--manuscripts pa-card--soon">
           <div class="pa-card-icon">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <rect x="10" y="8" width="28" height="34" rx="2" stroke="currentColor" stroke-width="2" fill="none" transform="rotate(-4 24 25)"/>
@@ -125,8 +125,8 @@
               親筆手稿、書信往來、批注筆記等原始文獻，保存其事奉生命中的私密記錄。
             </p>
           </div>
-          <span class="pa-card-arrow">→</span>
-        </NuxtLink>
+          <span class="pa-card-soon-badge">籌備中</span>
+        </div>
 
         <!-- 6. 相關報導 -->
         <NuxtLink to="/pong-archive/reports" class="pa-card pa-card--reports">
@@ -150,8 +150,8 @@
           <span class="pa-card-arrow">→</span>
         </NuxtLink>
 
-        <!-- 7. 照片錦集 -->
-        <NuxtLink to="/pong-archive/photos" class="pa-card pa-card--photos">
+        <!-- 7. 照片錦集（籌備中，尚無頁面） -->
+        <div class="pa-card pa-card--photos pa-card--soon">
           <div class="pa-card-icon">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <rect x="6" y="12" width="36" height="28" rx="3" stroke="currentColor" stroke-width="2" fill="none"/>
@@ -168,10 +168,10 @@
               龐會督歷年事奉、按立、退修、教導與生活的影像紀錄，以圖像留存其生命風範。
             </p>
           </div>
-          <span class="pa-card-arrow">→</span>
-        </NuxtLink>
+          <span class="pa-card-soon-badge">籌備中</span>
+        </div>
 
-        <!-- 7. 回憶與緬懷 -->
+        <!-- 8. 回憶與緬懷 -->
         <NuxtLink to="/pong-archive/remembrance" class="pa-card pa-card--remembrance">
           <div class="pa-card-icon">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -388,6 +388,29 @@ definePageMeta({
 .pa-card:hover .pa-card-arrow {
   color: #7A6E5E;
   transform: translateX(4px);
+}
+
+/* ── 籌備中卡片（尚無頁面，不可點） ─────────────────────── */
+.pa-card--soon {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.pa-card--soon:hover {
+  border-color: #DDD8CF;
+  box-shadow: none;
+  transform: none;
+}
+
+.pa-card-soon-badge {
+  align-self: flex-end;
+  font-size: 0.7rem;
+  font-weight: 300;
+  color: #9A8E7E;
+  letter-spacing: 0.14em;
+  border: 1px solid #DDD8CF;
+  border-radius: 2px;
+  padding: 3px 10px;
 }
 
 /* ── About ─────────────────────────────────────────────── */

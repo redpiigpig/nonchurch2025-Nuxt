@@ -1,7 +1,20 @@
 import { createClient } from '@supabase/supabase-js'
 import nodemailer from 'nodemailer'
 
+// 同一 IP 一小時內最多 5 次申請（防灌註冊＋寄信轟炸）
+const RATE_WINDOW_MS = 60 * 60 * 1000
+const RATE_MAX = 5
+const rateLog = new Map()
+
 export default defineEventHandler(async (event) => {
+  const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+  const now = Date.now()
+  const recent = (rateLog.get(ip) || []).filter(t => now - t < RATE_WINDOW_MS)
+  if (recent.length >= RATE_MAX)
+    throw createError({ statusCode: 429, message: '申請太頻繁，請一小時後再試' })
+  recent.push(now)
+  rateLog.set(ip, recent)
+
   const { name, gender, age_group, email, church, how_knew, how_to_help } = await readBody(event)
 
   if (!name?.trim() || !email?.trim())

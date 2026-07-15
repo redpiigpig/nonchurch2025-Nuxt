@@ -55,10 +55,11 @@ import { reactive, ref } from 'vue'
 import { usePongSession } from '~/composables/usePongSession'
 
 const router = useRouter()
-const { login, isLoggedIn } = usePongSession()
+const { login, isLoggedIn, loadSession } = usePongSession()
 
-if (import.meta.client && isLoggedIn.value) {
-  router.replace('/pong-archive')
+if (import.meta.client) {
+  loadSession()
+  if (isLoggedIn.value) router.replace('/pong-archive')
 }
 
 const form = reactive({ email: '', password: '' })
