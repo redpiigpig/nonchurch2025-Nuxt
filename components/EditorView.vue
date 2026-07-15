@@ -455,31 +455,45 @@ const AnnotationMarkers = Extension.create({
             if (!unresolved.length) return DecorationSet.empty;
 
             const decorations = [];
-            let blockIdx = 0;
+            const blocks = [];
+            state.doc.descendants((node, pos) => {
+              if (node.isTextblock) blocks.push({ node, pos, text: node.textContent });
+              return true;
+            });
 
-            state.doc.forEach((node, offset) => {
-              const annsForBlock = unresolved.filter(
-                (a) => a.paragraphIndex === blockIdx,
+            unresolved.forEach((ann) => {
+              if (!ann.selectedText) return;
+
+              // paragraphIndex 可能因文章結構修改而過期。先查原段落；找不到時，
+              // 用原文及校對頁保存的 offset 在全文重新定位，避免小點跑到錯誤段落。
+              const preferred = blocks[Number(ann.paragraphIndex)];
+              let block = preferred;
+              let charIdx = preferred?.text.indexOf(ann.selectedText) ?? -1;
+              if (charIdx === -1) {
+                const exactOffset = Number(ann.startOffset);
+                block = blocks.find((candidate) =>
+                  Number.isFinite(exactOffset) &&
+                  candidate.text.slice(exactOffset, exactOffset + ann.selectedText.length) === ann.selectedText,
+                );
+                charIdx = block ? exactOffset : -1;
+              }
+              if (charIdx === -1) {
+                block = blocks.find((candidate) => candidate.text.includes(ann.selectedText));
+                charIdx = block?.text.indexOf(ann.selectedText) ?? -1;
+              }
+
+              // 找不到原文時不要把標記硬塞到段首／文末；保留在審閱資料中即可。
+              if (!block || charIdx === -1) return;
+
+              const from = block.pos + 1 + charIdx;
+              const to = from + ann.selectedText.length;
+              decorations.push(
+                Decoration.inline(from, to, {
+                  style: `background: ${ann.color}55; border-radius: 2px;`,
+                  class: "ann-text-highlight",
+                }),
               );
-              if (annsForBlock.length) {
-                const blockText = node.textContent;
-                annsForBlock.forEach((ann) => {
-                  // 文字反白 + 小點放在反白文字右上
-                  let dotPos = offset + 1;
-                  if (ann.selectedText) {
-                    const charIdx = blockText.indexOf(ann.selectedText);
-                    if (charIdx !== -1) {
-                      const from = offset + 1 + charIdx;
-                      const to = from + ann.selectedText.length;
-                      decorations.push(
-                        Decoration.inline(from, to, {
-                          style: `background: ${ann.color}55; border-radius: 2px;`,
-                          class: "ann-text-highlight",
-                        }),
-                      );
-                      dotPos = to;
-                    }
-                  }
+
                   const dot = document.createElement("span");
                   dot.className = "ann-dot-marker";
                   dot.style.background = ann.color || "#ffeb3b";
@@ -495,10 +509,7 @@ const AnnotationMarkers = Extension.create({
                       annPopupPos.value = { x: e.clientX, y: e.clientY };
                     }
                   });
-                  decorations.push(Decoration.widget(dotPos, dot, { side: 1 }));
-                });
-              }
-              blockIdx++;
+              decorations.push(Decoration.widget(to, dot, { side: 1 }));
             });
 
             return DecorationSet.create(state.doc, decorations);
@@ -1644,20 +1655,28 @@ const findAnnRangeInDoc = (target) => {
 const replaceAnnText = (selectedText, replaceWith) => {
   const range = findAnnRangeInDoc(selectedText);
   if (range) {
-    editor.value.chain().focus().command(({ tr }) => {
-      if (replaceWith) tr.insertText(replaceWith, range.from, range.to);
-      else tr.delete(range.from, range.to);
-      return true;
-    }).run();
+    const view = editor.value?.view;
+    if (!view) return false;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const tr = view.state.tr;
+    if (replaceWith) tr.insertText(replaceWith, range.from, range.to);
+    else tr.delete(range.from, range.to);
+    // 不呼叫 focus()：強制聚焦會把舊 selection 捲入視野，替換後可能跳到文末。
+    view.dispatch(tr.setMeta("preventScroll", true));
     form.value.content = editor.value.getHTML();
+    nextTick(() => window.scrollTo({ left: scrollX, top: scrollY, behavior: "auto" }));
     return true;
   }
   // 後備：純文字段落仍可用舊的 HTML 字串替換
   const currentHtml = form.value.content;
   if (currentHtml.includes(selectedText)) {
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
     const newHtml = currentHtml.replace(selectedText, replaceWith);
-    editor.value?.commands.setContent(newHtml);
+    editor.value?.commands.setContent(newHtml, false);
     form.value.content = newHtml;
+    nextTick(() => window.scrollTo({ left: scrollX, top: scrollY, behavior: "auto" }));
     return true;
   }
   return false;
