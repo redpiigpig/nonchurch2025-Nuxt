@@ -443,6 +443,98 @@ const ClassPreserver = Extension.create({
 const activeAnnId = ref(null);
 const annPopupPos = ref({ x: 0, y: 0 });
 
+// 把 textblock 重建為「校對頁 Range.toString() 語意」的純文字：
+// 文字照抄、腳注引用補上數字（校對頁 <sup><a>N</a></sup> 有文字）、
+// <br> 不產生字元、其他非文字節點放 NUL 佔位符（選取文字不可能包含它）。
+// 同時記錄每個字元對應的 doc 起訖位置，供反白與替換共用。
+const buildAnnBlockText = (node, pos) => {
+  let text = "";
+  const fromMap = []; // text 每個字元的起始 doc 位置
+  const endMap = [];  // text 每個字元的結束 doc 位置
+  node.content.forEach((child, offset) => {
+    const base = pos + 1 + offset;
+    if (child.isText) {
+      for (let i = 0; i < child.text.length; i++) {
+        fromMap.push(base + i);
+        endMap.push(base + i + 1);
+      }
+      text += child.text;
+    } else if (child.type.name === "footnoteRef") {
+      const label = String(child.attrs.fnId ?? "");
+      for (let i = 0; i < label.length; i++) {
+        fromMap.push(base);
+        endMap.push(base + child.nodeSize);
+      }
+      text += label;
+    } else if (child.type.name === "hardBreak") {
+      // Range.toString() 對 <br> 不產生字元，匹配可無縫跨越
+    } else {
+      fromMap.push(-1);
+      endMap.push(-1);
+      text += String.fromCharCode(0);
+    }
+  });
+  return { text, fromMap, endMap };
+};
+
+// 依校對標記在 doc 中定位範圍：
+// 1) 原 paragraphIndex 段落（段內優先取與校對時相同 startOffset 的匹配）
+// 2) 全文找「startOffset 位置剛好是原文」的段落
+// 3) 全文第一個含原文的段落
+// 反白（AnnotationMarkers）與替換（replaceAnnText）都必須用這個函數，
+// 確保按下「替換／省略」時改到的就是畫面上反白的那一處。
+const locateAnnRange = (doc, ann) => {
+  const target = ann?.selectedText;
+  if (!doc || !target) return null;
+  const blocks = [];
+  doc.descendants((node, pos) => {
+    if (node.isTextblock) blocks.push(buildAnnBlockText(node, pos));
+    return true;
+  });
+
+  const rangeAt = (block, idx) => {
+    if (idx === -1) return null;
+    const from = block.fromMap[idx];
+    const to = block.endMap[idx + target.length - 1];
+    return from !== -1 && to !== -1 ? { from, to } : null;
+  };
+  const findInBlock = (block) => {
+    let idx = block.text.indexOf(target);
+    while (idx !== -1) {
+      const r = rangeAt(block, idx);
+      if (r) return r;
+      idx = block.text.indexOf(target, idx + 1);
+    }
+    return null;
+  };
+
+  const startOffset = Number(ann.startOffset);
+  const preferred = blocks[Number(ann.paragraphIndex)];
+  if (preferred) {
+    if (Number.isFinite(startOffset) && preferred.text.startsWith(target, startOffset)) {
+      const r = rangeAt(preferred, startOffset);
+      if (r) return r;
+    }
+    const r = findInBlock(preferred);
+    if (r) return r;
+  }
+  if (Number.isFinite(startOffset)) {
+    for (const block of blocks) {
+      if (block === preferred) continue;
+      if (block.text.startsWith(target, startOffset)) {
+        const r = rangeAt(block, startOffset);
+        if (r) return r;
+      }
+    }
+  }
+  for (const block of blocks) {
+    if (block === preferred) continue;
+    const r = findInBlock(block);
+    if (r) return r;
+  }
+  return null;
+};
+
 const AnnotationMarkers = Extension.create({
   name: "annotationMarkers",
   addProseMirrorPlugins() {
@@ -455,38 +547,15 @@ const AnnotationMarkers = Extension.create({
             if (!unresolved.length) return DecorationSet.empty;
 
             const decorations = [];
-            const blocks = [];
-            state.doc.descendants((node, pos) => {
-              if (node.isTextblock) blocks.push({ node, pos, text: node.textContent });
-              return true;
-            });
 
             unresolved.forEach((ann) => {
-              if (!ann.selectedText) return;
-
-              // paragraphIndex 可能因文章結構修改而過期。先查原段落；找不到時，
-              // 用原文及校對頁保存的 offset 在全文重新定位，避免小點跑到錯誤段落。
-              const preferred = blocks[Number(ann.paragraphIndex)];
-              let block = preferred;
-              let charIdx = preferred?.text.indexOf(ann.selectedText) ?? -1;
-              if (charIdx === -1) {
-                const exactOffset = Number(ann.startOffset);
-                block = blocks.find((candidate) =>
-                  Number.isFinite(exactOffset) &&
-                  candidate.text.slice(exactOffset, exactOffset + ann.selectedText.length) === ann.selectedText,
-                );
-                charIdx = block ? exactOffset : -1;
-              }
-              if (charIdx === -1) {
-                block = blocks.find((candidate) => candidate.text.includes(ann.selectedText));
-                charIdx = block?.text.indexOf(ann.selectedText) ?? -1;
-              }
-
+              // 與「替換／省略」共用同一套定位（paragraphIndex → startOffset → 全文），
+              // 確保反白處＝實際會被替換的位置。
+              const range = locateAnnRange(state.doc, ann);
               // 找不到原文時不要把標記硬塞到段首／文末；保留在審閱資料中即可。
-              if (!block || charIdx === -1) return;
+              if (!range) return;
 
-              const from = block.pos + 1 + charIdx;
-              const to = from + ann.selectedText.length;
+              const { from, to } = range;
               decorations.push(
                 Decoration.inline(from, to, {
                   style: `background: ${ann.color}55; border-radius: 2px;`,
@@ -1619,41 +1688,11 @@ const unresolvedAnnotations = computed(() =>
 );
 
 
-// 在 ProseMirror 文件中尋找 selectedText 的實際位置。
-// 校對員存的是「純文字」，但內文 HTML 可能夾著 kaiti/斜體/粗體等行內格式，
-// 直接對 HTML 字串做 includes 會找不到；改成逐段落串接文字並記錄字元位置。
-const findAnnRangeInDoc = (target) => {
-  const doc = editor.value?.state?.doc;
-  if (!doc || !target) return null;
-  let result = null;
-  doc.descendants((node, pos) => {
-    if (result) return false;
-    if (!node.isTextblock) return true;
-    let str = "";
-    const posMap = []; // str 每個字元對應的 doc 位置
-    node.content.forEach((child, offset) => {
-      const base = pos + 1 + offset;
-      if (child.isText) {
-        for (let i = 0; i < child.text.length; i++) posMap.push(base + i);
-        str += child.text;
-      } else {
-        // 非文字行內節點（如腳注引用）：放佔位符，避免匹配跨越它
-        posMap.push(-1);
-        str += String.fromCharCode(0); // NUL: 選取文字不可能包含此字元
-      }
-    });
-    const idx = str.indexOf(target);
-    if (idx !== -1) {
-      result = { from: posMap[idx], to: posMap[idx + target.length - 1] + 1 };
-    }
-    return false;
-  });
-  return result;
-};
-
 // 把標記原文替換為 replaceWith（空字串 = 刪除）。成功回傳 true。
-const replaceAnnText = (selectedText, replaceWith) => {
-  const range = findAnnRangeInDoc(selectedText);
+// 定位使用與反白相同的 locateAnnRange（定義於 AnnotationMarkers 上方）。
+const replaceAnnText = (ann, replaceWith) => {
+  const selectedText = ann.selectedText;
+  const range = locateAnnRange(editor.value?.state?.doc, ann);
   if (range) {
     const view = editor.value?.view;
     if (!view) return false;
@@ -1674,7 +1713,7 @@ const replaceAnnText = (selectedText, replaceWith) => {
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
     const newHtml = currentHtml.replace(selectedText, replaceWith);
-    editor.value?.commands.setContent(newHtml, false);
+    editor.value?.commands.setContent(newHtml, { emitUpdate: false });
     form.value.content = newHtml;
     nextTick(() => window.scrollTo({ left: scrollX, top: scrollY, behavior: "auto" }));
     return true;
@@ -1707,7 +1746,7 @@ const applyReplacement = (ann) => {
     alert("請輸入替換文字");
     return;
   }
-  if (!replaceAnnText(ann.selectedText, replaceWith)) {
+  if (!replaceAnnText(ann, replaceWith)) {
     alert("找不到標記的原文，可能內文已被修改，請手動更改。");
     return;
   }
@@ -1716,7 +1755,7 @@ const applyReplacement = (ann) => {
 
 // 省略：直接把標記的原文從內文刪掉
 const omitAnnotation = (ann) => {
-  if (!replaceAnnText(ann.selectedText, "")) {
+  if (!replaceAnnText(ann, "")) {
     alert("找不到標記的原文，可能內文已被修改，請手動更改。");
     return;
   }
