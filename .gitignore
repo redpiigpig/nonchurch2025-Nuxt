@@ -42,8 +42,19 @@ cookies.txt
 
 # Interview article skill - 中間檔（音檔切片、轉錄逐字稿、暫存 JSON）
 _tmp_audio/
+_tmp_outline_*.txt
 scripts/_iv_*.json
+scripts/_build_iv_*.py
 scripts/_interview_dump.json
+
+# 訪談原始素材（音檔、訪綱）— 私人，不 push
+*.m4a
+*.mp3
+《無境界者》第*期專訪*.docx
+
+# 參考庫全文（廖本恩等他人著作 OCR/擷取全文）— 版權考量，僅本機供 fact-check，不 push
+data/reference/
+廖本恩，*.pdf
 
 # upload-article skill - 文章上架描述檔（含本機圖片路徑，不 push）
 scripts/_pub_*.json

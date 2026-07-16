@@ -44,7 +44,10 @@ Directory structure:
     ├── data/
     │   ├── authors.js
     │   ├── issues.js
-    │   └── submissionThemes.js
+    │   ├── submissionThemes.js
+    │   └── reference/                    # 無教會史參考庫（廖本恩著作全文，供未來主題文章 fact-check）
+    │       ├── 廖本恩_國家的理想_無教會第二世代對國家與殖民地的觀點.txt
+    │       └── 廖本恩_無境界的信徒們_台灣無教會史1911-2011.txt
     ├── layouts/
     │   ├── admin.vue
     │   ├── default.vue
