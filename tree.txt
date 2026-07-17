@@ -6,6 +6,8 @@ Directory structure:
     │   │   │   └── SKILL.md
     │   │   ├── interview-article/
     │   │   │   └── SKILL.md
+    │   │   ├── seo-multilang/
+    │   │   │   └── SKILL.md
     │   │   └── upload-article/
     │   │       └── SKILL.md
     │   └── scheduled_tasks.lock
