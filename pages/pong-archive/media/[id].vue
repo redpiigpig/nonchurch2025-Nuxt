@@ -167,7 +167,7 @@
         />
 
         <!-- 閱覽模式：格式化顯示 -->
-        <div v-else class="md-transcript-body">
+        <div v-else-if="parsedTranscript.length" class="md-transcript-body">
           <template v-for="(seg, i) in parsedTranscript" :key="i">
             <div v-if="seg.type === 'section'" class="md-ts-section">{{ seg.text }}</div>
             <div v-else-if="seg.type === 'speech'" class="md-ts-speech" :class="speakerClass(seg.speaker)">
@@ -181,6 +181,7 @@
             </div>
           </template>
         </div>
+        <p v-else class="md-transcript-empty">目前只有節目資料，逐字稿尚待整理。</p>
       </div>
     </section>
 
@@ -633,14 +634,24 @@ onMounted(() => { loadSession() })
 .md-ts-speech--bishop .md-ts-speaker { color: #5B3F2A; }
 .md-ts-speech--host .md-ts-speaker { color: #3A5A4A; }
 .md-ts-speech--congregation .md-ts-speaker { color: #2C2C2C; font-weight: 700; }
-.md-ts-content { font-size: 0.92rem; font-weight: 300; color: #3A3530; line-height: 2; letter-spacing: 0.04em; }
+.md-ts-content { min-width: 0; font-size: 0.92rem; font-weight: 300; color: #3A3530; line-height: 2; letter-spacing: 0.04em; overflow-wrap: anywhere; }
 .md-ts-content p { text-indent: 2rem; margin: 0 0 0.5em; }
 .md-ts-content p:last-child { margin-bottom: 0; }
 .md-ts-speech--congregation .md-ts-content p { text-indent: 0; }
 
-.md-ts-block { font-size: 0.92rem; font-weight: 300; color: #3A3530; line-height: 2; letter-spacing: 0.04em; padding-bottom: 20px; }
+.md-ts-block { font-size: 0.92rem; font-weight: 300; color: #3A3530; line-height: 2; letter-spacing: 0.04em; padding-bottom: 20px; overflow-wrap: anywhere; }
 .md-ts-block p { text-indent: 2rem; margin: 0 0 0.5em; }
 .md-ts-block p:last-child { margin-bottom: 0; }
+.md-transcript-empty {
+  margin: 0;
+  padding: 20px 22px;
+  border: 1px solid #E3DED5;
+  border-radius: 4px;
+  background: #FAF8F4;
+  color: #8A8175;
+  font-size: 0.86rem;
+  line-height: 1.8;
+}
 
 /* ── Proofreader Sign-off ────────────────────────────────── */
 .md-pr-section {

@@ -15,7 +15,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='repla
 # ── .env loader ───────────────────────────────────────────────────────────────
 def load_env():
     env = {}
-    env_path = Path(__file__).parent.parent / '.env'
+    env_path = Path(__file__).resolve().parents[2] / '.env'
     for raw in env_path.read_text(encoding='utf-8').splitlines():
         line = raw.strip().strip('"').strip("'")
         m = re.match(r'^([^#=]+)=(.*)$', line)
@@ -27,14 +27,15 @@ def load_env():
 ENV = load_env()
 SB_URL  = ENV.get('VITE_SUPABASE_URL', '')
 SB_KEY  = ENV.get('SUPABASE_SERVICE_KEY', '')
-PDF_DIR = Path(__file__).parent.parent / 'stores' / '三讀三禱'
-PDF_DIR.mkdir(exist_ok=True)
+PDF_DIR = Path(__file__).resolve().parents[2] / 'stores' / '三讀三禱'
+PDF_DIR.mkdir(parents=True, exist_ok=True)
 
 DRY_RUN   = '--dry-run' in sys.argv
 FILTER_Y  = next((a.split('=')[1] for a in sys.argv if a.startswith('--year=')), None)
 FILTER_S  = next((a.split('=')[1] for a in sys.argv if a.startswith('--season=')), None)
 
 BASE = 'https://www.1day3read3pray.com/wp-content/uploads'
+DOWNLOAD_DELAY_SEC = 8
 
 # ── Week manifest ─────────────────────────────────────────────────────────────
 # url: use /download/XXXXX/ (no tmstv needed) or direct .pdf URL
@@ -335,11 +336,21 @@ def pdf_to_text(pdf_path):
 DAY_ZH = {'日':0,'一':1,'二':2,'三':3,'四':4,'五':5,'六':6}
 
 KEY_VERSE_TRIGGER2 = re.compile(r'請默禱[，,。]?並專注默想')
-READING_TITLE_RE   = re.compile(r'^[一-鿿]{2,8}\s+\d+')
+READING_TITLE_RE   = re.compile(r'^[一-鿿A-Za-z]{1,12}\s+\d+')
 FOOTNOTE_RE        = re.compile(r'^[a-z]\s*\[')
 
 def clean(s):
     return re.sub(r'\s+', ' ', s).strip()
+
+def clean_page_artifacts(s):
+    """Remove extraction-only page markers without touching scripture verse numbers."""
+    s = re.sub(
+        r'(?m)^\s*\d{1,3}\s*\n\s*=== PAGE \d+ ===\s*$',
+        '',
+        s or '',
+    )
+    s = re.sub(r'(?m)^\s*=== PAGE \d+ ===\s*$', '', s)
+    return re.sub(r'\n{3,}', '\n\n', s).strip()
 
 def remove_tab_pages(raw_text):
     """Remove tab navigation pages (pages whose only non-numeric content is day-header lines).
@@ -370,7 +381,7 @@ def _get_header_lines(day_text, ec_pos):
         if re.match(r'^星期[日一二三四五六]', ls) or re.match(r'^回應', ls) or re.match(r'^預備', ls):
             break
         result.append(ls)
-        if len(result) == 2:
+        if READING_TITLE_RE.match(ls) or len(result) == 3:
             break
     return '\n'.join(reversed(result))
 
@@ -403,6 +414,7 @@ def _get_header_start_pos(day_text, ec_pos):
 def split_reading(block):
     """Given text of one reading (everything from book-title to next book-title),
     return {book, passage, title, text, meditation, key_verse}."""
+    block = clean_page_artifacts(block)
     # Split at 【經文】
     if '【經文】' not in block:
         return None
@@ -467,9 +479,9 @@ def split_reading(block):
         'book':       book,
         'passage':    passage,
         'title':      title,
-        'text':       scripture.strip(),
-        'meditation': meditation.strip(),
-        'key_verse':  key_verse.strip(),
+        'text':       clean_page_artifacts(scripture),
+        'meditation': clean_page_artifacts(meditation),
+        'key_verse':  clean_page_artifacts(key_verse),
     }
 
 def parse_pdf_text(raw_text, meta):
@@ -538,7 +550,7 @@ def parse_pdf_text(raw_text, meta):
     days = []
     # Split text by day headers
     day_pattern = re.compile(
-        r'(?m)^星期([日一二三四五六])[\s（\(]*(\d{1,2})[/／](\d{1,2})[^\n]*'
+        r'(?m)^星期([日一二三四五六])[\s（\(]*(?:\d{4}[/／])?(\d{1,2})[/／](\d{1,2})[^\n]*'
     )
     day_matches = list(day_pattern.finditer(text))
 
@@ -607,6 +619,13 @@ def parse_pdf_text(raw_text, meta):
         disc_body = re.sub(r'\n{3,}', '\n\n', disc_body).strip()
         appendices.append({'title': '本週小組討論', 'body': disc_body})
 
+    # Official booklets repeat the following Sunday as a preview for the next week.
+    # Keep the first occurrence so the archive remains a Sunday–Saturday sequence.
+    days_by_weekday = {}
+    for d in days:
+        days_by_weekday.setdefault(d['day_of_week'], d)
+    days = [days_by_weekday[dow] for dow in range(7) if dow in days_by_weekday]
+
     return {
         'intro_letter':       intro_letter,
         'theme_essay_title':  theme_essay_title,
@@ -659,6 +678,15 @@ def upsert_week(meta, parsed):
     return r.json()[0]['id']
 
 def upsert_days(week_id, days):
+    existing = requests.get(
+        f'{SB_URL}/rest/v1/pong_lectionary_days',
+        params={'week_id': f'eq.{week_id}', 'select': 'id,day_of_week'},
+        headers=sb_headers(), timeout=15
+    )
+    if existing.status_code != 200:
+        raise Exception(f'load existing days failed: {existing.status_code} {existing.text[:200]}')
+    existing_ids = {d['day_of_week']: d['id'] for d in existing.json()}
+
     for d in days:
         payload = {
             'week_id':     week_id,
@@ -666,13 +694,22 @@ def upsert_days(week_id, days):
             'day_label':   d['day_label'],
             'readings':    d['readings'],
         }
-        r = requests.post(
-            f'{SB_URL}/rest/v1/pong_lectionary_days',
-            json=payload,
-            headers={**sb_headers(), 'Prefer': 'resolution=merge-duplicates,return=representation'},
-            params={'on_conflict': 'week_id,day_of_week'},
-            timeout=15
-        )
+        existing_id = existing_ids.get(d['day_of_week'])
+        if existing_id:
+            r = requests.patch(
+                f'{SB_URL}/rest/v1/pong_lectionary_days',
+                json=payload,
+                headers=sb_headers(),
+                params={'id': f'eq.{existing_id}'},
+                timeout=15
+            )
+        else:
+            r = requests.post(
+                f'{SB_URL}/rest/v1/pong_lectionary_days',
+                json=payload,
+                headers=sb_headers(),
+                timeout=15
+            )
         if r.status_code not in (200, 201):
             raise Exception(f'upsert day {d["day_of_week"]} failed: {r.status_code} {r.text[:200]}')
 
@@ -750,7 +787,7 @@ def main():
         except Exception as e:
             print(f'  ✗ 錯誤：{e}')
             fail += 1
-        time.sleep(0.5)  # be gentle to server
+        time.sleep(DOWNLOAD_DELAY_SEC)  # official site rate limit: fetch slowly
 
     print(f'\n完成：成功 {ok}，失敗 {fail}')
 

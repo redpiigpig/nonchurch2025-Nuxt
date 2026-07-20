@@ -524,5 +524,30 @@ a.sy-sermon-title:hover {
 @media (max-width: 640px) {
   .sy-topbar { padding: 16px 20px; }
   .sy-body   { padding: 24px 16px; }
+  .sy-week-row,
+  .sy-week-row--special {
+    grid-template-columns: 4px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 3px 10px;
+    height: auto;
+    min-height: 56px;
+    padding: 8px 12px 8px 0;
+  }
+  .sy-bar { grid-row: 1 / 3; }
+  .sy-week-label {
+    min-width: 0;
+    padding-left: 8px;
+    white-space: normal;
+    line-height: 1.45;
+  }
+  .sy-sermon-title {
+    grid-column: 2 / 4;
+    grid-row: 2;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+  }
+  .sy-week-date { grid-column: 3; grid-row: 1; }
 }
 </style>

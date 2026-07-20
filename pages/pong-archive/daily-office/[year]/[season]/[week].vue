@@ -50,30 +50,32 @@
         <div class="wk-lectionary-inner">
           <h3 class="wk-lec-heading">{{ YEAR_CHINESE[yearParam] }}{{ SEASON_CHINESE[season] }}的主日經課表</h3>
           <p class="wk-lec-source">以下根據《修訂版通用經課》The Revised Common Lectionary</p>
-          <table class="wk-lec-table">
-            <thead>
-              <tr>
-                <th>{{ SEASON_CHINESE[season] }}</th>
-                <th>舊約</th>
-                <th>詩篇</th>
-                <th>書信</th>
-                <th>福音</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="row in pagedLectionaryTable"
-                :key="row.week"
-                :class="{ 'wk-lec-current': row.week === week }"
-              >
-                <td>{{ row.label }}</td>
-                <td>{{ row.ot }}</td>
-                <td v-html="row.ps.replace(/\n/g, '<br>')"></td>
-                <td>{{ row.ep }}</td>
-                <td>{{ row.gos }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="wk-lec-table-wrap">
+            <table class="wk-lec-table">
+              <thead>
+                <tr>
+                  <th>{{ SEASON_CHINESE[season] }}</th>
+                  <th>舊約</th>
+                  <th>詩篇</th>
+                  <th>書信</th>
+                  <th>福音</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="row in pagedLectionaryTable"
+                  :key="row.week"
+                  :class="{ 'wk-lec-current': row.week === week }"
+                >
+                  <td>{{ row.label }}</td>
+                  <td>{{ row.ot }}</td>
+                  <td v-html="row.ps.replace(/\n/g, '<br>')"></td>
+                  <td>{{ row.ep }}</td>
+                  <td>{{ row.gos }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <div v-if="lecPageCount > 1" class="wk-lec-nav">
             <button class="wk-lec-nav-btn" :disabled="lecPage === 0" @click="lecPage--">&#8249;</button>
             <span class="wk-lec-nav-label">
@@ -613,16 +615,24 @@ const supabase = createClient(
 const { data: weekData, pending } = await useAsyncData(
   `pong-lec-week-${yearParam}-${season}-${week}`,
   async () => {
-    const { data, error } = await supabase
+    const { data: weekRow, error: weekError } = await supabase
       .from('pong_lectionary_weeks')
-      .select('*, pong_lectionary_days(*)')
+      .select('*')
       .eq('lectionary_year', yearParam)
       .eq('season', season)
       .eq('week_num', week)
       .eq('is_published', true)
       .single()
-    if (error) return null
-    return data
+    if (weekError || !weekRow) return null
+
+    const { data: dayRows, error: daysError } = await supabase
+      .from('pong_lectionary_days')
+      .select('*')
+      .eq('week_id', weekRow.id)
+      .order('day_of_week', { ascending: true })
+    if (daysError) return null
+
+    return { ...weekRow, pong_lectionary_days: dayRows || [] }
   }
 )
 
@@ -900,6 +910,12 @@ function renderKeyVerse(text) {
   color: #3A3025;
   line-height: 1.6;
 }
+.wk-lec-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
 .wk-lec-table th {
   font-family: 'Noto Serif TC', serif;
   font-weight: 500;
@@ -1030,6 +1046,7 @@ function renderKeyVerse(text) {
 
 /* Scripture */
 .wk-scripture :deep(.wk-verse) { font-family: 'Noto Serif TC', serif; font-size: 0.9rem; line-height: 1.95; color: #3A3025; margin: 0 0 0.35em; }
+.wk-scripture, .wk-meditation { overflow-wrap: anywhere; }
 
 /* Meditation */
 .wk-meditation { margin-bottom: 20px; }
@@ -1122,7 +1139,19 @@ function renderKeyVerse(text) {
   .wk-day-tab { padding: 8px 2px; font-size: 0.65rem; letter-spacing: 0; }
   .wk-day-date { display: none; }
   .wk-lec-table { font-size: 0.72rem; }
+  .wk-lec-table { min-width: 620px; }
   .wk-lec-table th, .wk-lec-table td { padding: 6px 6px; }
+  .wk-reading-head { align-items: flex-start; flex-wrap: wrap; padding: 14px 16px; }
+  .wk-reading-ref { flex: 1 1 calc(100% - 54px); }
+  .wk-reading-title {
+    position: static;
+    order: 4;
+    flex: 0 0 100%;
+    transform: none;
+    padding-left: 34px;
+    white-space: normal;
+    line-height: 1.5;
+  }
   .wk-credits-grid { gap: 4px 14px; }
 }
 </style>

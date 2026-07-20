@@ -140,10 +140,10 @@
     </section>
 
     <!-- ── Scripture Readings ──────────────────────────────── -->
-    <section class="sd-section sd-section--scripture">
+    <section v-if="isEditing || hasScripture" class="sd-section sd-section--scripture">
       <div class="sd-section-inner">
         <h2 class="sd-section-title">經課</h2>
-        <div class="sd-scripture-list">
+        <div v-if="scriptureReadings.length" class="sd-scripture-list">
           <div
             v-for="(reading, i) in scriptureReadings"
             :key="i"
@@ -172,6 +172,7 @@
             </Transition>
           </div>
         </div>
+        <p v-else-if="sermon.scripture_ref" class="sd-scripture-fallback">{{ sermon.scripture_ref }}</p>
       </div>
     </section>
 
@@ -208,7 +209,7 @@
           placeholder="講道逐字稿或摘要…"
           @input="save('content', local.content)"
         />
-        <div v-else class="sd-content-body">
+        <div v-else-if="contentParagraphs.length" class="sd-content-body">
           <template v-for="(item, i) in contentParagraphs" :key="i">
             <p v-if="item.type === 'section'" class="sd-content-section">{{ item.text }}</p>
             <p v-else-if="item.type === 'stage'"   class="sd-content-stage">{{ item.text }}</p>
@@ -216,6 +217,7 @@
             <p v-else class="sd-content-para">{{ item.text }}</p>
           </template>
         </div>
+        <p v-else class="sd-content-empty">目前僅存場次與經課資料，尚無講道逐字稿。</p>
       </div>
     </section>
 
@@ -290,6 +292,9 @@ const scriptureReadings = computed(() => {
   if (!r) return []
   return Array.isArray(r) ? r : []
 })
+const hasScripture = computed(() => (
+  scriptureReadings.value.length > 0 || Boolean(sermon.value?.scripture_ref?.trim())
+))
 
 const openReadings = ref(new Set())
 function toggleReading(i) {
@@ -573,6 +578,14 @@ const seasonColor = computed(() => {
 .sd-verse-num { font-size: 0.68rem; color: #B0A890; font-weight: 400; padding-top: 3px; text-align: right; }
 .sd-verse-text { font-family: 'Noto Serif TC', serif; font-size: 0.9rem; font-weight: 400; color: #2C2C2C; line-height: 1.9; letter-spacing: 0.04em; }
 .sd-bible-version { margin: 16px 0 0; font-size: 0.68rem; font-weight: 300; color: #B0A890; letter-spacing: 0.1em; text-align: right; }
+.sd-scripture-fallback {
+  margin: 0;
+  font-family: 'Noto Serif TC', serif;
+  font-size: 0.95rem;
+  line-height: 1.9;
+  color: #3A3025;
+  overflow-wrap: anywhere;
+}
 
 /* ── Worship songs ────────────────────────────────────────── */
 .sd-songs-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -601,6 +614,17 @@ const seasonColor = computed(() => {
 
 /* ── Sermon content ───────────────────────────────────────── */
 .sd-content-body { display: flex; flex-direction: column; gap: 1.2em; }
+.sd-content-empty {
+  margin: 0;
+  padding: 20px 22px;
+  border: 1px solid #E3DED5;
+  border-radius: 4px;
+  background: #FAF8F4;
+  color: #8A8175;
+  font-size: 0.86rem;
+  line-height: 1.8;
+  letter-spacing: 0.04em;
+}
 .sd-content-para {
   font-family: 'Noto Serif TC', serif;
   font-size: 1rem;
@@ -611,6 +635,7 @@ const seasonColor = computed(() => {
   text-align: justify;
   text-indent: 2em;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 .sd-content-speaker {
   font-family: 'Noto Serif TC', serif;
