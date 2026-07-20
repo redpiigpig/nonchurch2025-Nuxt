@@ -69,7 +69,6 @@ export function getChurchYearSundays(churchYear) {
   const lent1 = nextSunday(addDays(ashWednesday, 1))   // 大齋期第一主日
   const palmSunday = addDays(easter, -7)               // 棕枝主日（大齋期第六主日）
   const pentecost = addDays(easter, 49)                // 聖靈降臨節
-  const trinitySunday = addDays(pentecost, 7)          // 三一主日
 
   const slots = []
 
@@ -139,33 +138,21 @@ export function getChurchYearSundays(churchYear) {
     })
   }
 
-  // ── 聖靈降臨後 Proper 1–29 ────────────────────────────
-  // Proper 對應日期範圍（主日落在這個範圍內才適用）
-  const properRanges = [
-    [5, 11], [12, 18], [19, 25], [26, 1, true], // May 29-Jun 1 跨月用 true
-  ]
-  // Proper 1: May 24-28, Proper 2: May 29-Jun 4, ..., Proper 29: Nov 20-26
-  const properStart = [
-    [4, 24], [4, 29], [5, 5], [5, 12], [5, 19], [5, 26],
-    [6, 2],  [6, 9],  [6, 16],[6, 23], [6, 30], [7, 7],
-    [7, 14], [7, 21], [7, 28],[8, 4],  [8, 11], [8, 18],
-    [8, 25], [9, 1],  [9, 8], [9, 15], [9, 22], [9, 29],
-    [10, 6], [10, 13],[10, 20],[10, 27],[11, 20],
-  ] // [month(0-indexed), day]
-
-  const yr2 = churchYear + 1
+  // ── 聖靈降臨期 1–29 ────────────────────────────────────
+  // 典藏資料依官方《每日三讀三禱》的週次編號：第 1 週從聖靈降臨主日
+  // 開始，第 2 週為三一主日，之後每週順延，直到下一個將臨期。
   for (let p = 1; p <= 29; p++) {
-    const [mo, dy] = properStart[p - 1]
-    // 找該週日：從 properStart 日期往後找當週的週日
-    const rangeStart = new Date(yr2, mo, dy)
-    const sun = nextSunday(rangeStart)
-    // 判斷這個主日是否在聖靈降臨後（在 trinitySunday 之後，在 nextAdvent1 之前）
-    const available = sun >= trinitySunday && sun < nextAdvent1
+    const sun = addDays(pentecost, (p - 1) * 7)
+    const available = sun < nextAdvent1
     slots.push({
       season: 'pentecost',
       seasonZh: '聖靈降臨後',
       week: p,
-      label: p === 1 ? '聖靈降臨後第1週（三一主日）' : `聖靈降臨後第${p}週`,
+      label: p === 1
+        ? '聖靈降臨期第1週（聖靈降臨主日）'
+        : p === 2
+          ? '聖靈降臨期第2週（三一主日）'
+          : `聖靈降臨期第${p}週`,
       sunday: available ? sun : null,
       optional: !available,
     })

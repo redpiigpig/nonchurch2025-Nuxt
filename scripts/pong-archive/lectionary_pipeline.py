@@ -31,11 +31,17 @@ PDF_DIR = Path(__file__).resolve().parents[2] / 'stores' / '三讀三禱'
 PDF_DIR.mkdir(parents=True, exist_ok=True)
 
 DRY_RUN   = '--dry-run' in sys.argv
+FORCE     = '--force' in sys.argv
 FILTER_Y  = next((a.split('=')[1] for a in sys.argv if a.startswith('--year=')), None)
 FILTER_S  = next((a.split('=')[1] for a in sys.argv if a.startswith('--season=')), None)
+FILTER_W  = next((int(a.split('=')[1]) for a in sys.argv if a.startswith('--week=')), None)
 
 BASE = 'https://www.1day3read3pray.com/wp-content/uploads'
 DOWNLOAD_DELAY_SEC = 10
+
+
+class OfficialSiteBlockedError(RuntimeError):
+    """Stop the run immediately when the official site rate-limits or blocks us."""
 
 # ── Week manifest ─────────────────────────────────────────────────────────────
 # url: use /download/XXXXX/ (no tmstv needed) or direct .pdf URL
@@ -91,6 +97,13 @@ WEEKS = [
    'date_range':'2026.05.10–05.17','url':'https://www.1day3read3pray.com/download/13632/'},
   {'year':'A','season':'easter','week_num':7,'title':'復活期第七週',
    'date_range':'2026.05.17–05.24','url':'https://www.1day3read3pray.com/download/13642/'},
+  # Pentecost
+  {'year':'A','season':'pentecost','week_num':1,'title':'聖靈降臨期第一週',
+   'date_range':'2026.05.24–05.31','url':'https://www.1day3read3pray.com/download/13841/'},
+  {'year':'A','season':'pentecost','week_num':2,'title':'聖靈降臨期第二週（聖三一主日）',
+   'date_range':'2026.05.31–06.07','url':'https://www.1day3read3pray.com/download/13858/'},
+  {'year':'A','season':'pentecost','week_num':3,'title':'聖靈降臨期第三週［半連續經課］',
+   'date_range':'2026.06.07–06.14','url':'https://www.1day3read3pray.com/download/13866/'},
 
   # ── 丙年 Year C 2024-2025 ──────────────────────────────────────────────────
   # Advent
@@ -323,6 +336,8 @@ def download_pdf(url, dest_path):
         return True
     print(f'  下載 {url}')
     r = requests.get(url, timeout=30, headers={'User-Agent': 'Mozilla/5.0'})
+    if r.status_code in (403, 429):
+        raise OfficialSiteBlockedError(f'官方網站回應 {r.status_code}，停止本輪下載')
     if r.status_code != 200 or b'%PDF' not in r.content[:10]:
         print(f'  ✗ 下載失敗 (status={r.status_code})')
         return False
@@ -570,23 +585,52 @@ def parse_pdf_text(raw_text, meta):
         essay_raw = re.sub(r'=== PAGE \d+ ===', '', essay_raw)
         essay_raw = re.sub(r'^\d{1,2}$', '', essay_raw, flags=re.MULTILINE)
         theme_essay = re.sub(r'\n{3,}', '\n\n', essay_raw).strip()
+    else:
+        # Some newer booklets put the author on the title line, e.g.
+        # "2026 甲年（馬太年）常年期經課編排 陳繼賢／撰".
+        essay_inline = re.search(
+            r'(?m)^(.{4,80}?)\s+'
+            r'(龐君華(?:牧師|會督)?|陳繼賢(?:弟兄)?|林\S{1,2}|鄭\S{1,2}|黃\S{1,2}|李\S{1,2}|王\S{1,2}|方\S{1,2})'
+            r'\s*[／/]\s*撰\s*$',
+            text,
+        )
+        if essay_inline and not re.search(r'小組討論|附錄', essay_inline.group(1)):
+            theme_essay_title = essay_inline.group(1).strip()
+            essay_start = essay_inline.end()
+            day_m = re.search(
+                r'(?m)^(?:星期[日一二三四五六]|[^\n（）()]{1,24}主日)'
+                r'[\s（\(]*(?:\d{4}[/／])?\d{1,2}[/／]\d{1,2}',
+                text[essay_start:],
+            )
+            essay_end = essay_start + day_m.start() if day_m else len(text)
+            essay_raw = text[essay_start:essay_end]
+            essay_raw = re.sub(r'\n事工奉獻帳號資訊如下[\s\S]*$', '', essay_raw)
+            essay_raw = re.sub(r'=== PAGE \d+ ===', '', essay_raw)
+            essay_raw = re.sub(r'^\d{1,2}$', '', essay_raw, flags=re.MULTILINE)
+            theme_essay = re.sub(r'\n{3,}', '\n\n', essay_raw).strip()
 
     # ── Daily readings ───────────────────────────────────────────────────
     days = []
     # Split text by day headers
     day_pattern = re.compile(
-        r'(?m)^星期([日一二三四五六])[\s（\(]*(?:\d{4}[/／])?(\d{1,2})[/／](\d{1,2})[^\n]*'
+        r'(?m)^(?:星期([日一二三四五六])|([^\n（）()]{1,24}主日))'
+        r'[\s（\(]*(?:\d{4}[/／])?(\d{1,2})[/／](\d{1,2})[^\n]*'
     )
     day_matches = list(day_pattern.finditer(text))
 
     for i, dm in enumerate(day_matches):
         dow  = DAY_ZH.get(dm.group(1), 0)
-        month = int(dm.group(2))
-        day_n = int(dm.group(3))
+        month = int(dm.group(3))
+        day_n = int(dm.group(4))
         day_label_raw = dm.group(0).strip()
         # Extract just the label: 主日（12/07）or 星期一（12/08）
         day_label = re.sub(r'\s+', '', day_label_raw)
         day_label = re.sub(r'[A-Za-z].*$', '', day_label).strip()  # remove English
+        day_label = re.sub(
+            r'^(.+?[（(]\d{1,2}[/／]\d{1,2}[）)]).*$',
+            r'\1',
+            day_label,
+        )
 
         # Text for this day: from this match to next day match (or end)
         end = day_matches[i+1].start() if i+1 < len(day_matches) else len(text)
@@ -659,6 +703,27 @@ def parse_pdf_text(raw_text, meta):
         'days':               days,
     }
 
+
+def validate_parsed(parsed):
+    """Reject partial or visibly corrupted parses before any database write."""
+    days = parsed.get('days') or []
+    day_numbers = [d.get('day_of_week') for d in days]
+    reading_counts = [len(d.get('readings') or []) for d in days]
+    blob = json.dumps(parsed, ensure_ascii=False)
+    errors = []
+    if day_numbers != list(range(7)):
+        errors.append(f'日期不完整或順序錯誤：{day_numbers}')
+    if any(count == 0 for count in reading_counts):
+        errors.append(f'存在無讀經日：{reading_counts}')
+    long_labels = [d.get('day_label', '') for d in days if len(d.get('day_label', '')) > 30]
+    if long_labels:
+        errors.append(f'日期標籤超過 30 字：{long_labels}')
+    if '=== PAGE' in blob:
+        errors.append('解析結果殘留頁碼標記')
+    if '\ufffd' in blob:
+        errors.append('解析結果含 U+FFFD 代換字元')
+    return errors
+
 # ── Supabase upload ───────────────────────────────────────────────────────────
 def sb_headers():
     return {
@@ -677,6 +742,17 @@ def week_exists(year, season, week_num):
     )
     data = r.json()
     return data[0]['id'] if data else None
+
+
+def week_day_count(week_id):
+    r = requests.get(
+        f'{SB_URL}/rest/v1/pong_lectionary_days',
+        params={'week_id': f'eq.{week_id}', 'select': 'id'},
+        headers={**sb_headers(), 'Prefer': 'count=exact'}, timeout=15
+    )
+    if r.status_code != 200:
+        raise Exception(f'load existing day count failed: {r.status_code} {r.text[:200]}')
+    return len(r.json())
 
 def upsert_week(meta, parsed):
     team_credits = meta.get('team_credits')
@@ -775,9 +851,13 @@ def process_week(meta):
 
     # Check if already seeded
     existing_id = week_exists(yr, season, wk)
-    if existing_id:
+    existing_day_count = week_day_count(existing_id) if existing_id else 0
+    if existing_id and existing_day_count == 7 and not FORCE:
         print(f'  ✓ 已存在 (id={existing_id})，跳過')
         return True
+    if existing_id:
+        reason = '強制重做' if FORCE else f'僅 {existing_day_count} 天'
+        print(f'  ↻ 已存在但需重做 (id={existing_id}, {reason})')
 
     # Derive filename: {Year}-{Season}-wk{NN}.pdf
     url = meta['url']
@@ -802,8 +882,9 @@ def process_week(meta):
     reading_counts = [len(d['readings']) for d in parsed['days']]
     print(f'  解析完成：{day_count} 天，讀經數 {reading_counts}')
 
-    if day_count == 0:
-        print('  ✗ 解析失敗：未找到任何日期，跳過')
+    validation_errors = validate_parsed(parsed)
+    if validation_errors:
+        print(f'  ✗ 驗證失敗：{"；".join(validation_errors)}，跳過')
         return False
 
     if DRY_RUN:
@@ -832,6 +913,8 @@ def main():
             continue
         if FILTER_S and meta['season'] != FILTER_S:
             continue
+        if FILTER_W and meta['week_num'] != FILTER_W:
+            continue
         try:
             result = process_week(meta)
             if result:
@@ -839,6 +922,10 @@ def main():
             else:
                 fail += 1
         except Exception as e:
+            if isinstance(e, OfficialSiteBlockedError):
+                print(f'  ✗ {e}')
+                fail += 1
+                break
             print(f'  ✗ 錯誤：{e}')
             fail += 1
         time.sleep(DOWNLOAD_DELAY_SEC)  # official site rate limit: fetch slowly
