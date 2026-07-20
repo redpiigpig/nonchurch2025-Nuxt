@@ -35,7 +35,7 @@ FILTER_Y  = next((a.split('=')[1] for a in sys.argv if a.startswith('--year=')),
 FILTER_S  = next((a.split('=')[1] for a in sys.argv if a.startswith('--season=')), None)
 
 BASE = 'https://www.1day3read3pray.com/wp-content/uploads'
-DOWNLOAD_DELAY_SEC = 8
+DOWNLOAD_DELAY_SEC = 10
 
 # ── Week manifest ─────────────────────────────────────────────────────────────
 # url: use /download/XXXXX/ (no tmstv needed) or direct .pdf URL
@@ -85,6 +85,12 @@ WEEKS = [
    'date_range':'2026.04.19–04.26','url':'https://www.1day3read3pray.com/download/13387/'},
   {'year':'A','season':'easter','week_num':4,'title':'復活期第四週（善牧主日）',
    'date_range':'2026.04.26–05.03','url':'https://www.1day3read3pray.com/download/13525/'},
+  {'year':'A','season':'easter','week_num':5,'title':'復活期第五週',
+   'date_range':'2026.05.03–05.10','url':'https://www.1day3read3pray.com/download/13536/'},
+  {'year':'A','season':'easter','week_num':6,'title':'復活期第六週',
+   'date_range':'2026.05.10–05.17','url':'https://www.1day3read3pray.com/download/13632/'},
+  {'year':'A','season':'easter','week_num':7,'title':'復活期第七週',
+   'date_range':'2026.05.17–05.24','url':'https://www.1day3read3pray.com/download/13642/'},
 
   # ── 丙年 Year C 2024-2025 ──────────────────────────────────────────────────
   # Advent
@@ -463,8 +469,20 @@ def split_reading(block):
     # or split across lines
     reading_title_line = ' '.join(header_lines[-2:]) if len(header_lines) >= 2 else header_lines[-1]
     # Extract book, passage, title
+    zh_ref = re.match(
+        r'^(.+?)\s+'
+        r'((?:\d+\s*章\s*[\d,\-–a-zA-Z]+(?:\s*節)?)'
+        r'(?:\s*、\s*\d+\s*章\s*[\d,\-–a-zA-Z]+(?:\s*節)?)*'
+        r'|(?:\d+\s*篇(?:\s*[\d,\-–a-zA-Z]+\s*節)?))'
+        r'\s+(.+)$',
+        reading_title_line,
+    )
     m = re.match(r'^(.+?)\s+(\d+[\d:,\-–\.\sa-z]*(?:節)?)\s+(.+)$', reading_title_line)
-    if m:
+    if zh_ref:
+        book    = zh_ref.group(1).strip()
+        passage = re.sub(r'\s+', '', zh_ref.group(2))
+        title   = zh_ref.group(3).strip()
+    elif m:
         book    = m.group(1).strip()
         passage = m.group(2).strip()
         title   = m.group(3).strip()
@@ -501,18 +519,23 @@ def parse_pdf_text(raw_text, meta):
         after_intro = text[intro_start:]
         # Find the essay section: typically "主題文標題\n龐君華\n..." or similar
         essay_m = re.search(
-            r'\n([一-鿿：、！？，。…A-Za-z\s「」『』《》〈〉—\-–\(\)（）]+)\n'
-            r'(龐君華|陳繼賢|林\S{1,2}|鄭\S{1,2}|黃\S{1,2}|李\S{1,2}|王\S{1,2}|方\S{1,2})\n',
+            r'\n([一-鿿：、！？，。…A-Za-z \t「」『』《》〈〉—\-–\(\)（）]+)\n'
+            r'(龐君華(?:牧師|會督)?|陳繼賢(?:弟兄)?|林\S{1,2}|鄭\S{1,2}|黃\S{1,2}|李\S{1,2}|王\S{1,2}|方\S{1,2})\n',
             after_intro
         )
+        if essay_m and essay_m.group(1).strip().endswith(('。', '！', '？', '，', ',')):
+            essay_m = None
         if essay_m:
             intro_raw = after_intro[:essay_m.start()]
         else:
-            intro_raw = after_intro[:3000]  # fallback: first 3000 chars
+            first_day = re.search(r'\n星期[日一二三四五六][\s（\(]', after_intro)
+            intro_raw = after_intro[:first_day.start()] if first_day else after_intro[:3000]
         # Clean up: remove page markers, donation info, etc.
         intro_raw = re.sub(r'=== PAGE \d+ ===', '', intro_raw)
         intro_raw = re.sub(r'\d+\n', '', intro_raw)  # page numbers
         # Remove donation block
+        intro_raw = re.sub(r'\n(?:\d{4}\s*年)?本事工[\s\S]*$', '', intro_raw)
+        intro_raw = re.sub(r'\n事工奉獻帳號資訊如下[\s\S]*$', '', intro_raw)
         intro_raw = re.sub(r'戶名：.*?帳號：\S+', '', intro_raw, flags=re.DOTALL)
         intro_raw = re.sub(r'新的一年.*?帳號.*?\n', '', intro_raw, flags=re.DOTALL)
         intro_raw = re.sub(r'本事工.*?帳號.*?\n', '', intro_raw, flags=re.DOTALL)
@@ -524,10 +547,12 @@ def parse_pdf_text(raw_text, meta):
     theme_essay_title = ''
     theme_essay = ''
     essay_m2 = re.search(
-        r'\n([一-鿿：、！？，。…A-Za-z\s「」『』《》〈〉—\-–\(\)（）]{4,60})\n'
-        r'(龐君華|陳繼賢|林\S{1,2}|鄭\S{1,2}|黃\S{1,2}|李\S{1,2}|王\S{1,2}|方\S{1,2})\n',
+        r'\n([一-鿿：、！？，。…A-Za-z \t「」『』《》〈〉—\-–\(\)（）]{4,60})\n'
+        r'(龐君華(?:牧師|會督)?|陳繼賢(?:弟兄)?|林\S{1,2}|鄭\S{1,2}|黃\S{1,2}|李\S{1,2}|王\S{1,2}|方\S{1,2})\n',
         text
     )
+    if essay_m2 and essay_m2.group(1).strip().endswith(('。', '！', '？', '，', ',')):
+        essay_m2 = None
     if essay_m2:
         theme_essay_title = essay_m2.group(1).strip()
         essay_author = essay_m2.group(2)
@@ -654,6 +679,24 @@ def week_exists(year, season, week_num):
     return data[0]['id'] if data else None
 
 def upsert_week(meta, parsed):
+    team_credits = meta.get('team_credits')
+    if team_credits is None:
+        credits_response = requests.get(
+            f'{SB_URL}/rest/v1/pong_lectionary_weeks',
+            params={
+                'lectionary_year': f'eq.{meta["year"]}',
+                'season': f'eq.{meta["season"]}',
+                'week_num': f'lt.{meta["week_num"]}',
+                'team_credits': 'not.is.null',
+                'select': 'team_credits',
+                'order': 'week_num.desc',
+                'limit': '1',
+            },
+            headers=sb_headers(), timeout=15
+        )
+        if credits_response.status_code == 200 and credits_response.json():
+            team_credits = credits_response.json()[0].get('team_credits')
+
     payload = {
         'lectionary_year':    meta['year'],
         'season':             meta['season'],
@@ -666,16 +709,27 @@ def upsert_week(meta, parsed):
         'appendices':         parsed['appendices'],
         'is_published':       True,
     }
-    r = requests.post(
-        f'{SB_URL}/rest/v1/pong_lectionary_weeks',
-        json=payload,
-        headers={**sb_headers(), 'Prefer': 'resolution=merge-duplicates,return=representation'},
-        params={'on_conflict': 'lectionary_year,season,week_num'},
-        timeout=15
-    )
+    if team_credits:
+        payload['team_credits'] = team_credits
+    existing_id = week_exists(meta['year'], meta['season'], meta['week_num'])
+    if existing_id:
+        r = requests.patch(
+            f'{SB_URL}/rest/v1/pong_lectionary_weeks',
+            json=payload,
+            headers=sb_headers(),
+            params={'id': f'eq.{existing_id}'},
+            timeout=15
+        )
+    else:
+        r = requests.post(
+            f'{SB_URL}/rest/v1/pong_lectionary_weeks',
+            json=payload,
+            headers=sb_headers(),
+            timeout=15
+        )
     if r.status_code not in (200, 201):
         raise Exception(f'upsert week failed: {r.status_code} {r.text[:300]}')
-    return r.json()[0]['id']
+    return existing_id or r.json()[0]['id']
 
 def upsert_days(week_id, days):
     existing = requests.get(
