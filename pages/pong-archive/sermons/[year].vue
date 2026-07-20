@@ -217,7 +217,7 @@
             <p v-else class="sd-content-para">{{ item.text }}</p>
           </template>
         </div>
-        <p v-else class="sd-content-empty">目前僅存場次與經課資料，尚無講道逐字稿。</p>
+        <p v-else class="sd-content-empty">逐字稿尚未整理。目前僅存場次與經課資料。</p>
       </div>
     </section>
 
