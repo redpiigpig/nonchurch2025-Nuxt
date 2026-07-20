@@ -105,7 +105,7 @@ pong_media (
 |---|---|
 | [`scripts/pong-archive/sermon_redo.py`](../../../scripts/pong-archive/sermon_redo.py) | CLI（`status` / `prepare` / `commit`） |
 | [`scripts/pong-archive/pong_sermon_pipeline.py`](../../../scripts/pong-archive/pong_sermon_pipeline.py) | 原 pipeline，提供 `download_audio` / `transcribe` / `extract_youtube_id` / `fetch_youtube_metadata` |
-| [`pong-archive/stores/城中教會講道清單/城中教會講道_YYYY.txt`](../../../pong-archive/stores/城中教會講道清單/) | 每年 queue 檔 |
+| [`G:/我的雲端硬碟/資料/無境界者/龐君華檔案/講道集/講道清單/城中教會講道_YYYY.txt`](../../../G:/我的雲端硬碟/資料/無境界者/龐君華檔案/講道集/講道清單/) | 每年 queue 檔 |
 | [`pages/pong-archive/sermons/year/[year].vue`](../../../pages/pong-archive/sermons/year/[year].vue) | 年度 listing 頁；非主日 service 需在此加 `specials.push()` |
 | `tmp_sermon/<date>_raw.txt` | Whisper raw（intermediate） |
 | `tmp_sermon/<date>_clean.txt` | Claude 清理稿（intermediate） |
@@ -149,7 +149,7 @@ https://www.youtube.com/watch?v=HTkBR9ST37c
 
 ```bash
 python scripts/pong-archive/sermon_redo.py status \
-  pong-archive/stores/城中教會講道清單/城中教會講道_2013.txt
+  G:/我的雲端硬碟/資料/無境界者/龐君華檔案/講道集/講道清單/城中教會講道_2013.txt
 ```
 
 每次「繼續跑 queue」loop 到 `prepare` 退 code 3：

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * db_write_from_transcripts.cjs
- * 讀取 stores/transcripts/<youtube_id>.txt，寫入或更新 pong_media
+ * 讀取 G:/我的雲端硬碟/資料/無境界者/龐君華檔案/講道集/逐字稿/<youtube_id>.txt，寫入或更新 pong_media
  * 用法：node scripts/db_write_from_transcripts.cjs
  */
 const fs = require('fs');
@@ -135,7 +135,7 @@ async function insertMedia(talk, transcript) {
 
 async function main() {
   if (!fs.existsSync(TRANSCRIPT_DIR)) {
-    console.log('stores/transcripts/ 資料夾不存在，請先跑 Whisper 轉錄。');
+    console.log('G:/我的雲端硬碟/資料/無境界者/龐君華檔案/講道集/逐字稿/ 資料夾不存在，請先跑 Whisper 轉錄。');
     return;
   }
 

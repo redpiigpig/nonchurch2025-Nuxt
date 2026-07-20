@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 whisper_only.py
-只做 Whisper 轉錄 → 存到 stores/transcripts/<youtube_id>.txt
+只做 Whisper 轉錄 → 存到 G:/我的雲端硬碟/資料/無境界者/龐君華檔案/講道集/逐字稿/<youtube_id>.txt
 不碰資料庫，不下載（需要已有音訊）
 用法：
   python scripts/whisper_only.py <youtube_id> <audio_path> [--lang zh] [--start 28]

@@ -10,7 +10,7 @@ pong_sermon_pipeline.py
   python scripts/pong_sermon_pipeline.py <YouTube_URL> --title "自訂標題"
 
 用法（批次）：
-  python -u scripts/pong_sermon_pipeline.py --batch-file stores/城中教會講道清單/城中教會講道_2013.txt --yes
+  python -u scripts/pong_sermon_pipeline.py --batch-file G:/我的雲端硬碟/資料/無境界者/龐君華檔案/講道集/講道清單/城中教會講道_2013.txt --yes
 """
 
 import sys

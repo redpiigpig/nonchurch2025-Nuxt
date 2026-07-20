@@ -27,7 +27,7 @@ from standardize_sermon import patch_sermon
 
 URL = os.environ["SUPABASE_URL"].rstrip("/")
 KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-CLIST_DIR = Path("pong-archive/stores/城中教會講道清單")
+CLIST_DIR = Path("G:/我的雲端硬碟/資料/無境界者/龐君華檔案/講道集/講道清單")
 
 DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(.*)$")
 URL_RE = re.compile(r"^(https?://(?:www\.)?youtu(?:be\.com|\.be)/\S+)")

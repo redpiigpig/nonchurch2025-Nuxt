@@ -4,7 +4,7 @@ download_audio.py
 只負責用 yt-dlp 下載音訊到指定路徑（不做轉錄）
 用法：
   python scripts/download_audio.py <youtube_url_or_id> <output_path.mp3>
-  python scripts/download_audio.py 9aWpePHshxE stores/audio/9aWpePHshxE.mp3
+  python scripts/download_audio.py 9aWpePHshxE G:/我的雲端硬碟/資料/無境界者/龐君華檔案/講道集/音檔/9aWpePHshxE.mp3
 """
 import sys, subprocess
 from pathlib import Path

@@ -5,7 +5,7 @@ patch_docx.py  ──  兩步驟 Word 排版修補工具
 ━━ 步驟一：產生螢光筆審稿檔 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   python scripts/patch_docx.py review <期數> [Word資料夾]
 
-  Word資料夾可省略：預設自動找 stores/無境界者雜誌/0{N}-第{N}期/
+  Word資料夾可省略：預設自動找 G:/我的雲端硬碟/資料/無境界者/雜誌/0{N}-第{N}期/
 
   例：
     python scripts/patch_docx.py review 7
@@ -92,7 +92,7 @@ _load_env()
 _STORES_BASE = Path(__file__).parent.parent / "stores" / "無境界者雜誌"
 
 def auto_issue_folder(issue_number):
-    """自動找 stores/無境界者雜誌/{NN}-* 資料夾"""
+    """自動找 G:/我的雲端硬碟/資料/無境界者/雜誌/{NN}-* 資料夾"""
     if not _STORES_BASE.is_dir():
         return None
     prefix = f"{int(issue_number):02d}-"
@@ -320,7 +320,7 @@ def cmd_review(issue_number, word_folder=None):
     else:
         folder = auto_issue_folder(issue_number)
         if not folder:
-            print(f"❌  找不到 stores/無境界者雜誌/{int(issue_number):02d}-* 資料夾", file=sys.stderr)
+            print(f"❌  找不到 G:/我的雲端硬碟/資料/無境界者/雜誌/{int(issue_number):02d}-* 資料夾", file=sys.stderr)
             sys.exit(1)
         print(f"📁  自動使用資料夾：{folder}")
 

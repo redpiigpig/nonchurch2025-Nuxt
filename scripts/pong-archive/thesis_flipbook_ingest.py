@@ -78,7 +78,7 @@ PAGES_PREFIX = "pong-writings-pages/"
 THESES = {
     "bd": {
         "slug": "pong-bd-thesis-1992",
-        "pdf": "pong-archive/stores/龐牧師學位論文/92 BD - Pong Kwan Wah - Thesis Full.pdf",
+        "pdf": "G:/我的雲端硬碟/資料/無境界者/龐君華檔案/著作與專文/學位論文/92 BD - Pong Kwan Wah - Thesis Full.pdf",
         "title": "臺灣本土神學中政治主題的探討",
         "title_en": None,
         "published_date": "1992-05-01",
@@ -89,7 +89,7 @@ THESES = {
     },
     "mth": {
         "slug": "pong-mth-thesis",
-        "pdf": "pong-archive/stores/龐牧師學位論文/MTh.pdf",
+        "pdf": "G:/我的雲端硬碟/資料/無境界者/龐君華檔案/著作與專文/學位論文/MTh.pdf",
         "title": "處境神學的處境反省：戰後臺灣新教本土神學的建構與發展",
         "title_en": "Testing the Limits of Contextual Theology: A Study of the Development of Taiwanese Indigenous Theology",
         "published_date": "1999-02-01",

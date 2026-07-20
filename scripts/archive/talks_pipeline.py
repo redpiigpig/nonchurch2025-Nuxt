@@ -4,7 +4,7 @@ talks_pipeline.py
 演講批次處理：下載 → Whisper 轉錄 → 存 txt
 （不碰資料庫，DB 寫入由 db_write_from_transcripts.cjs 處理）
 
-音訊存在 stores/audio/，逐字稿存在 stores/transcripts/
+音訊存在 G:/我的雲端硬碟/資料/無境界者/龐君華檔案/講道集/音檔/，逐字稿存在 G:/我的雲端硬碟/資料/無境界者/龐君華檔案/講道集/逐字稿/
 """
 import os, sys, ctypes, subprocess
 from pathlib import Path
