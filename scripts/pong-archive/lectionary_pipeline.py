@@ -110,6 +110,10 @@ WEEKS = [
    'date_range':'2026.06.21–06.28','url':'https://www.1day3read3pray.com/download/13894/'},
   {'year':'A','season':'pentecost','week_num':6,'title':'聖靈降臨期第六週［半連續經課］',
    'date_range':'2026.06.28–07.05','url':'https://www.1day3read3pray.com/download/13911/'},
+  {'year':'A','season':'pentecost','week_num':7,'title':'聖靈降臨期第七週［半連續經課］',
+   'date_range':'2026.07.05–07.12','url':'https://www.1day3read3pray.com/download/13921/'},
+  {'year':'A','season':'pentecost','week_num':8,'title':'聖靈降臨期第八週［半連續經課］',
+   'date_range':'2026.07.12–07.19','url':'https://www.1day3read3pray.com/download/13935/'},
 
   # ── 丙年 Year C 2024-2025 ──────────────────────────────────────────────────
   # Advent
