@@ -1,5 +1,72 @@
 Directory structure:
 └── nonchurch-nuxt/
+    ├── .agents/
+    │   └── skills/
+    │       ├── chenwei-essay/
+    │       │   └── SKILL.md
+    │       ├── interview-article/
+    │       │   └── SKILL.md
+    │       ├── pong-photo-writing/
+    │       │   └── SKILL.md
+    │       ├── pong-sermon/
+    │       │   └── SKILL.md
+    │       ├── pong-thesis-flipbook/
+    │       │   └── SKILL.md
+    │       ├── preserve-nonchurch-author-voice/
+    │       │   ├── agents/
+    │       │   │   └── openai.yaml
+    │       │   ├── references/
+    │       │   │   ├── authors/
+    │       │   │   │   ├── 01-廖本恩.md
+    │       │   │   │   ├── 02-張辰瑋.md
+    │       │   │   │   ├── 03-邱詠恩.md
+    │       │   │   │   ├── 04-奧斯定.md
+    │       │   │   │   ├── 05-金子煥.md
+    │       │   │   │   ├── 06-小無.md
+    │       │   │   │   ├── 07-陳思豪牧師.md
+    │       │   │   │   ├── 08-Sunny-Leung.md
+    │       │   │   │   ├── 09-張劭瑋.md
+    │       │   │   │   ├── 10-毛毛.md
+    │       │   │   │   ├── 11-溫金柯老師.md
+    │       │   │   │   ├── 12-談良辰老師.md
+    │       │   │   │   ├── 13-等融法師.md
+    │       │   │   │   ├── 14-淨智.md
+    │       │   │   │   ├── 15-昭慧法師.md
+    │       │   │   │   ├── 16-盧俊義牧師.md
+    │       │   │   │   ├── 17-曾櫳震.md
+    │       │   │   │   ├── 18-劉玉雯.md
+    │       │   │   │   ├── 19-王彥軒牧師.md
+    │       │   │   │   ├── 20-葉菊蘭女士.md
+    │       │   │   │   ├── 21-艾琳達教授.md
+    │       │   │   │   ├── 22-許雅婷牧師.md
+    │       │   │   │   ├── 23-陳泓璿.md
+    │       │   │   │   ├── 24-耿正.md
+    │       │   │   │   ├── 25-羅東東羅馬人.md
+    │       │   │   │   ├── 26-邱慕天傳道.md
+    │       │   │   │   ├── 27-陳欽生前輩.md
+    │       │   │   │   ├── 28-何義麟教授.md
+    │       │   │   │   ├── 29-許明淳導演.md
+    │       │   │   │   ├── 30-Chô-Nâsim.md
+    │       │   │   │   ├── 31-邱蕾州.md
+    │       │   │   │   ├── 32-吐司邊.md
+    │       │   │   │   ├── 35-田孟淑長老.md
+    │       │   │   │   ├── 36-劉昊.md
+    │       │   │   │   ├── 37-曾加力.md
+    │       │   │   │   ├── 38-長老教會牧者T.md
+    │       │   │   │   ├── 40-龐君華會督.md
+    │       │   │   │   ├── 41-楊肇悅師母.md
+    │       │   │   │   ├── 42-邱泰耀牧師.md
+    │       │   │   │   ├── 43-吳昶興教授.md
+    │       │   │   │   ├── 44-邢福增教授.md
+    │       │   │   │   ├── 45-龐亮軒.md
+    │       │   │   │   ├── 46-廖丞譽.md
+    │       │   │   │   └── 47-王微儂.md
+    │       │   │   └── author-index.md
+    │       │   ├── scripts/
+    │       │   │   └── audit-author-coverage.mjs
+    │       │   └── SKILL.md
+    │       └── upload-article/
+    │           └── SKILL.md
     ├── .claude/
     │   ├── skills/
     │   │   ├── chenwei-essay/

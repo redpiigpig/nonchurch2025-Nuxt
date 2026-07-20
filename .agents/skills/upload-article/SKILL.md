@@ -7,6 +7,7 @@ description: 把使用者交付的「文章內文 + 照片（內文圖 / 作者�
 
 > 使用者每次「給我文章和照片，幫我上傳」都先讀這份 skill。
 > 核心工具：[`scripts/publish_article.mjs`](../../../scripts/publish_article.mjs)（純函式有測試：[`scripts/publish_article.test.mjs`](../../../scripts/publish_article.test.mjs)）。
+> 若是資料庫既有作者的新稿或改稿，上架前先讀 [`preserve-nonchurch-author-voice`](../preserve-nonchurch-author-voice/SKILL.md)，再依作者索引只載入該作者風格檔；保留原稿聲線，不用風格檔虛構作者經歷或觀點。張辰瑋仍以 [`chenwei-essay`](../chenwei-essay/SKILL.md) 為優先規則。
 
 ## ⭐ 鐵則：每次上傳都要有一份進「投稿管理」
 

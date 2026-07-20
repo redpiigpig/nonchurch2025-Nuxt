@@ -1,0 +1,4 @@
+interface:
+  display_name: "無境界者作者聲線"
+  short_description: "依既有作品保留作者多重文風，避免錯認受訪、翻譯與編輯聲線"
+  default_prompt: "Use $preserve-nonchurch-author-voice to edit this article while preserving the named author voice."
