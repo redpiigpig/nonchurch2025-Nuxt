@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Pipeline: download PDFs from 1day3read3pray.com → extract text → parse → upload to Supabase
-Usage: python scripts/lectionary_pipeline.py [--dry-run] [--year A|B|C] [--season advent]
+Usage: python scripts/pong-archive/lectionary_pipeline.py [--dry-run] [--force]
+       [--year=A|B|C] [--season=advent] [--week=N]
 """
 
 import os, re, sys, json, time, requests, io
@@ -11,6 +12,21 @@ import pdfplumber
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
+if any(arg in {'-h', '--help'} for arg in sys.argv[1:]):
+    print(
+        'Usage: python scripts/pong-archive/lectionary_pipeline.py '
+        '[--dry-run] [--force] [--year=A|B|C] '
+        '[--season=advent|christmas|epiphany|lent|easter|pentecost] '
+        '[--week=N]\n\n'
+        'Options:\n'
+        '  --dry-run   Parse and validate without writing to Supabase.\n'
+        '  --force     Reparse a week even when all seven days already exist.\n'
+        '  --year=Y    Limit processing to lectionary year A, B, or C.\n'
+        '  --season=S  Limit processing to one season.\n'
+        '  --week=N    Limit processing to one sequential week number.\n'
+    )
+    raise SystemExit(0)
 
 # ── .env loader ───────────────────────────────────────────────────────────────
 def load_env():
