@@ -7,6 +7,7 @@ Usage: python scripts/pong-archive/lectionary_pipeline.py [--dry-run] [--force]
 """
 
 import os, re, sys, json, time, requests, io
+from datetime import datetime, timedelta
 from pathlib import Path
 import pdfplumber
 
@@ -129,7 +130,7 @@ WEEKS = [
   {'year':'A','season':'pentecost','week_num':7,'title':'聖靈降臨期第七週［半連續經課］',
    'date_range':'2026.07.05–07.12','url':'https://www.1day3read3pray.com/download/13921/'},
   {'year':'A','season':'pentecost','week_num':8,'title':'聖靈降臨期第八週［半連續經課］',
-   'date_range':'2026.07.12–07.19','url':f'{BASE}/2026/06/20260712-Year-A-After-Pentecost-wk7_P10O15-3c.pdf'},
+   'date_range':'2026.07.12–07.19','url':f'{BASE}/dlm_uploads/2026/06/20260712-Year-A-After-Pentecost-wk7_P10O15-3c.pdf'},
   {'year':'A','season':'pentecost','week_num':9,'title':'聖靈降臨期第九週［半連續經課］',
    'date_range':'2026.07.19–07.26','url':'https://www.1day3read3pray.com/download/13935/'},
 
@@ -732,7 +733,7 @@ def parse_pdf_text(raw_text, meta):
     }
 
 
-def validate_parsed(parsed):
+def validate_parsed(parsed, meta=None):
     """Reject partial or visibly corrupted parses before any database write."""
     days = parsed.get('days') or []
     day_numbers = [d.get('day_of_week') for d in days]
@@ -750,6 +751,41 @@ def validate_parsed(parsed):
         errors.append('解析結果殘留頁碼標記')
     if '\ufffd' in blob:
         errors.append('解析結果含 U+FFFD 代換字元')
+
+    if meta:
+        range_match = re.match(
+            r'^(\d{4})\.(\d{1,2})\.(\d{1,2})',
+            meta.get('date_range', ''),
+        )
+        if not range_match:
+            errors.append(f'無法解析週次起始日：{meta.get("date_range", "")}')
+        else:
+            start_date = datetime(
+                int(range_match.group(1)),
+                int(range_match.group(2)),
+                int(range_match.group(3)),
+            ).date()
+            actual_dates = []
+            for day in days:
+                label = day.get('day_label', '')
+                label_match = re.search(
+                    r'[（(]\s*(\d{1,2})\s*[/／.]\s*(\d{1,2})\s*[)）]',
+                    label,
+                )
+                actual_dates.append(
+                    (int(label_match.group(1)), int(label_match.group(2)))
+                    if label_match else None
+                )
+            expected_dates = [
+                ((start_date + timedelta(days=offset)).month,
+                 (start_date + timedelta(days=offset)).day)
+                for offset in range(7)
+            ]
+            if actual_dates != expected_dates:
+                errors.append(
+                    f'日期標籤與宣告週次不符：預期 {expected_dates}，'
+                    f'實際 {actual_dates}'
+                )
     return errors
 
 # ── Supabase upload ───────────────────────────────────────────────────────────
@@ -910,7 +946,7 @@ def process_week(meta):
     reading_counts = [len(d['readings']) for d in parsed['days']]
     print(f'  解析完成：{day_count} 天，讀經數 {reading_counts}')
 
-    validation_errors = validate_parsed(parsed)
+    validation_errors = validate_parsed(parsed, meta)
     if validation_errors:
         print(f'  ✗ 驗證失敗：{"；".join(validation_errors)}，跳過')
         return False
