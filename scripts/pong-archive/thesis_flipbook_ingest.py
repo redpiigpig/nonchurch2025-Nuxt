@@ -20,6 +20,7 @@ Usage:
   python scripts/pong-archive/thesis_flipbook_ingest.py run                    # both PDFs
   python scripts/pong-archive/thesis_flipbook_ingest.py run --only bd          # just BD
   python scripts/pong-archive/thesis_flipbook_ingest.py run --only mth         # just MTh
+  python scripts/pong-archive/thesis_flipbook_ingest.py repair-missing --only mth
   python scripts/pong-archive/thesis_flipbook_ingest.py run --skip-ocr         # only upload PDF + create row
   python scripts/pong-archive/thesis_flipbook_ingest.py run --skip-pdf-upload  # only re-OCR
 """
@@ -138,6 +139,10 @@ def r2_put(key, body, content_type, content_encoding=None):
     if content_encoding:
         kwargs["ContentEncoding"] = content_encoding
     r2().put_object(**kwargs)
+
+
+def r2_get(key):
+    return r2().get_object(Bucket=R2_BUCKET, Key=key)["Body"].read()
 
 
 # ── DB helpers ────────────────────────────────────────────────
@@ -326,8 +331,8 @@ def gemini_client():
     return genai.Client(api_key=keys[0]), keys
 
 
-def run_ocr(pdf_path, model="gemini-2.5-flash"):
-    client, keys = gemini_client()
+def run_ocr(pdf_path, model="gemini-2.5-flash", prompt=PROMPT):
+    _, keys = gemini_client()
     print(f"  ◇ Gemini OCR ({model}, {len(keys)} key(s))…")
     t0 = time.time()
 
@@ -335,35 +340,54 @@ def run_ocr(pdf_path, model="gemini-2.5-flash"):
         prefix="thesis_", suffix=".pdf", delete=False
     ) as tmp:
         tmp_path = Path(tmp.name)
+        tmp.write(pdf_path.read_bytes())
+
+    resp = None
     try:
-        tmp_path.write_bytes(pdf_path.read_bytes())
-        uploaded = client.files.upload(
-            file=tmp_path,
-            config=types.UploadFileConfig(
-                display_name=tmp_path.name,
-                mime_type="application/pdf",
-            ),
-        )
+        for key_index, key in enumerate(keys, start=1):
+            client = genai.Client(api_key=key)
+            uploaded = None
+            try:
+                uploaded = client.files.upload(
+                    file=tmp_path,
+                    config=types.UploadFileConfig(
+                        display_name=tmp_path.name,
+                        mime_type="application/pdf",
+                    ),
+                )
+                resp = client.models.generate_content(
+                    model=model,
+                    contents=[uploaded, prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=PAGES_SCHEMA,
+                    ),
+                )
+                break
+            except Exception as exc:
+                status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+                error_text = str(exc)
+                if status is None and ("RESOURCE_EXHAUSTED" in error_text or "429" in error_text):
+                    status = 429
+                retryable = status in (401, 403, 429)
+                if retryable and key_index < len(keys):
+                    print(f"    key {key_index} unavailable (HTTP {status}); trying next key")
+                    continue
+                raise
+            finally:
+                if uploaded is not None:
+                    try:
+                        client.files.delete(name=uploaded.name)
+                    except Exception:
+                        pass
     finally:
         try:
             tmp_path.unlink()
         except Exception:
             pass
 
-    try:
-        resp = client.models.generate_content(
-            model=model,
-            contents=[uploaded, PROMPT],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=PAGES_SCHEMA,
-            ),
-        )
-    finally:
-        try:
-            client.files.delete(name=uploaded.name)
-        except Exception:
-            pass
+    if resp is None:
+        raise RuntimeError("Gemini OCR produced no response")
 
     elapsed = time.time() - t0
     raw = resp.text or ""
@@ -395,6 +419,62 @@ def run_ocr(pdf_path, model="gemini-2.5-flash"):
     return outline, pages
 
 
+def run_ocr_pages(pdf_path, page_numbers, model="gemini-2.5-flash"):
+    """OCR selected 1-based physical PDF pages while preserving their page IDs."""
+    source = fitz.open(pdf_path)
+    subset = fitz.open()
+    try:
+        for page_number in page_numbers:
+            subset.insert_pdf(source, from_page=page_number - 1, to_page=page_number - 1)
+        with tempfile.NamedTemporaryFile(
+            prefix="thesis_missing_", suffix=".pdf", delete=False
+        ) as tmp:
+            subset_path = Path(tmp.name)
+        subset_path.unlink()
+        subset.save(subset_path)
+    finally:
+        subset.close()
+        source.close()
+
+    page_list = ", ".join(str(page) for page in page_numbers)
+    partial_prompt = PROMPT + f"""
+
+重要補充：這個暫存 PDF 只包含原始 PDF 的第 {page_list} 頁，順序完全相同。
+請只 OCR 這些頁面，並將每筆 pages[].page 寫成原始 PDF 的實體頁碼，
+依序為 {page_list}，不要從 1 重新編號。這些頁面屬於參考書目；每一筆完整
+書目請各自成為一個 list_item，分類標題使用 section_title，頁底紙本頁碼使用
+page_number。英文書名與標點必須照原頁保留，不要翻譯或改寫。
+"""
+    try:
+        _, pages = run_ocr(subset_path, model=model, prompt=partial_prompt)
+    finally:
+        try:
+            subset_path.unlink()
+        except Exception:
+            pass
+
+    # Some model responses still number a sliced PDF from 1. Preserve document
+    # order and remap those rows to the original physical page numbers.
+    if {p.get("page") for p in pages} != set(page_numbers) and len(pages) == len(page_numbers):
+        pages = sorted(pages, key=lambda p: p.get("page", 0))
+        for page, original_number in zip(pages, page_numbers):
+            page["page"] = original_number
+
+    by_page = {p.get("page"): p for p in pages}
+    missing = [page for page in page_numbers if page not in by_page]
+    blank = [page for page in page_numbers if not by_page.get(page, {}).get("blocks")]
+    replacement = [
+        page for page in page_numbers
+        if "\ufffd" in json.dumps(by_page.get(page, {}), ensure_ascii=False)
+    ]
+    if missing or blank or replacement:
+        raise RuntimeError(
+            "Partial OCR validation failed: "
+            f"missing={missing}, blank={blank}, replacement_char={replacement}"
+        )
+    return [by_page[page] for page in page_numbers]
+
+
 def write_jsonl(pages):
     """One line per page. {page, blocks}."""
     lines = []
@@ -418,6 +498,11 @@ def upload_jsonl(slug, pages):
     r2_put(key, gz_bytes, "application/x-ndjson", content_encoding="gzip")
     print(" done")
     return key
+
+
+def load_jsonl_gz(key):
+    raw = gzip.decompress(r2_get(key)).decode("utf-8")
+    return [json.loads(line) for line in raw.splitlines() if line.strip()]
 
 
 # ── Commands ──────────────────────────────────────────────────
@@ -489,6 +574,83 @@ def cmd_run(only=None, skip_ocr=False, skip_pdf_upload=False):
         db_upsert(slug, meta, pdf_key, pages_key, outline, total_pages)
 
 
+def cmd_repair_missing(only=None):
+    targets = [k for k in THESES if (only is None or k == only)]
+    if not targets:
+        print(f"❌ unknown --only value: {only}")
+        sys.exit(1)
+
+    for which in targets:
+        meta = THESES[which]
+        slug = meta["slug"]
+        print(f"\n========== {which.upper()}: repair missing OCR pages ==========")
+        existing = db_find_by_slug(slug)
+        if not existing or not existing.get("pages_r2_key") or not existing.get("total_pages"):
+            print("  ❌ existing thesis metadata is incomplete")
+            continue
+
+        pages_key = existing["pages_r2_key"]
+        existing_pages = load_jsonl_gz(pages_key)
+        existing_numbers = {p.get("page") for p in existing_pages}
+        total_pages = int(existing["total_pages"])
+        missing = [page for page in range(1, total_pages + 1) if page not in existing_numbers]
+        if not missing:
+            print(f"  ✓ no missing pages ({len(existing_pages)}/{total_pages})")
+            continue
+        print(f"  → missing physical PDF pages: {', '.join(map(str, missing))}")
+
+        downloaded_path = None
+        pdf_key = existing.get("pdf_r2_key") or f"{PDF_PREFIX}{slug}.pdf"
+        try:
+            with tempfile.NamedTemporaryFile(
+                prefix=f"{slug}_", suffix=".pdf", delete=False
+            ) as tmp:
+                downloaded_path = Path(tmp.name)
+                tmp.write(r2_get(pdf_key))
+            pdf_path = downloaded_path
+            print(f"  ↓ using original PDF from R2 ({pdf_key})")
+        except Exception:
+            if downloaded_path:
+                try:
+                    downloaded_path.unlink()
+                except Exception:
+                    pass
+            configured_path = ROOT / meta["pdf"]
+            if not configured_path.exists():
+                raise
+            downloaded_path = None
+            pdf_path = configured_path
+            print(f"  ↳ R2 unavailable; using matching configured PDF ({configured_path.name})")
+
+        try:
+            repaired = run_ocr_pages(pdf_path, missing)
+        finally:
+            if downloaded_path:
+                try:
+                    downloaded_path.unlink()
+                except Exception:
+                    pass
+
+        merged = {p["page"]: p for p in existing_pages}
+        merged.update({p["page"]: p for p in repaired})
+        complete_pages = [merged[page] for page in range(1, total_pages + 1)]
+        if len(complete_pages) != total_pages:
+            raise RuntimeError(
+                f"Merged page count mismatch: {len(complete_pages)} != {total_pages}"
+            )
+
+        upload_jsonl(slug, complete_pages)
+        db_upsert(
+            slug,
+            meta,
+            existing.get("pdf_r2_key") or f"{PDF_PREFIX}{slug}.pdf",
+            pages_key,
+            existing.get("outline") or [],
+            total_pages,
+        )
+        print(f"  ✓ repaired {len(repaired)} page(s); archive now has {total_pages}/{total_pages}")
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -497,6 +659,11 @@ def main():
     args = sys.argv[2:]
     if cmd == "status":
         cmd_status()
+    elif cmd == "repair-missing":
+        only = None
+        if "--only" in args:
+            only = args[args.index("--only") + 1].lower()
+        cmd_repair_missing(only=only)
     elif cmd == "run":
         only = None
         if "--only" in args:
