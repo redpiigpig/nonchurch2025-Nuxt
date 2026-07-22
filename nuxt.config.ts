@@ -30,6 +30,10 @@ export default defineNuxtConfig({
       process.env.WORD_EXPORT_ARTICLE_PATH || "/export/article",
     wordExportIssuePath:
       process.env.WORD_EXPORT_ISSUE_PATH || "/export/issue",
+    r2Endpoint: process.env.R2_ENDPOINT,
+    r2AccessKey: process.env.R2_ACCESS_KEY,
+    r2SecretKey: process.env.R2_SECRET_KEY,
+    r2Bucket: process.env.R2_BUCKET,
 
     public: {
       supabaseUrl: process.env.VITE_SUPABASE_URL,

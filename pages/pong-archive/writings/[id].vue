@@ -19,7 +19,22 @@
 
         <div class="wa-header-actions">
           <a
-            v-if="article.cloudinary_urls && article.cloudinary_urls.length"
+            v-if="isThesisReader"
+            :href="`/api/pong-writing/${article.id}/pdf`"
+            target="_blank"
+            rel="noopener"
+            class="wa-dl-btn"
+          >
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+              <line x1="4.5" y1="5.5" x2="11.5" y2="5.5" stroke="currentColor" stroke-width="1"/>
+              <line x1="4.5" y1="8"   x2="11.5" y2="8"   stroke="currentColor" stroke-width="1"/>
+              <line x1="4.5" y1="10.5" x2="9"   y2="10.5" stroke="currentColor" stroke-width="1"/>
+            </svg>
+            查看原版 PDF
+          </a>
+          <a
+            v-else-if="article.cloudinary_urls && article.cloudinary_urls.length"
             :href="article.cloudinary_urls[0]"
             target="_blank"
             rel="noopener"
@@ -43,7 +58,15 @@
       <div class="wa-rule" />
 
       <!-- ── Full Text ─────────────────────────────────── -->
-      <article class="wa-body">
+      <PongThesisFlipbook
+        v-if="isThesisReader"
+        :writing-id="article.id"
+        :title="article.title"
+        :outline="article.outline || []"
+        :total-pages="article.total_pages || 0"
+      />
+
+      <article v-else class="wa-body">
         <div class="wa-content">
           <p
             v-for="(para, i) in paragraphs"
@@ -61,6 +84,8 @@
 </template>
 
 <script setup>
+import PongThesisFlipbook from '~/components/pong-archive/PongThesisFlipbook.vue'
+
 definePageMeta({ layout: 'pong-archive' })
 
 const route = useRoute()
@@ -87,6 +112,9 @@ onMounted(async () => {
 })
 
 const categoryLabel = computed(() => CATEGORIES[article.value?.category] || article.value?.category || '')
+const isThesisReader = computed(() => (
+  article.value?.category === 'thesis' && Boolean(article.value?.pages_r2_key)
+))
 
 const paragraphs = computed(() => {
   const text = article.value?.content || ''
@@ -241,6 +269,10 @@ function formatDate(dateStr, approximate) {
   border-top: 1px solid #E0DAD2;
   margin-left: 40px;
   margin-right: 40px;
+}
+
+.wa-page:has(.tfb-shell) .wa-rule {
+  max-width: 1180px;
 }
 
 /* ── Body / Content ──────────────────────────────────────── */

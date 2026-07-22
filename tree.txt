@@ -92,6 +92,8 @@ Directory structure:
     │   ├── main.css
     │   └── shared.css
     ├── components/
+    │   ├── pong-archive/
+    │   │   └── PongThesisFlipbook.vue
     │   ├── feature_articles/
     │   │   ├── Article7_6.vue
     │   │   ├── Article9_9.vue
@@ -642,6 +644,9 @@ Directory structure:
     │   │   │   ├── login.post.js
     │   │   │   └── register.post.js
     │   │   ├── pong-writing/
+    │   │   │   ├── [id]/
+    │   │   │   │   ├── pages.get.ts
+    │   │   │   │   └── pdf.get.ts
     │   │   │   └── [id].get.js
     │   │   ├── classify-article.post.js
     │   │   ├── delete-article.post.js
@@ -665,10 +670,12 @@ Directory structure:
     │   │   ├── subscribe.post.js
     │   │   └── unsubscribe.post.js
     │   └── utils/
-    │       └── notifyAdmin.js
+    │       ├── notifyAdmin.js
+    │       └── pongR2.ts
     ├── stores/
     │   └── tempArticles.js
     ├── supabase/
+    │   ├── pong_writings_thesis_flipbook.sql
     │   ├── .temp/
     │   │   └── cli-latest
     │   ├── critical_rls_fix.sql

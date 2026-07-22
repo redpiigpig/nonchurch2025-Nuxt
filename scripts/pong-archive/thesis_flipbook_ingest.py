@@ -49,20 +49,27 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def load_env():
     env = {}
-    with (ROOT / ".env").open("r", encoding="utf-8-sig") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if "=" in line:
-                k, v = line.split("=", 1)
-                env[k.strip()] = v.strip().strip('"').strip("'")
+    env_path = ROOT / ".env"
+    if env_path.exists():
+        with env_path.open("r", encoding="utf-8-sig") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    env[k.strip()] = v.strip().strip('"').strip("'")
+    # Shell-provided values take precedence, which keeps secrets out of source
+    # and lets the migrated pipeline run without rewriting the repository .env.
+    env.update(os.environ)
     return env
 
 
 ENV = load_env()
-SB_URL = ENV["SUPABASE_URL"].rstrip("/")
-SB_KEY = ENV["SUPABASE_SERVICE_ROLE_KEY"]
+SB_URL = (ENV.get("SUPABASE_URL") or ENV.get("VITE_SUPABASE_URL") or "").rstrip("/")
+SB_KEY = ENV.get("SUPABASE_SERVICE_ROLE_KEY") or ENV.get("SUPABASE_SERVICE_KEY") or ""
+if not SB_URL or not SB_KEY:
+    raise RuntimeError("Missing Supabase URL or service key")
 SB_H = {
     "apikey": SB_KEY,
     "Authorization": f"Bearer {SB_KEY}",
@@ -70,7 +77,7 @@ SB_H = {
     "Prefer": "return=representation",
 }
 
-R2_BUCKET = ENV["R2_BUCKET"]
+R2_BUCKET = ENV.get("R2_BUCKET", "")
 PDF_PREFIX = "pong-writings/"
 PAGES_PREFIX = "pong-writings-pages/"
 
@@ -106,6 +113,9 @@ _r2 = None
 def r2():
     global _r2
     if _r2 is None:
+        missing = [name for name in ("R2_ENDPOINT", "R2_ACCESS_KEY", "R2_SECRET_KEY", "R2_BUCKET") if not ENV.get(name)]
+        if missing:
+            raise RuntimeError(f"Missing R2 configuration: {', '.join(missing)}")
         _r2 = boto3.client(
             "s3",
             region_name="auto",
@@ -412,6 +422,7 @@ def upload_jsonl(slug, pages):
 
 # ── Commands ──────────────────────────────────────────────────
 def cmd_status():
+    can_check_r2 = all(ENV.get(name) for name in ("R2_ENDPOINT", "R2_ACCESS_KEY", "R2_SECRET_KEY", "R2_BUCKET"))
     for which, meta in THESES.items():
         pdf = ROOT / meta["pdf"]
         exists = pdf.exists()
@@ -423,13 +434,15 @@ def cmd_status():
             doc.close()
         pdf_key = f"{PDF_PREFIX}{slug}.pdf"
         pages_key = f"{PAGES_PREFIX}{slug}.jsonl.gz"
-        on_r2_pdf = bool(r2_head(pdf_key))
-        on_r2_pages = bool(r2_head(pages_key))
+        on_r2_pdf = bool(r2_head(pdf_key)) if can_check_r2 else None
+        on_r2_pages = bool(r2_head(pages_key)) if can_check_r2 else None
         db_row = db_find_by_slug(slug)
+        r2_pdf_status = "未檢查" if on_r2_pdf is None else ("✓" if on_r2_pdf else "✗")
+        r2_pages_status = "未檢查" if on_r2_pages is None else ("✓" if on_r2_pages else "✗")
         print(f"\n[{which.upper()}] {meta['pdf']}")
         print(f"  local: {'✓' if exists else '✗'} ({size_mb:.1f} MB, {pages} pages)")
-        print(f"  R2 PDF:        {'✓' if on_r2_pdf else '✗'} ({pdf_key})")
-        print(f"  R2 pages:      {'✓' if on_r2_pages else '✗'} ({pages_key})")
+        print(f"  R2 PDF:        {r2_pdf_status} ({pdf_key})")
+        print(f"  R2 pages:      {r2_pages_status} ({pages_key})")
         print(f"  pong_writings: {'✓ id=' + str(db_row['id']) if db_row else '✗'}")
 
 
