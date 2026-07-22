@@ -67,7 +67,12 @@ class OfficialSiteBlockedError(RuntimeError):
 
 WEEKS = [
   # ── 甲年 Year A 2025-2026 ──────────────────────────────────────────────────
-  # Advent 1-4 already seeded, skipped here
+  # Advent 1 and 4 are clean seeded rows. Weeks 2-3 remain here so damaged
+  # seeded content can be reparsed from the official PDFs with --force.
+  {'year':'A','season':'advent','week_num':2,'title':'將臨期第二週（和平）',
+   'date_range':'2025.12.07–12.13','url':'https://www.1day3read3pray.com/download/11577/'},
+  {'year':'A','season':'advent','week_num':3,'title':'將臨期第三週（喜樂）',
+   'date_range':'2025.12.14–12.20','url':'https://www.1day3read3pray.com/download/11600/'},
   # Christmas
   {'year':'A','season':'christmas','week_num':1,'title':'聖誕期第一週',
    'date_range':'2025.12.28–2026.01.04','url':'https://www.1day3read3pray.com/download/11784/'},
