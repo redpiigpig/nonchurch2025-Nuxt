@@ -51,6 +51,10 @@ export default defineEventHandler(async (event) => {
     setHeader(event, 'Cache-Control', 'public, max-age=300, s-maxage=3600')
     return { pages, totalPages: data.total_pages || pages.length }
   } catch (error) {
+    // A missing-config error from getPongR2Config() is an H3 error carrying its
+    // own statusCode (503) + a clear "缺少 R2_xxx" message — surface it as-is
+    // instead of masking every failure behind an opaque 502.
+    if (error && typeof error === 'object' && 'statusCode' in error) throw error
     console.error('Unable to load thesis pages:', error instanceof Error ? error.message : 'unknown error')
     throw createError({ statusCode: 502, message: '論文分頁暫時無法載入，請稍後再試' })
   }

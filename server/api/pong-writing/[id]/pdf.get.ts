@@ -37,6 +37,9 @@ export default defineEventHandler(async (event) => {
 
     return bytes
   } catch (error) {
+    // Surface a missing-config H3 error (503 "缺少 R2_xxx") verbatim rather than
+    // masking it as a generic 502.
+    if (error && typeof error === 'object' && 'statusCode' in error) throw error
     console.error('Unable to load thesis PDF:', error instanceof Error ? error.message : 'unknown error')
     throw createError({ statusCode: 502, message: '論文原版 PDF 暫時無法載入，請稍後再試' })
   }

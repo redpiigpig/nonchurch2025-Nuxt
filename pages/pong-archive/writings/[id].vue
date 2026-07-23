@@ -95,6 +95,7 @@ const CATEGORIES = {
   book_chapter: '專書文章',
   journal:      '期刊文章',
   conference:   '會議文章',
+  periodical:   '刊物專欄',
   web:          '網站文章',
 }
 
