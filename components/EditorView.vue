@@ -1517,6 +1517,79 @@ const insertFootnoteAfter = (afterIndex) => {
   form.value.footnotes.splice(afterIndex + 1, 0, { id: insertId, text: "" });
 };
 
+// ── 重新編號並對齊（Word 式：以內文出現順序為準）──────────────────
+// 走訪 ProseMirror doc，把所有腳注引用依「文件中出現的先後」重編為 1..N，
+// 並據此重建 footnotes 陣列，強制內文上標與下方清單嚴格對齊。
+//   • 複製造成的重複引用 → 各自拆成獨立腳註（文字複製一份）
+//   • 內文已無對應引用的孤兒腳註 → 移除（非空者會列出提示）
+//   • 引用存在但缺對應文字 → 補一條空白腳注待填
+const normalizeFootnotes = ({ silent = false } = {}) => {
+  const editorInst = editor.value;
+  if (!editorInst) return null;
+  const { state, view } = editorInst;
+
+  // 1. 依文件順序收集所有腳注引用節點
+  const refs = [];
+  state.doc.descendants((node, pos) => {
+    if (node.type.name === "footnoteRef") {
+      refs.push({ pos, oldId: String(node.attrs.fnId ?? "").trim() });
+    }
+  });
+
+  // 現有腳注文字：以 id 為鍵
+  const textById = {};
+  (form.value.footnotes || []).forEach((fn) => {
+    textById[String(fn.id)] = fn.text ?? "";
+  });
+
+  // 安全閥：內文沒有任何引用、但陣列卻有腳注 → 可能是編輯器尚未載入內文，
+  // 避免誤刪，先請使用者確認
+  if (refs.length === 0 && (form.value.footnotes || []).length > 0) {
+    if (!confirm("內文中偵測不到任何腳注引用，繼續會清空所有腳註。確定要繼續嗎？")) {
+      return null;
+    }
+  }
+
+  // 2. 依引用順序重建腳註陣列（重複引用各自複製文字；缺文字補空白）
+  const usedOldIds = new Set();
+  const newFootnotes = refs.map((r, i) => {
+    usedOldIds.add(r.oldId);
+    const text = Object.prototype.hasOwnProperty.call(textById, r.oldId)
+      ? textById[r.oldId]
+      : "";
+    return { id: i + 1, text };
+  });
+
+  // 3. 找出孤兒腳註（有文字但內文已無引用）
+  const orphanTexts = Object.keys(textById)
+    .filter((id) => !usedOldIds.has(id) && (textById[id] || "").trim() !== "")
+    .map((id) => textById[id]);
+
+  // 4. 一次 transaction 重設所有引用的 fnId（atom 節點大小不變，位置皆有效）
+  if (refs.length > 0) {
+    const tr = state.tr;
+    refs.forEach((r, i) => {
+      tr.setNodeMarkup(r.pos, undefined, { fnId: String(i + 1) });
+    });
+    view.dispatch(tr);
+  }
+
+  // 5. 提交陣列並同步內文 HTML
+  form.value.footnotes = newFootnotes;
+  form.value.content = cleanHTML(editorInst.getHTML());
+
+  // 6. 回報
+  if (!silent) {
+    let msg = `已重新編號並對齊：內文 ${refs.length} 個引用、腳註 ${newFootnotes.length} 條。`;
+    if (orphanTexts.length) {
+      msg += `\n\n⚠️ 下列 ${orphanTexts.length} 條腳註在內文已無對應引用，已移除：\n` +
+        orphanTexts.map((t) => `• ${(t || "").replace(/<[^>]+>/g, "").slice(0, 30)}…`).join("\n");
+    }
+    alert(msg);
+  }
+  return { refCount: refs.length, fnCount: newFootnotes.length, orphans: orphanTexts.length };
+};
+
 
 // ── 校對標記審閱 ─────────────────────────────────────────────────
 const annReplaceTexts = ref({});
@@ -2252,6 +2325,12 @@ const colorLabel = (color) => {
             <label>
               註腳 (Footnotes)
               <span class="footnote-hint">在內文中插入 [^N] 引用</span>
+              <button
+                type="button"
+                class="btn btn-sm btn-renumber-fn"
+                @click="normalizeFootnotes()"
+                title="以內文出現順序重新編號，並強制上下對齊（可修復斷號、複製造成的重複）"
+              >🔢 重新編號並對齊</button>
             </label>
 
             <div v-for="(fn, index) in form.footnotes" :key="fn.id" class="footnote-item">
@@ -3056,6 +3135,19 @@ const colorLabel = (color) => {
   color: #888;
   margin-left: 8px;
 }
+
+.btn-renumber-fn {
+  margin-left: 8px;
+  font-size: 0.78rem;
+  font-weight: normal;
+  padding: 2px 8px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-renumber-fn:hover { background: #e0e7ff; }
 
 .footnote-item {
   display: flex;
