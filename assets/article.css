@@ -741,7 +741,7 @@
   line-height: 1.6;
 }
 
-.timeline-table td:first-child {
+.timeline-table td.tl-year {
   text-align: center;
   font-weight: 600;
   color: #555;
