@@ -59,10 +59,11 @@ const { data: asyncData, pending: loading } = await useAsyncData(
       let prev = null,
         next = null;
       if (issueArticles) {
-        // 目次僅供編輯頁參考，不是可導覽的文章，排除於上一篇/下一篇之外
+        // 目次、投稿資訊、編輯資訊皆非可導覽的正文，排除於上一篇/下一篇之外
+        const NON_NAV_TYPES = ["toc", "submission_info", "editorial_info"];
         const navArticles = issueArticles.filter(
           (a) =>
-            a.article_type !== "toc" &&
+            !NON_NAV_TYPES.includes(a.article_type) &&
             a.title !== "目次" &&
             a.title !== "目錄",
         );
