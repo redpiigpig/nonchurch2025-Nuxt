@@ -2164,29 +2164,70 @@ class ProfessionalDocxGenerator:
         self._apply_font(run, 'Times New Roman', '文鼎中行書', size=16, bold=True)
 
     def _add_table(self, html):
-        """解析並插入 HTML 表格（<table class="data-table">）。"""
+        """解析並插入 HTML 表格，支援 rowspan / colspan（年表年份欄跨列合併）。"""
         rows_html = re.findall(r'<tr\b[^>]*>(.*?)</tr>', html,
                                re.DOTALL | re.IGNORECASE)
         if not rows_html:
             return
-        first_cells = re.findall(r'<(?:td|th)\b[^>]*>.*?</(?:td|th)>',
-                                 rows_html[0], re.DOTALL | re.IGNORECASE)
-        num_cols = max(len(first_cells), 1)
-        tbl = self.doc.add_table(rows=0, cols=num_cols)
-        tbl.style = 'Table Grid'
+        # 逐列解析儲存格（含 rowspan / colspan）
+        parsed = []
         for row_html in rows_html:
-            cells = re.findall(r'<(td|th)\b[^>]*>(.*?)</(?:td|th)>',
-                               row_html, re.DOTALL | re.IGNORECASE)
-            row = tbl.add_row()
-            for i, (ctag, ccontent) in enumerate(cells[:num_cols]):
-                p = row.cells[i].paragraphs[0]
+            cells = []
+            for m in re.finditer(r'<(td|th)\b([^>]*)>(.*?)</(?:td|th)>',
+                                 row_html, re.DOTALL | re.IGNORECASE):
+                tag, attrs, content = m.group(1), m.group(2), m.group(3)
+                rs = re.search(r'rowspan\s*=\s*["\']?(\d+)', attrs, re.IGNORECASE)
+                cs = re.search(r'colspan\s*=\s*["\']?(\d+)', attrs, re.IGNORECASE)
+                cells.append({
+                    'tag': tag.lower(),
+                    'content': content,
+                    'rowspan': int(rs.group(1)) if rs else 1,
+                    'colspan': int(cs.group(1)) if cs else 1,
+                })
+            parsed.append(cells)
+        if not parsed:
+            return
+        n_rows = len(parsed)
+        num_cols = max(
+            max((sum(c['colspan'] for c in cells) for cells in parsed), default=1),
+            sum(c['colspan'] for c in parsed[0]),
+            1,
+        )
+        tbl = self.doc.add_table(rows=n_rows, cols=num_cols)
+        tbl.style = 'Table Grid'
+
+        # 佔位格追蹤：rowspan/colspan 佔用的位置不再放入後續儲存格，
+        # 確保續列的內容落在正確欄位（修正第三欄跑到第二欄）。
+        occupied = [[False] * num_cols for _ in range(n_rows)]
+        merges = []  # (r0, c0, r1, c1)
+        for r, cells in enumerate(parsed):
+            ci = 0
+            for cell in cells:
+                while ci < num_cols and occupied[r][ci]:
+                    ci += 1
+                if ci >= num_cols:
+                    break
+                rs = min(cell['rowspan'], n_rows - r)
+                cs = min(cell['colspan'], num_cols - ci)
+                for rr in range(r, r + rs):
+                    for cc in range(ci, ci + cs):
+                        occupied[rr][cc] = True
+                p = tbl.cell(r, ci).paragraphs[0]
                 p.paragraph_format.space_before = Pt(0)
                 p.paragraph_format.space_after  = Pt(0)
-                text = re.sub(r'<[^>]+>', '', ccontent).strip()
+                text = re.sub(r'<[^>]+>', '', cell['content']).strip()
                 if text:
                     run = p.add_run(text)
                     self._apply_font(run, 'Times New Roman', 'NSimSun',
-                                     size=11, bold=(ctag.lower() == 'th'))
+                                     size=11, bold=(cell['tag'] == 'th'))
+                if rs > 1 or cs > 1:
+                    merges.append((r, ci, r + rs - 1, ci + cs - 1))
+                ci += cs
+        for (r0, c0, r1, c1) in merges:
+            try:
+                tbl.cell(r0, c0).merge(tbl.cell(r1, c1))
+            except Exception:
+                pass
         self._add_blank_line()
 
     def _apply_theme_image_frame(self, run):
