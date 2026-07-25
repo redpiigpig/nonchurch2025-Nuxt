@@ -38,7 +38,7 @@ const { data: asyncData, pending: loading } = await useAsyncData(
       // 2. 抓取同期文章以計算 上一篇 / 下一篇 （目次頁另外取完整資料）
       const { data: issueArticles } = await supabase
         .from("articles")
-        .select("id, title, translations")
+        .select("id, title, translations, article_type")
         .eq("issue", currentArt.issue);
 
       // 2b. 目次文章：抓本期所有文章供前台渲染（判斷依 article_type 或標題）
@@ -59,13 +59,20 @@ const { data: asyncData, pending: loading } = await useAsyncData(
       let prev = null,
         next = null;
       if (issueArticles) {
-        issueArticles.sort(
+        // 目次僅供編輯頁參考，不是可導覽的文章，排除於上一篇/下一篇之外
+        const navArticles = issueArticles.filter(
+          (a) =>
+            a.article_type !== "toc" &&
+            a.title !== "目次" &&
+            a.title !== "目錄",
+        );
+        navArticles.sort(
           (a, b) => getArticleOrder(a.id) - getArticleOrder(b.id),
         );
-        const idx = issueArticles.findIndex((a) => a.id === articleId);
-        if (idx > 0) prev = issueArticles[idx - 1];
-        if (idx !== -1 && idx < issueArticles.length - 1)
-          next = issueArticles[idx + 1];
+        const idx = navArticles.findIndex((a) => a.id === articleId);
+        if (idx > 0) prev = navArticles[idx - 1];
+        if (idx !== -1 && idx < navArticles.length - 1)
+          next = navArticles[idx + 1];
       }
 
       // 🚨 已經徹底移除 Supabase Storage 抓圖片的程式碼 🚨
