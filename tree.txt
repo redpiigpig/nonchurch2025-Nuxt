@@ -125,6 +125,11 @@ Directory structure:
     │   └── pong-archive.vue
     ├── middleware/
     │   └── auth.js
+    ├── output/
+    │   ├── documents/
+    │   │   └── 無境界者第九期_城中教會紙本登記單_B5.docx
+    │   └── pdf/
+    │       └── 無境界者第九期_城中教會紙本登記單_B5.pdf
     ├── pages/
     │   ├── admin/
     │   │   ├── articles/
