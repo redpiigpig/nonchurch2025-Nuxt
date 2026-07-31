@@ -126,6 +126,28 @@
 #   anon        → 無存取（由 service key 後端 INSERT）
 #   authenticated → SELECT / UPDATE / DELETE
 
+## Table: issue_9_payment_orders（新增於 2026-07-31）
+| 欄位 | 類型 | 可空 | 預設 |
+|------|------|------|------|
+| id | bigint | NO | auto identity |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+| name | text | NO | |
+| email | text | NO | |
+| copies | integer | NO | |
+| unit_price | integer | NO | 350 |
+| amount | integer | NO | generated: copies × unit_price |
+| last5 | text | NO | |
+| message | text | YES | |
+| note | text | YES | |
+| confirmed | boolean | NO | false |
+| confirmed_at | timestamptz | YES | |
+| confirmation_email_sent_at | timestamptz | YES | |
+
+# RLS 政策（issue_9_payment_orders）：
+#   anon          → 無存取（由 service key 後端 INSERT）
+#   authenticated → SELECT / UPDATE
+
 ## Table: submissions（新增於 2026-04-14）
 | 欄位 | 類型 | 可空 | 預設 |
 |------|------|------|------|

@@ -159,6 +159,7 @@ Directory structure:
     │   │   ├── articles_manager.vue
     │   │   ├── authors_manager.vue
     │   │   ├── finance.vue
+    │   │   ├── issue-9-payments.vue
     │   │   ├── index.vue
     │   │   ├── issues_manager.vue
     │   │   ├── media_manager.vue
@@ -664,6 +665,11 @@ Directory structure:
     │   │   ├── export-issue-word.post.js
     │   │   ├── export-word.post.js
     │   │   ├── issue-9-payment-confirm.post.js
+    │   │   ├── issue-9-payment-orders/
+    │   │   │   ├── [id]/
+    │   │   │   │   └── confirm.post.js
+    │   │   │   └── [id].patch.js
+    │   │   ├── issue-9-payment-orders.get.js
     │   │   ├── media-assets.js
     │   │   ├── media-download-zip.js
     │   │   ├── media.js
@@ -679,11 +685,13 @@ Directory structure:
     │   │   ├── subscribe.post.js
     │   │   └── unsubscribe.post.js
     │   └── utils/
+    │       ├── issue9Orders.js
     │       ├── notifyAdmin.js
     │       └── pongR2.ts
     ├── stores/
     │   └── tempArticles.js
     ├── supabase/
+    │   ├── issue_9_payment_orders.sql
     │   ├── pong_writings_thesis_flipbook.sql
     │   ├── .temp/
     │   │   └── cli-latest

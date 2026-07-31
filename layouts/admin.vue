@@ -28,6 +28,9 @@
           <NuxtLink to="/admin/finance" active-class="active-link">
             💰 財務管理
           </NuxtLink>
+          <NuxtLink to="/admin/issue-9-payments" active-class="active-link">
+            📦 第九期紙本匯款
+          </NuxtLink>
           <NuxtLink to="/admin/editor" active-class="active-link">
             📝 新增文章
           </NuxtLink>
