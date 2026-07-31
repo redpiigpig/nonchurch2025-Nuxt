@@ -28,8 +28,8 @@ export const CLD = {
   logoText: "f_auto,q_auto,w_180",
   /** 封面圖，手機版約 400px，桌機 < 500px */
   cover: "f_auto,q_auto,w_500",
-  /** 作者大頭貼，圓形裁切 120x120 */
-  avatar: "f_auto,q_auto,w_120,h_120,c_fill,g_face",
+  /** 作者大頭貼，160px 顯示尺寸使用 2x 圖，避免高密度螢幕模糊 */
+  avatar: "f_auto,q_auto,w_320,h_320,c_fill,g_face",
   /** 文章縮圖 */
   thumb: "f_auto,q_auto,w_300",
 };

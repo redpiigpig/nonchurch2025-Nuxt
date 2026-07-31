@@ -241,6 +241,7 @@ const categoryTranslations = {
     文藝創作: "文藝創作",
     公告與剪影: "公告與剪影",
     封面故事: "封面故事",
+    文獻與翻譯: "文獻與翻譯",
   },
   "zh-HK": {
     專題文章: "專題文章",
@@ -251,6 +252,7 @@ const categoryTranslations = {
     文藝創作: "文藝創作",
     公告與剪影: "公告與剪影",
     封面故事: "封面故事",
+    文獻與翻譯: "文獻與翻譯",
   },
   "zh-CN": {
     專題文章: "专题文章",
@@ -261,6 +263,7 @@ const categoryTranslations = {
     文藝創作: "文艺创作",
     公告与剪影: "公告与剪影",
     封面故事: "封面故事",
+    文獻與翻譯: "文献与翻译",
   },
   en: {
     專題文章: "Feature",
@@ -271,6 +274,7 @@ const categoryTranslations = {
     文藝創作: "Literature",
     公告與剪影: "Notice",
     封面故事: "Cover Story",
+    文獻與翻譯: "Documents & Translation",
   },
   ja: {
     專題文章: "特集記事",
@@ -281,6 +285,7 @@ const categoryTranslations = {
     文藝創作: "文芸創作",
     公告與剪影: "お知らせ",
     封面故事: "カバーストーリー",
+    文獻與翻譯: "文献と翻訳",
   },
   ko: {
     專題文章: "특집 기사",
@@ -291,6 +296,7 @@ const categoryTranslations = {
     文藝創作: "문예 창작",
     公告與剪影: "공지사항",
     封面故事: "커버 스토리",
+    文獻與翻譯: "문헌 및 번역",
   },
 };
 
@@ -451,6 +457,7 @@ const currentIssue = computed(() => {
     coverImg: currentIssueData.value.cover_img,
     introHome: trans.intro_home || currentIssueData.value.intro_home,
     introCfp: trans.intro_cfp || currentIssueData.value.intro_cfp,
+    cfpTitle: trans.cfp_title || currentIssueData.value.cfp_title,
     pdfLink: currentIssueData.value.pdf_link,
     authorOrder: currentIssueData.value.author_order,
     content: currentIssueContent.value,
@@ -469,6 +476,7 @@ function getCategoryColor(category) {
     文藝創作: "#27408b",
     公告與剪影: "#6a5acd",
     封面故事: "#7d6c29",
+    文獻與翻譯: "#008080",
   };
   return map[category] || "#999";
 }
@@ -481,6 +489,7 @@ const getColorClass = (colorCode) => {
     "#46b175": "green",
     "#4682b4": "blue",
     "#6a5acd": "purple",
+    "#008080": "teal",
   };
   return map[colorCode] || "red";
 };
@@ -492,10 +501,17 @@ const formattedIntroCfp = computed(() => {
     /（(.*?)）/g,
     '<span style="color: #ff8000; font-weight: bold;">$1</span>',
   );
-  text = text.replace(
-    /「(.*?)」/g,
-    '<span style="color: #007bff; font-weight: bold;">$1</span>',
-  );
+  const cfpTitle = currentIssue.value?.cfpTitle?.trim();
+  if (cfpTitle) {
+    const escapedTitle = cfpTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const titlePattern = new RegExp(
+      `(?:「|“|\")?${escapedTitle}([,，]?)(?:」|”|\")?`,
+    );
+    text = text.replace(
+      titlePattern,
+      `<span style="color: #007bff; font-weight: bold;">${cfpTitle}</span>$1`,
+    );
+  }
   return text;
 });
 
@@ -898,8 +914,8 @@ onMounted(() => {
             <img
               :src="cloudinaryUrl(a.author_image, CLD.avatar)"
               :alt="a.displayName"
-              width="120"
-              height="120"
+              width="160"
+              height="160"
               loading="lazy"
             />
           </router-link>
@@ -1392,6 +1408,9 @@ h2 {
 }
 .article-type.purple {
   background-color: #6a5acd;
+}
+.article-type.teal {
+  background-color: #008080;
 }
 .authors {
   padding: 3rem;

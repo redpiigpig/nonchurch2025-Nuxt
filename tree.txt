@@ -634,6 +634,7 @@ Directory structure:
     │   ├── publish_article.test.mjs
     │   ├── query_interviews.cjs
     │   ├── render_meta_docx.py
+    │   ├── refresh_issue9_translations_20260731.mjs
     │   ├── transcribe_interview_gemini.py
     │   └── transcribe_interview_whisper.py
     ├── server/
