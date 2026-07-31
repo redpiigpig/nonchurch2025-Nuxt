@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useEditorMode } from "../composables/useEditorMode";
 import { useLanguage } from "../composables/useLanguage";
 import { cloudinaryUrl, CLD } from "../utils/cloudinary";
+import { stripFootnoteReferences } from "../utils/displayText";
 
 const supabase = useSupabaseClient();
 const route = useRoute();
@@ -396,8 +397,8 @@ const currentIssueContent = computed(() => {
       routeId: a.id,
       category: a.category,
       section: a.section,
-      title: trans.title || a.title,
-      subtitle: trans.subtitle || a.subtitle,
+      title: stripFootnoteReferences(trans.title || a.title),
+      subtitle: stripFootnoteReferences(trans.subtitle || a.subtitle),
       originalAuthor: a.author,
       linkedAuthorIds: Array.isArray(a.linked_author_ids)
         ? a.linked_author_ids
@@ -405,7 +406,7 @@ const currentIssueContent = computed(() => {
       authorDisplay:
         trans.author_display || trans.author || a.author_display || a.author,
       keyword: trans.keyword || a.keyword,
-      summary: trans.summary || a.summary,
+      summary: stripFootnoteReferences(trans.summary || a.summary),
       color: getCategoryColor(a.category),
     };
   });

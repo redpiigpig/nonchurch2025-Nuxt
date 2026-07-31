@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useLanguage } from "~/composables/useLanguage";
+import { stripFootnoteReferences } from "~/utils/displayText";
 
 const props = defineProps({
   showAll: { type: Boolean, default: false },
@@ -141,9 +142,9 @@ const displayArticles = computed(() => {
     const tIss = a.issues?.translations?.[langKey] || {};
     return {
       id: a.id,
-      title: tArt.title || a.title,
-      subtitle: tArt.subtitle || a.subtitle,
-      summary: tArt.summary || a.summary,
+      title: stripFootnoteReferences(tArt.title || a.title),
+      subtitle: stripFootnoteReferences(tArt.subtitle || a.subtitle),
+      summary: stripFootnoteReferences(tArt.summary || a.summary),
       issueId: a.issues?.id,
       issueTitle: tIss.title || a.issues?.title,
       issueDate: tIss.date || a.issues?.date,

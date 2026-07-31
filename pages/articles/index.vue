@@ -3,6 +3,7 @@ import { ref, computed, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { useLanguage } from "~/composables/useLanguage";
+import { stripFootnoteReferences } from "~/utils/displayText";
 
 const supabase = useSupabaseClient();
 const { isEditor } = useEditorMode();
@@ -380,8 +381,8 @@ const displayIssues = computed(() => {
       const tArt = art.translations?.[langKey] || {};
       return {
         ...art,
-        title: tArt.title || art.title,
-        subtitle: tArt.subtitle || art.subtitle,
+        title: stripFootnoteReferences(tArt.title || art.title),
+        subtitle: stripFootnoteReferences(tArt.subtitle || art.subtitle),
         author: tArt.author_display || tArt.author || art.author,
       };
     });

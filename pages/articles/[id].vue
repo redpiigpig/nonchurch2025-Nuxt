@@ -5,6 +5,7 @@ import { useTempArticlesStore } from "~/stores/tempArticles";
 import { useLanguage } from "~/composables/useLanguage";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { splitAuthorRemarkLines } from "~/utils/authorRemark";
+import { stripFootnoteReferences } from "~/utils/displayText";
 import SubmitPage from "~/pages/submit.vue";
 
 const route = useRoute();
@@ -176,8 +177,8 @@ const tocDisplayRows = computed(() => {
     rows.push({
       type: "article",
       id: a.id,
-      title: tArt.title || a.title || "",
-      subtitle: tArt.subtitle || a.subtitle || "",
+      title: stripFootnoteReferences(tArt.title || a.title || ""),
+      subtitle: stripFootnoteReferences(tArt.subtitle || a.subtitle || ""),
       author: tArt.author_display || tArt.author || a.author_display || a.author || "",
       category: a.category || "",
       color: getCategoryColorToc(a.category),

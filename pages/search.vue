@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useLanguage } from "~/composables/useLanguage";
 import { useEditorMode } from "~/composables/useEditorMode";
+import { stripFootnoteReferences } from "~/utils/displayText";
 
 const supabase = useSupabaseClient();
 const { currentLang } = useLanguage();
@@ -273,8 +274,8 @@ const displayResults = computed(() => {
     const tIss = a.issues?.translations?.[langKey] || {};
     return {
       ...a,
-      displayTitle: tArt.title || a.title,
-      displaySubtitle: tArt.subtitle || a.subtitle,
+      displayTitle: stripFootnoteReferences(tArt.title || a.title),
+      displaySubtitle: stripFootnoteReferences(tArt.subtitle || a.subtitle),
       displayAuthor:
         tArt.author_display || tArt.author || a.author_display || a.author,
       displayKeyword: tArt.keyword || a.keyword,
