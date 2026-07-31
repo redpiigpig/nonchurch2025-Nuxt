@@ -420,31 +420,55 @@ useSeoMeta({
       ? "noindex, nofollow, noarchive, nosnippet"
       : "index, follow",
   title: () =>
-    displayArticle.value
+    isDirectOnlyArticle(article.value?.id)
+      ? "無境界者雜誌"
+      : displayArticle.value
       ? `${displayArticle.value.title} - 無境界者雜誌`
       : "無境界者雜誌",
-  ogTitle: () => displayArticle.value?.title || "無境界者雜誌",
+  ogTitle: () =>
+    isDirectOnlyArticle(article.value?.id)
+      ? "無境界者雜誌"
+      : displayArticle.value?.title || "無境界者雜誌",
   description: () =>
-    displayArticle.value?.summary ||
-    "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
+    isDirectOnlyArticle(article.value?.id)
+      ? ""
+      : displayArticle.value?.summary ||
+        "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
   ogDescription: () =>
-    displayArticle.value?.summary ||
-    "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
+    isDirectOnlyArticle(article.value?.id)
+      ? ""
+      : displayArticle.value?.summary ||
+        "無境界者雜誌 - 一個不以教會為本位的自由信仰論述平台。",
   ogImage: () =>
-    article.value?.seo?.image ||
-    "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
+    isDirectOnlyArticle(article.value?.id)
+      ? "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg"
+      : article.value?.seo?.image ||
+        "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
   keywords: () =>
-    (displayArticle.value?.keyword || "")
-      .replace(/🌿/g, "")
-      .replace(/(關鍵字|关键字|Keywords|キーワード|키워드)\s*[:：]/gi, "")
-      .trim(),
-  author: () => displayArticle.value?.author,
+    isDirectOnlyArticle(article.value?.id)
+      ? ""
+      : (displayArticle.value?.keyword || "")
+          .replace(/🌿/g, "")
+          .replace(/(關鍵字|关键字|Keywords|キーワード|키워드)\s*[:：]/gi, "")
+          .trim(),
+  author: () =>
+    isDirectOnlyArticle(article.value?.id)
+      ? ""
+      : displayArticle.value?.author,
   twitterCard: "summary_large_image",
-  twitterTitle: () => displayArticle.value?.title,
-  twitterDescription: () => displayArticle.value?.summary,
+  twitterTitle: () =>
+    isDirectOnlyArticle(article.value?.id)
+      ? "無境界者雜誌"
+      : displayArticle.value?.title,
+  twitterDescription: () =>
+    isDirectOnlyArticle(article.value?.id)
+      ? ""
+      : displayArticle.value?.summary,
   twitterImage: () =>
-    article.value?.seo?.image ||
-    "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
+    isDirectOnlyArticle(article.value?.id)
+      ? "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg"
+      : article.value?.seo?.image ||
+        "https://res.cloudinary.com/nonchurch2025/image/upload/default-seo.jpg",
 });
 
 const translatedCategory = computed(() => {
