@@ -201,6 +201,7 @@ Directory structure:
     │   ├── donate-confirm.vue
     │   ├── finance.vue
     │   ├── index.vue
+    │   ├── issue-9-payment-confirm.vue
     │   ├── login.vue
     │   ├── mission.vue
     │   ├── preview.vue
@@ -656,6 +657,7 @@ Directory structure:
     │   │   ├── donate-send-confirm.post.js
     │   │   ├── export-issue-word.post.js
     │   │   ├── export-word.post.js
+    │   │   ├── issue-9-payment-confirm.post.js
     │   │   ├── media-assets.js
     │   │   ├── media-download-zip.js
     │   │   ├── media.js
