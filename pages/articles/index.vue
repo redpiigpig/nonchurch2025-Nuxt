@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { useLanguage } from "~/composables/useLanguage";
 import { stripFootnoteReferences } from "~/utils/displayText";
+import { isDirectOnlyArticle } from "~/utils/directOnlyArticles";
 
 const supabase = useSupabaseClient();
 const { isEditor } = useEditorMode();
@@ -478,7 +479,10 @@ watch(selectedYear, (v) =>
                   {{ translateCategory(item.category) }}
                 </span>
                 <NuxtLink
-                  v-if="item.type !== 'text-only' || item.routeId"
+                  v-if="
+                    (item.type !== 'text-only' || item.routeId) &&
+                    (isEditor || !isDirectOnlyArticle(item.routeId))
+                  "
                   :to="`/articles/${item.routeId}`"
                   @click="saveScrollPosition(`#issue-${issue.id}`)"
                 >
@@ -496,7 +500,10 @@ watch(selectedYear, (v) =>
                     {{ t.artDraft }}
                   </span>
                 </NuxtLink>
-                <span v-else>{{ item.title }}</span>
+                <span v-else
+                  >{{ item.title
+                  }}<span v-if="item.subtitle">──{{ item.subtitle }}</span></span
+                >
                 <span v-if="item.author" class="author"
                   >｜{{ item.author }}</span
                 >

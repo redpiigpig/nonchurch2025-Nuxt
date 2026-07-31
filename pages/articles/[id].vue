@@ -6,6 +6,7 @@ import { useLanguage } from "~/composables/useLanguage";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { splitAuthorRemarkLines } from "~/utils/authorRemark";
 import { stripFootnoteReferences } from "~/utils/displayText";
+import { isDirectOnlyArticle } from "~/utils/directOnlyArticles";
 import SubmitPage from "~/pages/submit.vue";
 
 const route = useRoute();
@@ -111,6 +112,13 @@ const article = computed(() => {
   }
   return null;
 });
+
+const canLinkArticle = (articleId) =>
+  isEditor.value || !isDirectOnlyArticle(articleId);
+
+const canLinkNavigation = (targetId) =>
+  isEditor.value ||
+  (!isDirectOnlyArticle(article.value?.id) && !isDirectOnlyArticle(targetId));
 
 // ─── 目次頁專用 ──────────────────────────────────────────────────
 const isToc = computed(() =>
@@ -403,6 +411,14 @@ const currentSpecialComponent = computed(() => {
 
 // ─── SEO ────────────────────────────────────────────────
 useSeoMeta({
+  robots: () =>
+    isDirectOnlyArticle(article.value?.id)
+      ? "noindex, nofollow, noarchive, nosnippet"
+      : "index, follow",
+  googlebot: () =>
+    isDirectOnlyArticle(article.value?.id)
+      ? "noindex, nofollow, noarchive, nosnippet"
+      : "index, follow",
   title: () =>
     displayArticle.value
       ? `${displayArticle.value.title} - 無境界者雜誌`
@@ -658,7 +674,14 @@ const keywordContent = computed(() => {
             <p>
               <span class="toc-art-seq">{{ String(row.seq).padStart(2, "0") }}</span>
               <span v-if="row.category" class="toc-art-cat" :style="{ color: row.color }">【{{ row.category }}】</span>
-              <NuxtLink v-if="row.article_type !== 'submission_info' && row.article_type !== 'editorial_info'" :to="`/articles/${row.id}`">
+              <NuxtLink
+                v-if="
+                  row.article_type !== 'submission_info' &&
+                  row.article_type !== 'editorial_info' &&
+                  canLinkArticle(row.id)
+                "
+                :to="`/articles/${row.id}`"
+              >
                 {{ row.title }}<span v-if="row.subtitle">──{{ row.subtitle }}</span>
               </NuxtLink>
               <span v-else>{{ row.title }}</span>
@@ -707,11 +730,13 @@ const keywordContent = computed(() => {
         <template v-if="displayArticle.displayPrev">
           <strong>{{ t.prev }}</strong>
           <NuxtLink
+            v-if="canLinkNavigation(displayArticle.displayPrev.id)"
             :to="`/articles/${displayArticle.displayPrev.id}`"
             @click="handleNavClick"
           >
             {{ displayArticle.displayPrev.title }}
           </NuxtLink>
+          <span v-else>{{ displayArticle.displayPrev.title }}</span>
         </template>
       </div>
       <div class="nav-item">
@@ -725,11 +750,13 @@ const keywordContent = computed(() => {
         <template v-if="displayArticle.displayNext">
           <strong>{{ t.next }}</strong>
           <NuxtLink
+            v-if="canLinkNavigation(displayArticle.displayNext.id)"
             :to="`/articles/${displayArticle.displayNext.id}`"
             @click="handleNavClick"
           >
             {{ displayArticle.displayNext.title }}
           </NuxtLink>
+          <span v-else>{{ displayArticle.displayNext.title }}</span>
         </template>
       </div>
     </div>

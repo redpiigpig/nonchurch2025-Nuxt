@@ -706,6 +706,7 @@ Directory structure:
     │   ├── cdn.js
     │   ├── cloudinary.js
     │   ├── contentParser.js
+    │   ├── directOnlyArticles.js
     │   ├── displayText.js
     │   ├── financeCategories.js
     │   ├── financeDb.js

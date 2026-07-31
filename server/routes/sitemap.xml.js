@@ -1,6 +1,7 @@
 // server/routes/sitemap.xml.js
 // 動態 sitemap：固定頁 + 已發布文章 + 作者頁。快取 1 小時避免每次爬蟲都打 DB。
 import { createClient } from "@supabase/supabase-js";
+import { isDirectOnlyArticle } from "../../utils/directOnlyArticles.js";
 
 const STATIC_PATHS = [
   "/",
@@ -48,7 +49,9 @@ export default defineEventHandler(async (event) => {
       supabase.from("authors").select("name").eq("is_published", true),
     ]);
 
-    for (const a of articles || []) {
+    for (const a of (articles || []).filter(
+      (article) => !isDirectOnlyArticle(article.id),
+    )) {
       urls.push({
         loc: `${base}/articles/${encodeURIComponent(a.id)}`,
         lastmod: a.updated_at ? a.updated_at.slice(0, 10) : null,

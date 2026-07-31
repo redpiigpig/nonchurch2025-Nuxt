@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useLanguage } from "~/composables/useLanguage";
 import { stripFootnoteReferences } from "~/utils/displayText";
+import { isDirectOnlyArticle } from "~/utils/directOnlyArticles";
 
 const props = defineProps({
   showAll: { type: Boolean, default: false },
@@ -223,6 +224,7 @@ useSeoMeta({
           </div>
           <h4 class="article-title-wrapper">
             <NuxtLink
+              v-if="props.showAll || !isDirectOnlyArticle(article.id)"
               :to="`/articles/${article.id}`"
               class="title-link"
               :title="t.clickFull"
@@ -233,6 +235,12 @@ useSeoMeta({
               </span>
               <span class="click-hint">{{ t.clickFull }}</span>
             </NuxtLink>
+            <span v-else class="title-link">
+              <span class="main-title">{{ article.title }}</span>
+              <span v-if="article.subtitle" class="sub-title">
+                ──{{ article.subtitle }}
+              </span>
+            </span>
           </h4>
           <p class="article-summary">{{ article.summary }}</p>
           <hr class="divider" v-if="index < paginatedArticles.length - 1" />

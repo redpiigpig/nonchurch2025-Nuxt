@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useLanguage } from "~/composables/useLanguage";
 import { useEditorMode } from "~/composables/useEditorMode";
 import { stripFootnoteReferences } from "~/utils/displayText";
+import { isDirectOnlyArticle } from "~/utils/directOnlyArticles";
 
 const supabase = useSupabaseClient();
 const { currentLang } = useLanguage();
@@ -202,7 +203,9 @@ const fetchLatestKeywords = async () => {
     if (!showDrafts) artQ = artQ.eq("is_published", true);
     const { data: articles } = await artQ;
     if (!articles) return;
-    rawLatestArticles.value = articles;
+    rawLatestArticles.value = showDrafts
+      ? articles
+      : articles.filter((article) => !isDirectOnlyArticle(article.id));
     extractKeywords();
   } catch (err) {
     console.error("載入關鍵字失敗:", err);
@@ -255,7 +258,9 @@ const fetchResults = async () => {
 
     const { data, error } = await query;
     if (error) throw error;
-    results.value = data || [];
+    results.value = isEditor.value
+      ? data || []
+      : (data || []).filter((article) => !isDirectOnlyArticle(article.id));
   } catch (err) {
     console.error("搜尋錯誤", err);
   } finally {

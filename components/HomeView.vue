@@ -5,6 +5,7 @@ import { useEditorMode } from "../composables/useEditorMode";
 import { useLanguage } from "../composables/useLanguage";
 import { cloudinaryUrl, CLD } from "../utils/cloudinary";
 import { stripFootnoteReferences } from "../utils/displayText";
+import { isDirectOnlyArticle } from "../utils/directOnlyArticles";
 
 const supabase = useSupabaseClient();
 const route = useRoute();
@@ -360,7 +361,10 @@ const getIssueArticles = async (issueId) => {
     .eq("issue", issueId);
   if (!isEditor.value) artQuery = artQuery.eq("is_published", true);
   const { data: articles } = await artQuery;
-  return (articles || []).sort((a, b) =>
+  const visibleArticles = isEditor.value
+    ? articles || []
+    : (articles || []).filter((article) => !isDirectOnlyArticle(article.id));
+  return visibleArticles.sort((a, b) =>
     a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" }),
   );
 };
