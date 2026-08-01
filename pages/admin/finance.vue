@@ -196,6 +196,9 @@ const computedRows = computed(() => {
   return rows.value.map((r) => {
     const total = Number(r.total) || 0;
     bal += r.type === "收入" ? total : -total;
+    if (r.balanceOverride !== null && r.balanceOverride !== "" && r.balanceOverride !== undefined) {
+      bal = Number(r.balanceOverride);
+    }
     return { ...r, balance: bal };
   });
 });
@@ -271,6 +274,7 @@ function addRow() {
     unitPrice: "",
     qty: null,
     total: 0,
+    balanceOverride: "",
     note: "",
   });
 }
@@ -328,6 +332,10 @@ async function saveAll() {
       unit_price: r.unitPrice == null || r.unitPrice === "" ? null : String(r.unitPrice),
       qty: r.qty == null || r.qty === "" ? null : Number(r.qty),
       total: r.total == null || r.total === "" ? null : Number(r.total),
+      balance_override:
+        r.balanceOverride == null || r.balanceOverride === ""
+          ? null
+          : Number(r.balanceOverride),
       note: r.note || null,
       sort_order: i,
       updated_at: new Date().toISOString(),
@@ -479,7 +487,7 @@ async function saveAll() {
     <section class="ledger-section">
       <h2 class="section-title">📊 每期財務明細</h2>
       <p class="section-desc">
-        編輯每期財務徵信表，結餘自動由「上一期最末結餘」+ 本期累加計算。
+        編輯每期財務徵信表。結餘若填入紙本值則以紙本為準；留空時，才由「上一期最末結餘」+ 本期累加計算。
         <br />儲存後，前台 <code>/finance</code> 與「編輯資訊」文章的同步都會即時反映。
       </p>
 
@@ -540,7 +548,13 @@ async function saveAll() {
               <td><input type="number" v-model="row.qty" class="cell-input cell-num" /></td>
               <td><input type="number" v-model="row.total" class="cell-input cell-num" /></td>
               <td class="cell-balance" :class="computedRows[i]?.balance < 0 ? 'expense' : ''">
-                {{ fmtNum(computedRows[i]?.balance) }}
+                <input
+                  type="number"
+                  v-model="row.balanceOverride"
+                  class="cell-input cell-num"
+                  :placeholder="fmtNum(computedRows[i]?.balance)"
+                  title="紙本結餘；留空則自動計算"
+                />
               </td>
               <td><input type="text" v-model="row.note" class="cell-input" /></td>
               <td class="ledger-actions">

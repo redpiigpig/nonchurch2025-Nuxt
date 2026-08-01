@@ -4,9 +4,12 @@
  * 取代舊的 stores/finance_data.js（hardcoded）。所有期次的財務 dateRange
  * 與明細 row 都存在 Supabase 的 finance_periods / finance_entries 表。
  *
- * 結餘（balance）不存 DB，由前端依 sort_order 累計即時計算：
+ * 結餘（balance）預設由前端依 sort_order 累計即時計算：
  *   balance[i] = balance[i-1] + (type === '收入' ? +total : -total)
  * 各期之間相連：第 N 期第 1 筆的「上一筆 balance」= 第 N-1 期最末筆 balance。
+ *
+ * 若紙本已刊出特定結餘，finance_entries.balance_override 可保存該值。
+ * 有 override 時以紙本值為準，並以該值作為後續列的累計起點；沒有時才自動計算。
  *
  * 編號（display_seq）也不存 DB，依「期次發刊年（西元）後兩位 + 跨期累積流水」計算，
  * 跨年才 reset。詳見 computeDisplaySeqs。
@@ -33,6 +36,7 @@ function rowFromDb(r) {
     unitPrice: r.unit_price ?? null,
     qty: r.qty ?? null,
     total: r.total ?? null,
+    balanceOverride: r.balance_override ?? null,
     note: r.note || "",
     sort_order: r.sort_order ?? 0,
   };
@@ -156,7 +160,7 @@ export async function loadPeriod(client, issueId) {
     client.from("finance_periods").select("issue, date_range").eq("issue", issueNum).maybeSingle(),
     client
       .from("finance_entries")
-      .select("id, issue, entry_date, entry_type, item, category, unit_price, qty, total, note, sort_order")
+      .select("id, issue, entry_date, entry_type, item, category, unit_price, qty, total, balance_override, note, sort_order")
       .eq("issue", issueNum)
       // 同期內按日期 → 同日期 fallback sort_order
       .order("entry_date", { ascending: true, nullsFirst: true })
@@ -188,6 +192,9 @@ export async function loadPeriodWithBalance(client, issueId) {
   period.rows = period.rows.map((r) => {
     const total = Number(r.total) || 0;
     balance += r.type === "收入" ? total : -total;
+    if (r.balanceOverride !== null && r.balanceOverride !== "") {
+      balance = Number(r.balanceOverride);
+    }
     return { ...r, balance };
   });
 
@@ -212,7 +219,7 @@ export async function getEndingBalanceBefore(client, issueId) {
 
   const { data, error } = await client
     .from("finance_entries")
-    .select("issue, entry_type, total, sort_order")
+    .select("issue, entry_type, total, balance_override, sort_order")
     .lt("issue", target)
     .order("issue", { ascending: true })
     .order("sort_order", { ascending: true });
@@ -221,6 +228,9 @@ export async function getEndingBalanceBefore(client, issueId) {
   for (const r of data || []) {
     const t = Number(r.total) || 0;
     bal += r.entry_type === "收入" ? t : -t;
+    if (r.balance_override !== null && r.balance_override !== "") {
+      bal = Number(r.balance_override);
+    }
   }
   return bal;
 }

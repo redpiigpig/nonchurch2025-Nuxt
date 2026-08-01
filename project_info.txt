@@ -177,6 +177,31 @@
 #   anon        → INSERT only（公開投稿）
 #   authenticated → SELECT / UPDATE / DELETE
 
+## Table: finance_periods
+| 欄位 | 類型 | 可空 | 預設 |
+|------|------|------|------|
+| issue | bigint | NO | |
+| date_range | text | NO | |
+| updated_at | timestamptz | NO | now() |
+
+## Table: finance_entries
+| 欄位 | 類型 | 可空 | 預設 |
+|------|------|------|------|
+| id | text | NO | |
+| issue | bigint | NO | |
+| entry_date | text | YES | |
+| entry_type | text | YES | |
+| item | text | YES | |
+| category | text | YES | |
+| unit_price | text | YES | |
+| qty | integer | YES | |
+| total | integer | YES | |
+| balance_override | integer | YES | 紙本已刊結餘；空白時由前端累計 |
+| note | text | YES | |
+| sort_order | integer | NO | |
+| created_at | timestamptz | NO | now() |
+| updated_at | timestamptz | NO | now() |
+
 # ════════════════════════════════════════════════════════════════════════════════
 # Cloudinary 資料夾結構
 # ════════════════════════════════════════════════════════════════════════════════
