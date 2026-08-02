@@ -124,6 +124,7 @@ Directory structure:
     │   ├── default.vue
     │   └── pong-archive.vue
     ├── middleware/
+    │   ├── article-access.js
     │   └── auth.js
     ├── output/
     │   ├── documents/
@@ -684,6 +685,8 @@ Directory structure:
     │   │   ├── subscribe-print.post.js
     │   │   ├── subscribe.post.js
     │   │   └── unsubscribe.post.js
+    │   ├── middleware/
+    │   │   └── editor-only-articles.js
     │   └── utils/
     │       ├── issue9Orders.js
     │       ├── notifyAdmin.js
@@ -691,6 +694,7 @@ Directory structure:
     ├── stores/
     │   └── tempArticles.js
     ├── supabase/
+    │   ├── editor_only_articles.sql
     │   ├── issue_9_payment_orders.sql
     │   ├── pong_writings_thesis_flipbook.sql
     │   ├── .temp/

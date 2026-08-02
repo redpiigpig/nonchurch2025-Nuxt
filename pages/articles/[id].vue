@@ -9,6 +9,8 @@ import { stripFootnoteReferences } from "~/utils/displayText";
 import { isDirectOnlyArticle } from "~/utils/directOnlyArticles";
 import SubmitPage from "~/pages/submit.vue";
 
+definePageMeta({ middleware: "article-access" });
+
 const route = useRoute();
 const supabase = useSupabaseClient();
 const { currentLang } = useLanguage();

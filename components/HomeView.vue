@@ -480,6 +480,8 @@ function getCategoryColor(category) {
     文藝創作: "#27408b",
     公告與剪影: "#6a5acd",
     封面故事: "#7d6c29",
+    光影時刻: "#7d6c29",
+    實驗園地: "#db7093",
     文獻與翻譯: "#008080",
   };
   return map[category] || "#999";
@@ -492,10 +494,14 @@ const getColorClass = (colorCode) => {
     "#f0e137": "yellow",
     "#46b175": "green",
     "#4682b4": "blue",
+    "#27408b": "indigo",
     "#6a5acd": "purple",
+    "#7d6c29": "soil",
+    "#db7093": "pink",
     "#008080": "teal",
+    "#999": "gray",
   };
-  return map[colorCode] || "red";
+  return map[colorCode] || "gray";
 };
 
 const formattedIntroCfp = computed(() => {
@@ -1402,19 +1408,32 @@ h2 {
   background-color: #ff8000;
 }
 .article-type.yellow {
-  background-color: #b8860b;
+  background-color: #f0e137;
+  color: #332f00;
 }
 .article-type.green {
-  background-color: #2e8b57;
+  background-color: #46b175;
 }
 .article-type.blue {
   background-color: #4682b4;
 }
+.article-type.indigo {
+  background-color: #27408b;
+}
 .article-type.purple {
   background-color: #6a5acd;
 }
+.article-type.soil {
+  background-color: #7d6c29;
+}
+.article-type.pink {
+  background-color: #db7093;
+}
 .article-type.teal {
   background-color: #008080;
+}
+.article-type.gray {
+  background-color: #999;
 }
 .authors {
   padding: 3rem;
