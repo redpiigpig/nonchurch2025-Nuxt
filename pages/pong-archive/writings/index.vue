@@ -64,9 +64,6 @@
                 <!-- 標題 -->
                 <h2 class="wr-card-title">{{ item.title }}</h2>
 
-                <!-- 英文標題 -->
-                <p v-if="item.title_en" class="wr-card-en">{{ item.title_en }}</p>
-
                 <!-- 內文摘要預覽 -->
                 <p v-if="item.excerpt" class="wr-card-excerpt">{{ item.excerpt }}…</p>
 
@@ -389,16 +386,6 @@ function formatDate(dateStr, approximate) {
   color: #2C2C2C;
   letter-spacing: 0.05em;
   line-height: 1.65;
-  margin: 0;
-}
-
-.wr-card-en {
-  font-size: 0.78rem;
-  font-weight: 300;
-  color: #8A8278;
-  font-style: italic;
-  letter-spacing: 0.03em;
-  line-height: 1.55;
   margin: 0;
 }
 

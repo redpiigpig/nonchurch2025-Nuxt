@@ -72,7 +72,7 @@
             v-for="(para, i) in paragraphs"
             :key="i"
             class="wa-para"
-            :class="{ 'wa-para--heading': isHeading(para), 'wa-para--empty': !para.trim() }"
+            :class="{ 'wa-para--heading': isHeading(para), 'wa-para--signature': isSignatureLine(para), 'wa-para--empty': !para.trim() }"
           >{{ para }}</p>
         </div>
       </article>
@@ -122,9 +122,20 @@ const paragraphs = computed(() => {
   return text.split('\n').map(l => l.trimEnd())
 })
 
+const PREFACE_SIGNATURE_LINES = new Set([
+  '中華基督教衛理公會',
+  '龐君華會督',
+  '2022 年 4 月 14 日',
+])
+
+function isSignatureLine(para) {
+  return Number(article.value?.id) === 49 && PREFACE_SIGNATURE_LINES.has(para.trim())
+}
+
 function isHeading(para) {
   const t = para.trim()
   if (!t) return false
+  if (isSignatureLine(para)) return false
   // Short lines (≤ 20 chars) with no punctuation at end = likely heading
   return t.length <= 20 && !/[，。！？、；：]$/.test(t) && /[一-鿿]/.test(t)
 }
@@ -304,6 +315,16 @@ function formatDate(dateStr, approximate) {
   margin-top: 1.8em;
   margin-bottom: 0.4em;
   letter-spacing: 0.1em;
+}
+
+.wa-para--signature {
+  font-weight: 600;
+  text-align: right;
+  margin-bottom: 0;
+}
+
+.wa-para--empty + .wa-para--signature {
+  margin-top: 1.8em;
 }
 
 .wa-para--empty {
