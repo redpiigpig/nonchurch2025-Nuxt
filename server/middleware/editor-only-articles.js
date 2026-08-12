@@ -12,6 +12,15 @@ export default defineEventHandler(async (event) => {
   } catch {
     return;
   }
+
+  if (articleId === "10-8無境界者2026年度演講會公告") {
+    return sendRedirect(
+      event,
+      `/articles/${encodeURIComponent("無境界者2026年度演講會公告")}`,
+      301,
+    );
+  }
+
   if (!isEditorOnlyArticle(articleId)) return;
 
   setHeader(event, "cache-control", "private, no-store, max-age=0");

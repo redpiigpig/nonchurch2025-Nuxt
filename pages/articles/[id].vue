@@ -40,10 +40,14 @@ const { data: asyncData, pending: loading } = await useAsyncData(
       if (error) throw error;
 
       // 2. 抓取同期文章以計算 上一篇 / 下一篇 （目次頁另外取完整資料）
-      const { data: issueArticles } = await supabase
-        .from("articles")
-        .select("id, title, translations, article_type")
-        .eq("issue", currentArt.issue);
+      let issueArticles = null;
+      if (currentArt.issue != null) {
+        const { data } = await supabase
+          .from("articles")
+          .select("id, title, translations, article_type")
+          .eq("issue", currentArt.issue);
+        issueArticles = data;
+      }
 
       // 2b. 目次文章：抓本期所有文章供前台渲染（判斷依 article_type 或標題）
       const isTocArticle =
@@ -513,6 +517,11 @@ const issueLinkParams = computed(() => {
   };
 });
 
+const hasIssueNavigation = computed(() => {
+  const issue = Number(displayArticle.value?.issue);
+  return Number.isInteger(issue) && issue > 0;
+});
+
 const handleNavClick = () => {
   if (import.meta.client) {
     const state = window.history.state || {};
@@ -751,7 +760,7 @@ const keywordContent = computed(() => {
       ></div>
     </div>
 
-    <div class="article-navigation">
+    <div v-if="hasIssueNavigation" class="article-navigation">
       <div class="nav-item">
         <template v-if="displayArticle.displayPrev">
           <strong>{{ t.prev }}</strong>

@@ -849,7 +849,7 @@ const loadArticle = async (id) => {
       id: data.id || "",
       title: data.title || "",
       subtitle: data.subtitle || "",
-      issue: data.issue || 5,
+      issue: data.issue ?? null,
       issue_title: data.issue_title || issuesMap.value[data.issue] || "",
       category: data.category || "",
       section: data.section || "",
