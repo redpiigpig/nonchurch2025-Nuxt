@@ -52,6 +52,7 @@ export default defineNuxtConfig({
       "/publication": { swr: 3600 },
       // 內容列表與文章頁：快取 5 分鐘（出刊/改稿最多延遲 5 分鐘可接受）
       "/": { swr: 300 },
+      "/events": { swr: 300 },
       "/articles/9-15我的循道宗史": {
         cache: false,
         swr: false,

@@ -17,6 +17,7 @@ const navTranslations = {
     magazineAbout: "認識無境界者",
     magazineMission: "使命宣言",
     magazinePublication: "刊物資訊",
+    magazineEvents: "活動公告",
     magazineFinance: "財務資訊",
     articles: "文章列表",
     authors: "專欄作者",
@@ -31,6 +32,7 @@ const navTranslations = {
     magazineAbout: "認識無境界者",
     magazineMission: "使命宣言",
     magazinePublication: "刊物資訊",
+    magazineEvents: "活動公告",
     magazineFinance: "財務資訊",
     articles: "文章列表",
     authors: "專欄作者",
@@ -45,6 +47,7 @@ const navTranslations = {
     magazineAbout: "认识无境界者",
     magazineMission: "使命宣言",
     magazinePublication: "刊物资讯",
+    magazineEvents: "活动公告",
     magazineFinance: "财务资讯",
     articles: "文章列表",
     authors: "专栏作者",
@@ -59,6 +62,7 @@ const navTranslations = {
     magazineAbout: "About Us",
     magazineMission: "Mission",
     magazinePublication: "Publication",
+    magazineEvents: "Events",
     magazineFinance: "Finance",
     articles: "Articles",
     authors: "Authors",
@@ -73,6 +77,7 @@ const navTranslations = {
     magazineAbout: "無境界者について",
     magazineMission: "ミッション",
     magazinePublication: "刊行情報",
+    magazineEvents: "イベント情報",
     magazineFinance: "財務情報",
     articles: "記事一覧",
     authors: "執筆者",
@@ -87,6 +92,7 @@ const navTranslations = {
     magazineAbout: "무경계자 소개",
     magazineMission: "미션",
     magazinePublication: "간행물 정보",
+    magazineEvents: "행사 안내",
     magazineFinance: "재무 정보",
     articles: "기사 목록",
     authors: "필진",
@@ -200,18 +206,33 @@ const editLink = computed(() => {
       <div class="menu">
         <NuxtLink :to="getLink('/home')">{{ t.home }}</NuxtLink>
         <div class="nav-dropdown">
-          <span class="nav-dropdown-label">{{ t.magazine }}</span>
+          <span
+            class="nav-dropdown-label"
+            role="button"
+            tabindex="0"
+            aria-haspopup="true"
+          >
+            {{ t.magazine }}
+          </span>
           <div class="nav-dropdown-menu">
             <NuxtLink :to="getLink('/about')">{{ t.magazineAbout }}</NuxtLink>
             <NuxtLink :to="getLink('/mission')">{{ t.magazineMission }}</NuxtLink>
             <NuxtLink :to="getLink('/publication')">{{ t.magazinePublication }}</NuxtLink>
+            <NuxtLink :to="getLink('/events')">{{ t.magazineEvents }}</NuxtLink>
             <NuxtLink :to="getLink('/finance')">{{ t.magazineFinance }}</NuxtLink>
           </div>
         </div>
         <NuxtLink :to="getLink('/articles')">{{ t.articles }}</NuxtLink>
         <NuxtLink :to="getLink('/authors')">{{ t.authors }}</NuxtLink>
         <div class="nav-dropdown">
-          <span class="nav-dropdown-label">{{ t.subscribe }}</span>
+          <span
+            class="nav-dropdown-label"
+            role="button"
+            tabindex="0"
+            aria-haspopup="true"
+          >
+            {{ t.subscribe }}
+          </span>
           <div class="nav-dropdown-menu">
             <NuxtLink :to="getLink('/subscribe')">{{ t.subscribeOnline }}</NuxtLink>
             <NuxtLink :to="getLink('/subscribe-print')">{{ t.subscribePrint }}</NuxtLink>
@@ -412,7 +433,8 @@ const editLink = computed(() => {
   transition: color 0.3s ease;
   user-select: none;
 }
-.nav-dropdown:hover .nav-dropdown-label {
+.nav-dropdown:hover .nav-dropdown-label,
+.nav-dropdown:focus-within .nav-dropdown-label {
   color: #1b5e20;
 }
 .nav-dropdown-menu {
@@ -429,7 +451,8 @@ const editLink = computed(() => {
   z-index: 200;
   flex-direction: column;
 }
-.nav-dropdown:hover .nav-dropdown-menu {
+.nav-dropdown:hover .nav-dropdown-menu,
+.nav-dropdown:focus-within .nav-dropdown-menu {
   display: flex;
 }
 .nav-dropdown-menu a {
