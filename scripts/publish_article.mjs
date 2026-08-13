@@ -139,6 +139,22 @@ export function buildSubmissionRow(d, uploaded) {
   };
 }
 
+export function buildAuthorRow(author, descriptor, issue, avatarUrl) {
+  const row = {
+    id: author.id,
+    name: author.name,
+    bio: author.bio,
+    author_image: avatarUrl,
+    years: author.years ?? [issue >= 7 ? 2026 : 2025],
+    is_published: author.is_published ?? false,
+  };
+  const realName = author.real_name ?? descriptor.submission?.real_name;
+  const email = author.email ?? descriptor.submission?.email;
+  if (realName != null && realName !== "") row.real_name = realName;
+  if (email != null && email !== "") row.email = email;
+  return row;
+}
+
 /* ──────────────────────────── 副作用（網路 / 檔案） ──────────────────────────── */
 
 export function loadEnv(file = ".env") {
@@ -175,16 +191,32 @@ function makeCloudinary(env) {
   return cloudinaryV2;
 }
 
+function fileDataUri(srcPath) {
+  const ext = path.extname(srcPath).toLowerCase();
+  const mime = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".pdf": "application/pdf",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  }[ext] || "application/octet-stream";
+  return `data:${mime};base64,${fs.readFileSync(srcPath).toString("base64")}`;
+}
+
 async function uploadImage(cl, srcPath, folder, publicId) {
-  const r = await cl.uploader.upload(ensureUploadable(srcPath), {
+  const uploadPath = ensureUploadable(srcPath);
+  const r = await cl.uploader.upload(fileDataUri(uploadPath), {
     folder, public_id: publicId, overwrite: true, invalidate: true,
   });
   return r.secure_url;
 }
 
-async function uploadRaw(cl, srcPath, folder) {
-  const r = await cl.uploader.upload(srcPath, {
-    folder, resource_type: "auto", use_filename: true, unique_filename: false, overwrite: true,
+async function uploadRaw(cl, srcPath, folder, publicId) {
+  const r = await cl.uploader.upload(fileDataUri(srcPath), {
+    folder, public_id: publicId, resource_type: "auto", overwrite: true, invalidate: true,
   });
   return r.secure_url;
 }
@@ -221,10 +253,9 @@ export async function publishArticle(d, { dryRun = false } = {}) {
     avatarUrl = a.author_image ?? meta.url;
     if (!dryRun && a.avatar) avatarUrl = await uploadImage(cl, a.avatar, meta.folder, meta.publicId);
     if (!dryRun) {
-      const { error } = await supabase.from("authors").upsert([{
-        id: a.id, name: a.name, bio: a.bio, author_image: avatarUrl,
-        years: a.years ?? [issue >= 7 ? 2026 : 2025], is_published: a.is_published ?? false,
-      }], { onConflict: "id" });
+      const { error } = await supabase
+        .from("authors")
+        .upsert([buildAuthorRow(a, d, issue, avatarUrl)], { onConflict: "id" });
       if (error) throw new Error("authors upsert 失敗：" + error.message);
     }
     if (!linkedAuthorIds.includes(a.id)) linkedAuthorIds.push(a.id);
@@ -252,10 +283,21 @@ export async function publishArticle(d, { dryRun = false } = {}) {
   let wordUrl = null, pdfUrl = null;
   if (!dryRun) {
     for (const img of images) {
-      imageUrls.push(await uploadRaw(cl, img.src, submissionFolder(issue, "images")));
+      const url = await uploadRaw(
+        cl,
+        img.src,
+        submissionFolder(issue, "images"),
+        `submission-${issue}-${order}-image-${img.seq}`,
+      );
+      imageUrls.push({ url, name: path.basename(img.src), order: img.seq });
     }
-    for (const doc of d.sourceDocs ?? []) {
-      const u = await uploadRaw(cl, doc, submissionFolder(issue, "docs"));
+    for (const [index, doc] of (d.sourceDocs ?? []).entries()) {
+      const u = await uploadRaw(
+        cl,
+        doc,
+        submissionFolder(issue, "docs"),
+        `submission-${issue}-${order}-source-${index + 1}`,
+      );
       if (/\.pdf$/i.test(doc)) pdfUrl = u; else wordUrl = u;
     }
   }

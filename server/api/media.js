@@ -2,6 +2,53 @@
 import { v2 as cloudinary } from "cloudinary";
 import { readMultipartFormData } from "h3";
 
+const PUBLIC_SUBMISSION_FOLDER = /^submissions\/(?:issue-[1-9]\d*|unsorted)(?:\/images)?$/;
+const MAX_PUBLIC_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_PUBLIC_DOCUMENT_BYTES = 25 * 1024 * 1024;
+const MAX_PUBLIC_MULTIPART_BYTES = MAX_PUBLIC_DOCUMENT_BYTES + 1024 * 1024;
+
+function startsWithBytes(buffer, bytes) {
+  return bytes.every((byte, index) => buffer[index] === byte);
+}
+
+function publicUploadResourceType(folderPath, fileField) {
+  const filename = String(fileField.filename || "");
+  const ext = filename.includes(".") ? filename.split(".").pop().toLowerCase() : "";
+  const data = fileField.data;
+  const isImageFolder = folderPath.endsWith("/images");
+
+  if (isImageFolder) {
+    if (data.length > MAX_PUBLIC_IMAGE_BYTES) {
+      throw createError({ statusCode: 413, message: "圖片不可超過 10MB" });
+    }
+
+    const isJpeg = ["jpg", "jpeg"].includes(ext) && startsWithBytes(data, [0xff, 0xd8, 0xff]);
+    const isPng = ext === "png" && startsWithBytes(data, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const isGif = ext === "gif" && ["GIF87a", "GIF89a"].includes(data.subarray(0, 6).toString("ascii"));
+    const isWebp = ext === "webp" && data.subarray(0, 4).toString("ascii") === "RIFF" && data.subarray(8, 12).toString("ascii") === "WEBP";
+    if (!isJpeg && !isPng && !isGif && !isWebp) {
+      throw createError({ statusCode: 415, message: "只接受 JPG、PNG、GIF 或 WebP 圖片" });
+    }
+    return "image";
+  }
+
+  if (data.length > MAX_PUBLIC_DOCUMENT_BYTES) {
+    throw createError({ statusCode: 413, message: "投稿檔案不可超過 25MB" });
+  }
+
+  const isPdf = ext === "pdf" && data.subarray(0, 5).toString("ascii") === "%PDF-";
+  const isDocx = ext === "docx" && (
+    startsWithBytes(data, [0x50, 0x4b, 0x03, 0x04]) ||
+    startsWithBytes(data, [0x50, 0x4b, 0x05, 0x06]) ||
+    startsWithBytes(data, [0x50, 0x4b, 0x07, 0x08])
+  );
+  const isDoc = ext === "doc" && startsWithBytes(data, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+  if (!isPdf && !isDocx && !isDoc) {
+    throw createError({ statusCode: 415, message: "只接受 PDF、DOCX 或 DOC 投稿檔案" });
+  }
+  return "raw";
+}
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
 
@@ -83,6 +130,12 @@ export default defineEventHandler(async (event) => {
   // 2. 上傳檔案 (POST)
   if (method === "POST") {
     try {
+      if (!authUser) {
+        const declaredLength = Number(getHeader(event, "content-length") || 0);
+        if (Number.isFinite(declaredLength) && declaredLength > MAX_PUBLIC_MULTIPART_BYTES) {
+          throw createError({ statusCode: 413, message: "投稿請求不可超過 26MB" });
+        }
+      }
       const formData = await readMultipartFormData(event);
       if (!formData) throw new Error("No form data");
 
@@ -93,16 +146,18 @@ export default defineEventHandler(async (event) => {
 
       const folderPath = pathField ? pathField.data.toString() : "";
       const customFilename = filenameField ? filenameField.data.toString() : null;
+      let resourceType = "auto";
 
       // 未登入者（公開投稿表單）只能傳到 submissions/，且不得自訂檔名
       if (!authUser) {
-        if (!folderPath.startsWith("submissions/") || customFilename) {
+        if (!PUBLIC_SUBMISSION_FOLDER.test(folderPath) || customFilename) {
           throw createError({ statusCode: 401, message: "請先登入" });
         }
+        resourceType = publicUploadResourceType(folderPath, fileField);
       }
       const base64Data = `data:${fileField.type || "application/octet-stream"};base64,${fileField.data.toString("base64")}`;
 
-      const uploadOptions = { resource_type: "auto" };
+      const uploadOptions = { resource_type: resourceType };
       if (customFilename) {
         // 完整指定 public_id（含資料夾路徑），精確命名，強制覆蓋同名檔案
         uploadOptions.public_id = folderPath ? `${folderPath}/${customFilename}` : customFilename;
@@ -110,8 +165,10 @@ export default defineEventHandler(async (event) => {
         uploadOptions.invalidate = true;
       } else {
         uploadOptions.folder = folderPath;
-        uploadOptions.use_filename = true;
-        uploadOptions.unique_filename = false;
+        // 公開投稿由伺服器產生唯一名稱且禁止覆寫，避免同名檔互相取代。
+        uploadOptions.use_filename = !!authUser;
+        uploadOptions.unique_filename = !authUser;
+        uploadOptions.overwrite = !!authUser;
       }
 
       const result = await cloudinary.uploader.upload(base64Data, uploadOptions);

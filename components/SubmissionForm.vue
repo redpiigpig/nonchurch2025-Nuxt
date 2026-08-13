@@ -1054,7 +1054,7 @@ const handleSubmit = async () => {
     let avatarUrl = existingAvatarUrl.value;
     if (avatarFile.value) {
       submitProgress.value = t.value.uploadingAvatar;
-      avatarUrl = await uploadFile(avatarFile.value, "images/authors");
+      avatarUrl = await uploadFile(avatarFile.value, `${folder}/images`);
     }
 
     submitProgress.value = t.value.savingData;
@@ -1306,7 +1306,7 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
               <span class="hint-small">JPG / PNG / GIF / WebP</span>
             </div>
           </div>
-          <input ref="avatarInput" type="file" accept="image/*" style="display:none" @change="handleAvatarChange" />
+          <input ref="avatarInput" type="file" accept=".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp" style="display:none" @change="handleAvatarChange" />
           <button v-if="avatarFile || existingAvatarUrl" type="button" class="btn-remove-sm" @click="avatarFile=null; avatarPreview=null; existingAvatarUrl=null">{{ t.avatarRemove }}</button>
         </div>
       </div>
@@ -1436,7 +1436,7 @@ const isFormStep = (s) => ["form", "editing"].includes(s);
           </div>
 
           <button type="button" class="btn-file" @click="imgInput?.click()" style="margin-top:8px">{{ t.addImage }}</button>
-          <input ref="imgInput" type="file" accept="image/*" multiple style="display:none" @change="handleImgChange" />
+          <input ref="imgInput" type="file" accept=".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp" multiple style="display:none" @change="handleImgChange" />
         </div>
       </div>
 

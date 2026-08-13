@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import {
   parseIssue, parseOrder, articleImage, authorImage, submissionFolder,
   versionlessUrl, replacePlaceholders, buildArticleRow, buildMediaAssets,
-  buildSubmissionRow, publishArticle,
+  buildSubmissionRow, buildAuthorRow, publishArticle,
 } from "./publish_article.mjs";
 
 let passed = 0;
@@ -34,6 +34,21 @@ test("authorImage author_{id}", () => {
   assert.equal(m.folder, "images/authors");
   assert.equal(m.publicId, "author_44");
   assert.match(m.url, /images\/authors\/author_44\.jpg$/);
+});
+
+test("buildSubmissionRow 保留首次投稿與完整作者資料", () => {
+  const r = buildSubmissionRow(
+    { id: "10-8在相遇中", title: "在相遇中", author: "演霙法師", category: "生命故事", issue: 10,
+      submission: { real_name: "釋演霙", display_name: "演霙法師", author_bio: "佛光大學佛教學系博士生",
+        email: "author@example.com", is_first_submission: true, author_intro: "作者自介" } },
+    { avatarUrl: "ava" },
+  );
+  assert.equal(r.real_name, "釋演霙");
+  assert.equal(r.display_name, "演霙法師");
+  assert.equal(r.author_bio, "佛光大學佛教學系博士生");
+  assert.equal(r.email, "author@example.com");
+  assert.equal(r.is_first_submission, true);
+  assert.equal(r.author_intro, "作者自介");
 });
 
 test("submissionFolder 圖片 vs 文件", () => {
@@ -85,7 +100,7 @@ test("buildSubmissionRow 一定產生備份且連回文章（status=converted）
     { id: "9-3父親的祈禱", title: "父親的祈禱", author: "龐亮軒", author_display: "龐亮軒",
       author_title: "龐君華會督之子", category: "封面故事", summary: "摘要", issue: 9,
       newAuthor: { bio: "龐君華牧師之子，藝術工作者。" } },
-    { avatarUrl: "ava", imageUrls: ["i1"], content: "<p>內文</p>" },
+    { avatarUrl: "ava", imageUrls: [{ url: "i1", name: "圖片.jpg", order: 1 }], content: "<p>內文</p>" },
   );
   assert.equal(r.article_id, "9-3父親的祈禱");
   assert.equal(r.status, "converted");
@@ -93,7 +108,7 @@ test("buildSubmissionRow 一定產生備份且連回文章（status=converted）
   assert.equal(r.title, "父親的祈禱");
   assert.equal(r.category, "封面故事");
   assert.equal(r.avatar_url, "ava");
-  assert.deepEqual(r.images, ["i1"]);
+  assert.deepEqual(r.images, [{ url: "i1", name: "圖片.jpg", order: 1 }]);
   assert.equal(r.parsed_html, "<p>內文</p>");
   // submissions NOT NULL 欄位都要有值
   for (const k of ["real_name", "author_bio", "email", "title", "category"]) {
@@ -122,6 +137,23 @@ test("publishArticle dry-run 串起全流程", () => {
   assert.equal(e2e.mediaRows.length, 1);
   assert.equal(e2e.subRow.article_id, "9-3父親的祈禱");      // ★ 一定有投稿備份
   assert.equal(e2e.subRow.status, "converted");
+});
+
+test("buildAuthorRow does not null existing identity fields", () => {
+  const legacy = buildAuthorRow(
+    { id: 44, name: "Existing Author", bio: "Bio" }, {}, 9, "avatar-url",
+  );
+  assert.equal(Object.hasOwn(legacy, "real_name"), false);
+  assert.equal(Object.hasOwn(legacy, "email"), false);
+
+  const firstSubmission = buildAuthorRow(
+    { id: 48, name: "New Author", bio: "Bio" },
+    { submission: { real_name: "Real Name", email: "author@example.com" } },
+    10,
+    "avatar-url",
+  );
+  assert.equal(firstSubmission.real_name, "Real Name");
+  assert.equal(firstSubmission.email, "author@example.com");
 });
 
 console.log(`\n全部 ${passed} 項測試通過 ✓`);
