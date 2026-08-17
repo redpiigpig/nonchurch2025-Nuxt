@@ -178,18 +178,21 @@ const contentMap = {
 const t = computed(() => contentMap[currentLang.value] || contentMap["zh-TW"]);
 
 /**
- * 期次由舊到新排好後，改成「最新的一列在最上面，列內仍由舊到新」。
+ * 期次由舊到新排好後，改成「最新的一列在最上面，列內仍由舊到新」，
+ * 且下面的列先填滿——補不滿的是最新、也就是最上面那一列。
  *
- * 必須從陣列「尾端」往前切列，補不滿的那一列才會落在最舊（最下面）那排。
- * 若從開頭切，餘數列會是最後一塊，reverse 後跑到最前面卻只有 1～2 張，
- * 導致整個 grid 位移（例：2026 年 [7,8,9,10] 會排成 10,7,8 / 9）。
+ * 例：2026 年 [7,8,9,10] →
+ *     10
+ *     7  8  9
+ *
+ * grid 是逐格填充的，單張的那列若不補滿就會把後面整排往前擠
+ * （會排成 10,7,8 ／ 9）。因此這裡回傳 null 佔位，由 template 補空格子。
  */
 function reverseRows(arr, cols = 3) {
   const rows = [];
-  for (let end = arr.length; end > 0; end -= cols) {
-    rows.push(arr.slice(Math.max(0, end - cols), end));
-  }
-  return rows.flat();
+  for (let i = 0; i < arr.length; i += cols) rows.push(arr.slice(i, i + cols));
+  rows.reverse();
+  return rows.flatMap((row) => [...row, ...Array(cols - row.length).fill(null)]);
 }
 
 const allIssues = ref([]);
@@ -293,7 +296,10 @@ const issuesByYear = computed(() => {
       <template v-for="(group, idx) in issuesByYear" :key="group.year">
         <h2 class="year-label">{{ group.year }}</h2>
         <div class="issues-grid">
-          <div v-for="card in group.cards" :key="card.isUpcoming ? 'upcoming' : card.number" class="issue-card">
+          <template v-for="(card, ci) in group.cards" :key="card ? (card.isUpcoming ? 'upcoming' : card.number) : `pad-${ci}`">
+          <!-- 補不滿那列的空格子，讓單張的一列靠左並保持後面列對齊 -->
+          <div v-if="!card" class="issue-card issue-card--spacer" aria-hidden="true"></div>
+          <div v-else class="issue-card">
             <div class="cover-wrap">
               <div v-if="card.isUpcoming" class="cover-placeholder">
                 <span class="upcoming-badge">{{ t.upcomingBadge }}</span>
@@ -319,6 +325,7 @@ const issuesByYear = computed(() => {
               <span v-else class="card-title card-title--plain">{{ card.title }}</span>
             </div>
           </div>
+          </template>
         </div>
         <hr v-if="idx < issuesByYear.length - 1" class="year-divider" />
       </template>
@@ -410,6 +417,8 @@ const issuesByYear = computed(() => {
   margin-bottom: 0.5rem;
 }
 .issue-card { display: flex; flex-direction: column; }
+/* 佔位格：只在三欄版面需要，用來讓補不滿的那一列（最上面、最新的一批）靠左對齊 */
+.issue-card--spacer { visibility: hidden; }
 
 .cover-wrap {
   position: relative; width: 100%; aspect-ratio: 176 / 250;
@@ -498,6 +507,8 @@ const issuesByYear = computed(() => {
 
 @media (max-width: 700px) {
   .issues-grid { grid-template-columns: repeat(2, 1fr); gap: 1.5rem 1rem; }
+  /* 欄數不再是 3，佔位格會變成空洞，直接移除 */
+  .issue-card--spacer { display: none; }
   .print-runs-table { font-size: 0.88rem; }
   .pr-run { display: block; margin-right: 0; }
 }
