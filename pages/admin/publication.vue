@@ -7,5 +7,5 @@ definePageMeta({
 </script>
 
 <template>
-  <PublicationPage />
+  <PublicationPage show-print-runs />
 </template>
