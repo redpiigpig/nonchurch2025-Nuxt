@@ -177,10 +177,18 @@ const contentMap = {
 
 const t = computed(() => contentMap[currentLang.value] || contentMap["zh-TW"]);
 
+/**
+ * 期次由舊到新排好後，改成「最新的一列在最上面，列內仍由舊到新」。
+ *
+ * 必須從陣列「尾端」往前切列，補不滿的那一列才會落在最舊（最下面）那排。
+ * 若從開頭切，餘數列會是最後一塊，reverse 後跑到最前面卻只有 1～2 張，
+ * 導致整個 grid 位移（例：2026 年 [7,8,9,10] 會排成 10,7,8 / 9）。
+ */
 function reverseRows(arr, cols = 3) {
   const rows = [];
-  for (let i = 0; i < arr.length; i += cols) rows.push(arr.slice(i, i + cols));
-  rows.reverse();
+  for (let end = arr.length; end > 0; end -= cols) {
+    rows.push(arr.slice(Math.max(0, end - cols), end));
+  }
   return rows.flat();
 }
 
