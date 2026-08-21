@@ -825,7 +825,7 @@ const keywordContent = computed(() => {
   font-size: 1.6rem;
   border-radius: 4px;
   padding: 5px 15px;
-  margin-top: -3rem;
+  margin-top: -3.5rem;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 .main-title {

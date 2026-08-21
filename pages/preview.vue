@@ -173,7 +173,7 @@ const categoryColor = computed(() => {
   font-size: 1.6rem;
   border-radius: 4px;
   padding: 5px 15px;
-  margin-top: -3rem;
+  margin-top: -3.5rem;
 }
 .main-title {
   font-family: "Times New Roman", serif;
