@@ -1,5 +1,5 @@
 import { serverSupabaseUser } from "#supabase/server";
-import { isEditorOnlyArticle } from "../../utils/directOnlyArticles.js";
+import { isEditorOnlyArticle } from "~/utils/directOnlyArticles.js";
 
 export default defineEventHandler(async (event) => {
   const url = getRequestURL(event);

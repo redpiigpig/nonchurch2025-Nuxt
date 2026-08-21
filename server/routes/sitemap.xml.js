@@ -1,7 +1,7 @@
 // server/routes/sitemap.xml.js
 // 動態 sitemap：固定頁 + 已發布文章 + 作者頁。快取 1 小時避免每次爬蟲都打 DB。
 import { createClient } from "@supabase/supabase-js";
-import { isDirectOnlyArticle } from "../../utils/directOnlyArticles.js";
+import { isDirectOnlyArticle } from "~/utils/directOnlyArticles.js";
 
 const STATIC_PATHS = [
   "/",
