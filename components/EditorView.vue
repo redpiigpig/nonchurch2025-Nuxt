@@ -78,6 +78,7 @@ const proofreadStatus = ref("incomplete");
 // 【TipTap 自訂 Extension】              ~L.66
 //   ItalicI     斜體（外文書名）<i>
 //   KaiTi       標楷體 <span class="kaiti">（相容舊版 <em>）
+//   Highlight   重點句 <mark>（前台螢光筆底線）
 //   FootnoteRef 腳注引用節點 <sup class="footnote-ref">
 //   RawBlock    自訂 div/figure/table 不可分割區塊
 //   ClassPreserver 保留 heading 的 class 屬性
@@ -165,6 +166,17 @@ const KaiTi = Mark.create({
   },
   renderHTML({ HTMLAttributes }) {
     return ["span", mergeAttributes(HTMLAttributes, { class: "kaiti" }), 0];
+  },
+});
+
+// 0c. Highlight：重點句 mark，渲染為 <mark>（前台為螢光筆底線）
+const Highlight = Mark.create({
+  name: "highlight",
+  parseHTML() {
+    return [{ tag: "mark" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["mark", mergeAttributes(HTMLAttributes), 0];
   },
 });
 
@@ -754,6 +766,7 @@ const editor = useEditor({
     StarterKit.configure({ heading: { levels: [2, 3] }, italic: false }),
     ItalicI,
     KaiTi,
+    Highlight,
     ClassPreserver,
     Underline,
     TextAlign.configure({ types: ["heading", "paragraph"] }),
@@ -2054,6 +2067,13 @@ const colorLabel = (color) => {
               @click="editor?.chain().focus().toggleUnderline().run()"
               title="底線 (Ctrl+U)"
             ><u>U</u></button>
+            <button
+              type="button"
+              class="tool-btn hl-btn"
+              :class="{ active: editor?.isActive('highlight') }"
+              @click="editor?.chain().focus().toggleMark('highlight').run()"
+              title="重點句（螢光筆）<mark>"
+            >重</button>
           </div>
 
           <div class="toolbar-sep"></div>
@@ -2696,6 +2716,7 @@ const colorLabel = (color) => {
 .tool-btn.active { background: #3b82f6; color: white; border-color: #3b82f6; }
 
 .kaiti-btn { font-family: "DFKai-SB", "標楷體", serif; }
+.hl-btn { background: linear-gradient(transparent 55%, rgba(255, 214, 102, 0.75) 55%); }
 
 .comp-btn { background: #f0f4ff; border-color: #c7d2fe; color: #4338ca; }
 .comp-btn:hover { background: #e0e7ff; }
@@ -2932,6 +2953,13 @@ const colorLabel = (color) => {
   font-style: normal;
   font-family: "DFKai-SB", "標楷體", serif;
   color: #555;
+}
+
+:deep(.ProseMirror mark) {
+  background: linear-gradient(transparent 55%, rgba(255, 214, 102, 0.75) 55%);
+  color: inherit;
+  padding: 0 0.1em;
+  border-radius: 2px;
 }
 
 :deep(.ProseMirror hr) {
