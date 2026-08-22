@@ -81,7 +81,6 @@ from docx import Document
 from docx.image.exceptions import UnrecognizedImageError
 from docx.shared import Pt, Cm, RGBColor, Emu
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
-from docx.enum.text import WD_COLOR_INDEX
 from docx.enum.section import WD_SECTION_START
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
@@ -2601,7 +2600,6 @@ class ProfessionalDocxGenerator:
           <em>               → 標楷體
           <i>                → 斜體
           <u>                → 底線
-          <mark>             → 重點句（黃色螢光筆）
           <br>               → 段落內換行（w:br）
           <span style="..."> → 小字體 / 置右等樣式
           [^N]               → Word 腳注引用
@@ -2615,7 +2613,6 @@ class ProfessionalDocxGenerator:
             r'|<em>[^<]*</em>'
             r'|<i>[^<]*</i>'
             r'|<u>[^<]*</u>'
-            r'|<mark\b[^>]*>[^<]*</mark>'
             r'|<br\s*/?>'
             r'|<span\b[^>]*>.*?</span>'
             r'|<sup\b[^>]*class="footnote-ref"[^>]*><a\b[^>]*>[^<]*</a></sup>'
@@ -2631,7 +2628,6 @@ class ProfessionalDocxGenerator:
             em_html     = re.fullmatch(r'<em>([^<]*)</em>', seg, re.IGNORECASE)
             italic_html = re.fullmatch(r'<i>([^<]*)</i>', seg, re.IGNORECASE)
             underline_html = re.fullmatch(r'<u>([^<]*)</u>', seg, re.IGNORECASE)
-            mark_html   = re.fullmatch(r'<mark\b[^>]*>([^<]*)</mark>', seg, re.IGNORECASE)
             br_tag      = re.fullmatch(r'<br\s*/?>', seg, re.IGNORECASE)
             span_m      = re.fullmatch(r'<span\b([^>]*)>(.*?)</span>', seg, re.IGNORECASE | re.DOTALL)
             fn_sup_m    = re.search(r'<a\b[^>]*>([^<]*)</a>', seg) if seg.startswith('<sup') else None
@@ -2658,11 +2654,6 @@ class ProfessionalDocxGenerator:
                 run = paragraph.add_run(underline_html.group(1))
                 self._apply_font(run, ascii_font, east_font, size=size)
                 run.font.underline = True
-            elif mark_html:
-                # <mark> → 重點句，Word 用黃色螢光筆
-                run = paragraph.add_run(_html_mod.unescape(mark_html.group(1)))
-                self._apply_font(run, ascii_font, east_font, size=size)
-                run.font.highlight_color = WD_COLOR_INDEX.YELLOW
             elif br_tag:
                 # 段落內換行（w:br）
                 br_run = paragraph.add_run()
