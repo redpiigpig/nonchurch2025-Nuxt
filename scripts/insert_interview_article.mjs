@@ -20,7 +20,7 @@ const env = Object.fromEntries(
     }),
 );
 
-const supabase = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+const supabase = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SECRET_KEY);
 
 const REQUIRED = ["id", "title", "subtitle", "issue", "author", "author_display", "keyword", "summary", "remark", "content"];
 

@@ -119,8 +119,8 @@ def sb_url():
 
 def sb_headers(prefer='return=minimal'):
     return {
-        'apikey': os.environ['SUPABASE_SERVICE_KEY'],
-        'Authorization': f'Bearer {os.environ["SUPABASE_SERVICE_KEY"]}',
+        'apikey': os.environ['SUPABASE_SECRET_KEY'],
+        'Authorization': f'Bearer {os.environ["SUPABASE_SECRET_KEY"]}',
         'Content-Type': 'application/json',
         'Prefer': prefer,
     }

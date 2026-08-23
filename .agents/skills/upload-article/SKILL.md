@@ -137,7 +137,7 @@ node scripts/publish_article.mjs scripts/_pub_9-3.json
 ## 五、上架後驗證
 
 ```bash
-node -e "require('dotenv').config();const u=process.env.VITE_SUPABASE_URL,k=process.env.SUPABASE_SERVICE_KEY,h={apikey:k,Authorization:'Bearer '+k};(async()=>{const id=encodeURIComponent(process.argv[1]);for(const t of ['articles?id=eq.','media_assets?article_id=eq.','submissions?article_id=eq.']){const r=await fetch(u+'/rest/v1/'+t+id,{headers:h});console.log(t.split('?')[0],(await r.json()).length)}})()" "9-3父親的祈禱"
+node -e "require('dotenv').config();const u=process.env.VITE_SUPABASE_URL,k=process.env.SUPABASE_SECRET_KEY,h={apikey:k,Authorization:'Bearer '+k};(async()=>{const id=encodeURIComponent(process.argv[1]);for(const t of ['articles?id=eq.','media_assets?article_id=eq.','submissions?article_id=eq.']){const r=await fetch(u+'/rest/v1/'+t+id,{headers:h});console.log(t.split('?')[0],(await r.json()).length)}})()" "9-3父親的祈禱"
 ```
 
 三個都該 ≥1（articles=1、media_assets=圖片數、submissions=1）。前台預覽 `npm run dev` → `http://localhost:3000/articles/{id}`，確認段首縮排、圖片浮動、腳注連結。
@@ -146,7 +146,7 @@ node -e "require('dotenv').config();const u=process.env.VITE_SUPABASE_URL,k=proc
 
 ## 六、坑
 
-- **Supabase 直連 DB `ENOTFOUND`**：`db.{ref}.supabase.co` 只解析 IPv6，本機無 IPv6 出口會掛。本腳本一律走 REST（`@supabase/supabase-js` + `SUPABASE_SERVICE_KEY`），不要改回 `pg` 直連。
+- **Supabase 直連 DB `ENOTFOUND`**：`db.{ref}.supabase.co` 只解析 IPv6，本機無 IPv6 出口會掛。本腳本一律走 REST（`@supabase/supabase-js` + `SUPABASE_SECRET_KEY`），不要改回 `pg` 直連。
 - **Cloudinary 10MB 上限**：免費版單檔上限 10MB，腳本用 ffmpeg 自動縮。ffmpeg 輸出路徑用 `process.env.TEMP`（Windows）。
 - **`/tmp` 在 Git Bash 與 node 不同**：node 的 `/tmp` → `C:\tmp`；要在 node 用就寫 `C:/tmp/...` 絕對路徑。
 - **重跑安全**：articles / authors 用 `upsert(onConflict:id)`、media_assets 先 delete 再 insert、submissions 依 `article_id` 找舊筆更新——重跑同一篇不會產生重複。

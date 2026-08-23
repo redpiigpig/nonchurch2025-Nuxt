@@ -103,10 +103,10 @@ def auto_issue_folder(issue_number):
 # ── Supabase ──────────────────────────────────────────────────────────────────
 def _supabase_cfg():
     base = os.environ.get("VITE_SUPABASE_URL", "").rstrip("/")
-    key  = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("VITE_SUPABASE_KEY")
+    key  = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("VITE_SUPABASE_KEY")
     missing = []
     if not base: missing.append("VITE_SUPABASE_URL")
-    if not key:  missing.append("SUPABASE_SERVICE_KEY")
+    if not key:  missing.append("SUPABASE_SECRET_KEY")
     if missing:
         print(f"❌  .env 缺少：{', '.join(missing)}", file=sys.stderr)
         sys.exit(1)

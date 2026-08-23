@@ -10,7 +10,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     // server-only（不會暴露到前端 bundle）
     geminiApiKey: process.env.VITE_GEMINI_API_KEY,
-    supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
+    supabaseServiceKey: (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_KEY),
     gmailUser: process.env.GMAIL_USER,
     gmailAppPassword: process.env.GMAIL_APP_PASSWORD,
     adminNotifyEmail: process.env.ADMIN_NOTIFY_EMAIL || "redpiigpig@gmail.com,nonchurch2025@gmail.com",

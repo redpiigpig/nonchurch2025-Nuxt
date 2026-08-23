@@ -228,7 +228,7 @@ export async function publishArticle(d, { dryRun = false } = {}) {
   const issue = d.issue ?? parseIssue(d.id);
   const order = parseOrder(d.id);
   const cl = dryRun ? null : makeCloudinary(env);
-  const supabase = dryRun ? null : createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+  const supabase = dryRun ? null : createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SECRET_KEY);
 
   // 1) 內文圖
   const images = [];

@@ -45,7 +45,7 @@ def load_env():
 
 ENV    = load_env()
 SB_URL = ENV.get('VITE_SUPABASE_URL', '')
-SB_KEY = ENV.get('SUPABASE_SERVICE_KEY', '')
+SB_KEY = ENV.get('SUPABASE_SECRET_KEY', '')
 
 # ── Chinese number conversion ─────────────────────────────────────────────────
 _CN_DIGIT = {'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9}

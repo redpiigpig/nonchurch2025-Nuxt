@@ -43,7 +43,7 @@ def load_env():
 
 ENV = load_env()
 SB_URL  = ENV.get('VITE_SUPABASE_URL', '')
-SB_KEY  = ENV.get('SUPABASE_SERVICE_KEY', '')
+SB_KEY  = ENV.get('SUPABASE_SECRET_KEY', '')
 PDF_DIR = Path(__file__).resolve().parents[2] / 'stores' / '三讀三禱'
 PDF_DIR.mkdir(parents=True, exist_ok=True)
 

@@ -182,7 +182,7 @@ magazines/                    ← 合刊 PDF
 ```
 VITE_SUPABASE_URL
 VITE_SUPABASE_KEY
-SUPABASE_SERVICE_KEY
+SUPABASE_SECRET_KEY
 VITE_GEMINI_API_KEY
 CLOUDINARY_CLOUD_NAME
 CLOUDINARY_API_KEY
@@ -259,7 +259,7 @@ SITE_URL
 
 ### 部署後 API 報錯
 1. 確認 `.env` 變數都已設定在部署平台的環境設定中
-2. 確認 `CLOUDINARY_*` 和 `SUPABASE_SERVICE_KEY` 沒有加 `VITE_` 前綴（這些只給後端用）
+2. 確認 `CLOUDINARY_*` 和 `SUPABASE_SECRET_KEY` 沒有加 `VITE_` 前綴（這些只給後端用）
 3. Nuxt 4 server API 放在 `server/api/`，nitro 自動掃描，不需手動註冊
 
 ### TipTap 編輯器行為異常

@@ -25,8 +25,8 @@ function readEnv(file) {
 const root = findRepoRoot(process.cwd())
 const env = readEnv(path.join(root, '.env'))
 const base = env.VITE_SUPABASE_URL
-const key = env.SUPABASE_SERVICE_KEY
-if (!base || !key) throw new Error('缺少 VITE_SUPABASE_URL 或 SUPABASE_SERVICE_KEY')
+const key = env.SUPABASE_SECRET_KEY
+if (!base || !key) throw new Error('缺少 VITE_SUPABASE_URL 或 SUPABASE_SECRET_KEY')
 
 const headers = { apikey: key, Authorization: `Bearer ${key}` }
 async function get(resource) {

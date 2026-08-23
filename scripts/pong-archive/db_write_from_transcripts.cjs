@@ -11,7 +11,7 @@ const https = require('https');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const BASE_URL = process.env.VITE_SUPABASE_URL.replace(/\/$/, '');
-const KEY = process.env.SUPABASE_SERVICE_KEY;
+const KEY = process.env.SUPABASE_SECRET_KEY;
 const TRANSCRIPT_DIR = path.join(__dirname, '..', 'stores', 'transcripts');
 
 const TALKS = [

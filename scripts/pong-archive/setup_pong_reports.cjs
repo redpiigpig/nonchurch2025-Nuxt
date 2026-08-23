@@ -4,7 +4,7 @@ const { createClient } = require('@supabase/supabase-js')
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SECRET_KEY
 )
 
 // 四篇有完整全文；三篇僅有標題與連結，content 留空待補

@@ -68,7 +68,7 @@ def load_env():
 
 ENV = load_env()
 SB_URL = (ENV.get("SUPABASE_URL") or ENV.get("VITE_SUPABASE_URL") or "").rstrip("/")
-SB_KEY = ENV.get("SUPABASE_SERVICE_ROLE_KEY") or ENV.get("SUPABASE_SERVICE_KEY") or ""
+SB_KEY = ENV.get("SUPABASE_SERVICE_ROLE_KEY") or ENV.get("SUPABASE_SECRET_KEY") or ""
 if not SB_URL or not SB_KEY:
     raise RuntimeError("Missing Supabase URL or service key")
 SB_H = {

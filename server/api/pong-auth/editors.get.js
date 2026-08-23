@@ -4,7 +4,7 @@ export default defineEventHandler(async (event) => {
   await requirePongChief(event)
   const supabase = createClient(
     process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_KEY,
+    (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_KEY),
   )
 
   const { data, error } = await supabase

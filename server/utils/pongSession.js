@@ -6,7 +6,7 @@
 const SESSION_CONFIG = () => ({
   name: "pong-session",
   password:
-    process.env.PONG_SESSION_SECRET || process.env.SUPABASE_SERVICE_KEY,
+    process.env.PONG_SESSION_SECRET || (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_KEY),
   maxAge: 60 * 60 * 24 * 30, // 與前端 30 天一致
 });
 

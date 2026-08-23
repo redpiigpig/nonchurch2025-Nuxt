@@ -7,7 +7,7 @@ description: 《無境界者》的 SEO 與五語（en/ja/ko/zh_CN/zh_HK）資料
 
 > 每次要「補 SEO」「加五語簡介」「稽核/修翻譯」都先讀這份。
 > 全站內容語言：**原文 zh_TW（繁中）** ＋ 五種翻譯 **en、ja、ko、zh_CN（簡中）、zh_HK（港式書面語）**。
-> DB 操作走 REST API（`VITE_SUPABASE_URL` + `SUPABASE_SERVICE_KEY`），詳見 [[project_db]]；**任何 key 值都不准寫進程式碼或回報**。
+> DB 操作走 REST API（`VITE_SUPABASE_URL` + `SUPABASE_SECRET_KEY`），詳見 [[project_db]]；**任何 key 值都不准寫進程式碼或回報**。
 
 ---
 

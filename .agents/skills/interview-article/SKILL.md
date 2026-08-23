@@ -295,7 +295,7 @@ done
 
 ### Step 3 — 寫進 Supabase
 
-**優先用 REST 版**：[`scripts/insert_interview_article.mjs`](../../../scripts/insert_interview_article.mjs)（走 supabase-js + `SUPABASE_SERVICE_KEY`，不需直連 DB）：
+**優先用 REST 版**：[`scripts/insert_interview_article.mjs`](../../../scripts/insert_interview_article.mjs)（走 supabase-js + `SUPABASE_SECRET_KEY`，不需直連 DB）：
 
 ```bash
 node scripts/insert_interview_article.mjs scripts/_iv_9-6.json
@@ -489,10 +489,10 @@ python scripts/transcribe_interview_whisper.py "_tmp_audio/iv_wu/83_part1.m4a" \
 
 `db.{ref}.supabase.co` 只解析到 IPv6 位址。本機 ISP 若無 IPv6 出口，Node `pg` 直連會 `ENOTFOUND`。
 
-**對策**：用 `supabase-js` + `SUPABASE_SERVICE_KEY` 走 HTTPS REST：
+**對策**：用 `supabase-js` + `SUPABASE_SECRET_KEY` 走 HTTPS REST：
 ```js
 import { createClient } from "@supabase/supabase-js";
-const supabase = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+const supabase = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SECRET_KEY);
 await supabase.from("articles").upsert(row, { onConflict: "id" }).select(...);
 ```
 

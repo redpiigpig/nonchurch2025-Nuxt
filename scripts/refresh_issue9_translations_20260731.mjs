@@ -185,7 +185,7 @@ function validatePayload() {
 }
 
 const env = loadEnv();
-const requiredEnv = ["VITE_SUPABASE_URL", "SUPABASE_SERVICE_KEY"];
+const requiredEnv = ["VITE_SUPABASE_URL", "SUPABASE_SECRET_KEY"];
 for (const key of requiredEnv) {
   if (!env[key]) throw new Error(`Missing ${key} in .env`);
 }
@@ -194,8 +194,8 @@ validatePayload();
 const shouldApply = process.argv.includes("--apply");
 const restBase = `${env.VITE_SUPABASE_URL}/rest/v1`;
 const restHeaders = {
-  apikey: env.SUPABASE_SERVICE_KEY,
-  Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+  apikey: env.SUPABASE_SECRET_KEY,
+  Authorization: `Bearer ${env.SUPABASE_SECRET_KEY}`,
   "Content-Type": "application/json",
 };
 
