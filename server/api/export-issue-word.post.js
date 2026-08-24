@@ -64,6 +64,8 @@ export default defineEventHandler(async (event) => {
   if (!Array.isArray(articles) || articles.length === 0) {
     return { success: false, error: "請提供 articles 陣列" };
   }
+  // 頁首日期以 issues.date 為準
+  await attachIssueDates(articles);
 
   const config = useRuntimeConfig();
   const mode = getWordExportMode(config);

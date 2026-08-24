@@ -109,6 +109,40 @@ DOC_FLOAT_BODY_HALF_CM = DOC_BODY_WIDTH_CM / 2
 AUTHOR_INTRO_TABLE_BORDER_GRAY = "A6A6A6"
 AUTHOR_INTRO_PHOTO_BORDER_LIGHT_BLACK = "404040"
 
+def _format_header_date(raw):
+    """issues.date → 頁首日期字串。
+
+    '2026年07-08月號' → '2026.07-08'；'2026年07月號' → '2026.07'；
+    '2026.07-08' / '2026.7' 等寫法一併正規化。
+    """
+    if not raw:
+        return ''
+    s = str(raw).strip()
+    m = re.search(r'(\d{4})\D{1,3}(\d{1,2})\s*[-~—－]\s*(\d{1,2})', s)
+    if m:
+        return '{}.{:02d}-{:02d}'.format(m.group(1), int(m.group(2)), int(m.group(3)))
+    m = re.search(r'(\d{4})\D{1,3}(\d{1,2})', s)
+    if m:
+        return '{}.{:02d}'.format(m.group(1), int(m.group(2)))
+    return s
+
+
+def _issue_date_label(issue_number, issue_date=None):
+    """優先用資料庫 issues.date；沒有時依雙月刊規律推算（Vol.1 = 2025.01-02）。"""
+    label = _format_header_date(issue_date)
+    if label:
+        return label
+    try:
+        n = int(str(issue_number).strip())
+    except (TypeError, ValueError):
+        return ''
+    if n < 1:
+        return ''
+    year = 2025 + (n - 1) // 6
+    lo = ((n - 1) % 6) * 2 + 1
+    return '{}.{:02d}-{:02d}'.format(year, lo, lo + 1)
+
+
 class ProfessionalDocxGenerator:
 
     def __init__(self):
@@ -2735,8 +2769,12 @@ class ProfessionalDocxGenerator:
 
     # ── 頁首頁尾 ────────────────────────────────────────────
 
-    def add_header_footer(self, section, issue_number, issue_title, article_id, article_title):
-        """指定節的頁首頁尾（整期合併時每篇文章一節，須傳入對應 section）。"""
+    def add_header_footer(self, section, issue_number, issue_title, article_id, article_title,
+                          issue_date=None):
+        """指定節的頁首頁尾（整期合併時每篇文章一節，須傳入對應 section）。
+
+        issue_date：issues.date 原字串（例：'2026年07-08月號'），未提供時依期數推算。
+        """
         sectPr = section._sectPr
         # 啟用奇偶頁不同（同一節不重複插入）
         has_even_odd = any(
@@ -2751,7 +2789,9 @@ class ProfessionalDocxGenerator:
         id_str = str(article_id) if article_id else '04'
         num_m  = re.search(r'-(\d+)', id_str)
         display_num = num_m.group(1).zfill(2) if num_m else id_str.zfill(2)
-        vol_line = f'無境界者｜Vol. {issue_number}（2026.02-04）'
+        date_label = _issue_date_label(issue_number, issue_date)
+        vol_line = (f'無境界者｜Vol. {issue_number}（{date_label}）'
+                    if date_label else f'無境界者｜Vol. {issue_number}')
 
         # ── 偶數頁（左頁）頁首 ──
         even_hdr = section.even_page_header
@@ -2941,6 +2981,7 @@ def generate_article_docx(article_data, output_path):
         article_data.get('issue_title', '火燒島上的《耶穌傳》'),
         article_data.get('id', '04'),
         article_data.get('title', '無標題'),
+        issue_date=article_data.get('issue_date'),
     )
 
     generator.save(output_path)
@@ -2999,6 +3040,7 @@ def generate_issue_docx(articles_list, output_path):
             article_data.get('issue_title', '') or '火燒島上的《耶穌傳》',
             article_data.get('id', ''),
             article_data.get('title', '無標題'),
+            issue_date=article_data.get('issue_date'),
         )
 
     gen.save(output_path)

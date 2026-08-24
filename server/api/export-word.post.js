@@ -80,6 +80,8 @@ async function exportByLocalPython(articleData) {
 export default defineEventHandler(async (event) => {
   await requireAdminUser(event);
   const articleData = await readBody(event);
+  // 頁首日期以 issues.date 為準
+  await attachIssueDates(articleData);
   const config = useRuntimeConfig();
   const mode = getWordExportMode(config);
 
