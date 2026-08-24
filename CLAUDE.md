@@ -147,6 +147,7 @@ AI 獲得**明確授權**可以直接讀取 `.env` 並操作下列資源（登�
 - 所有媒體檔案（圖片、PDF、Word、音訊）**必須上傳 Cloudinary**
 - 後端 API：`/api/media`（支援 GET 列表、POST 上傳、PUT 刪除/改名）
 - Supabase 僅用於**資料庫**（存 URL、metadata、文章 JSON 等）
+- **媒體檔一律不要放進 `public/`**：`public/` 會整包進建置產物，2026-08-25 就是因為 `public/images`（400 MB）＋`public/magazines`（154 MB）把 `.output` 撐到 845 MB，Zeabur 建置卡住、網站 502 近 10 小時。`public/` 只放 favicon、robots.txt 這類小檔。
 
 ### Cloudinary 資料夾命名慣例
 ```

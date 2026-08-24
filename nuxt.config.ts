@@ -42,9 +42,15 @@ export default defineNuxtConfig({
     },
   },
 
-  // 快取策略：公開頁用 SWR（背景再驗證），後台不快取；靜態資產壓縮
+  // 快取策略：公開頁用 SWR（背景再驗證），後台不快取
   nitro: {
-    compressPublicAssets: true,
+    // compressPublicAssets 已關閉（2026-08-25）：
+    // 它會在建置時對 public/ 每個檔做 gzip + brotli。當時 public/ 有 554 MB
+    // （雜誌 PDF 與歷期圖片），brotli 對已壓縮的 PDF/JPG 幾乎沒效果，卻多產出
+    // 275 MB、把 .output 撐到 845 MB，導致 Zeabur 建置卡住、網站 502。
+    // 大檔已移出 repo（見 tree.txt / Drive 備份），public/ 只剩 favicon 等小檔，
+    // 壓縮與否影響極小；靜態檔的傳輸壓縮交給 Zeabur 閘道處理。
+    compressPublicAssets: false,
     routeRules: {
       // 幾乎不變的靜態內容頁：快取 1 小時
       "/about": { swr: 3600 },
