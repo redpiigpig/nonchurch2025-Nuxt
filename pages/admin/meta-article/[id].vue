@@ -59,25 +59,14 @@ const selectedCfp = computed(() =>
   cfpData.value?.find((i) => i.id === selectedCfpIssueId.value),
 );
 
-const syncFromCfp = () => {
+const syncFromCfp = async () => {
   const cfp = selectedCfp.value;
   if (!cfp) return alert("請先選擇要同步的期次");
 
-  const parts = [];
-  if (cfp.cfp_title) {
-    parts.push(`<h2>☆下期徵稿主題：《${cfp.cfp_title}》</h2>`);
-  }
-  if (cfp.cfp_deadline) {
-    parts.push(`<p>📌 截稿期限：${cfp.cfp_deadline}</p>`);
-  }
-  if (cfp.cfp_theme) {
-    parts.push(`<p>${cfp.cfp_theme}</p>`);
-  }
-  if (cfp.intro_cfp) {
-    parts.push(`<hr/><p>${cfp.intro_cfp}</p>`);
-  }
-
-  form.value.content = parts.join("\n");
+  // 與線上第 1-9 期一致的完整樣板：開場白 + 下期主題(圖/說明/截稿) + 投稿類型 + 投稿方式。
+  // 樣板常數在 utils/metaTemplates.js，改樣板要改那裡再全刊重生成。
+  const { buildSubmissionInfoHtml } = await import("~/utils/metaTemplates");
+  form.value.content = buildSubmissionInfoHtml(cfp);
   alert("✅ 已從 CFP 資料同步內文，請確認後儲存。");
 };
 

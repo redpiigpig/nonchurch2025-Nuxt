@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import {
   parseIssue, parseOrder, articleImage, authorImage, submissionFolder,
   versionlessUrl, replacePlaceholders, buildArticleRow, buildMediaAssets,
-  buildSubmissionRow, buildAuthorRow, publishArticle,
+  buildSubmissionRow, mergeSubmissionRow, buildAuthorRow, publishArticle,
 } from "./publish_article.mjs";
 
 let passed = 0;
@@ -119,6 +119,45 @@ test("buildSubmissionRow 一定產生備份且連回文章（status=converted）
 test("buildSubmissionRow email 缺省給 placeholder（不違反 NOT NULL）", () => {
   const r = buildSubmissionRow({ id: "9-3x", title: "t", category: "c" }, {});
   assert.match(r.email, /@/);
+});
+
+test("mergeSubmissionRow 轉網站來稿時保留投稿者自己填的欄位", () => {
+  const existing = {
+    id: 26,
+    real_name: "廖本恩", display_name: "廖本恩", email: "benboopower@gmail.com",
+    author_bio: "無教會者", author_intro: "中國神學研究院研究員…",
+    is_first_submission: true, avatar_url: "投稿時的大頭貼",
+    keywords: ["羅馬書", "聖經接受史"],
+    images: [{ url: "投稿附圖", name: "p1.jpg", order: 1 }],
+    word_url: "投稿的 docx", pdf_url: null,
+    notes: "投稿系統誤填第12期，編輯部改排第十期",
+    status: "submitted", article_id: null,
+  };
+  const editorRow = buildSubmissionRow(
+    { id: "10-15某某", title: "某某", category: "專題文章", issue: 10, summary: "編輯部摘要" },
+    { content: "<p>編輯後 HTML</p>" },
+  );
+  const r = mergeSubmissionRow(existing, editorRow);
+
+  // 投稿者資料原封不動
+  assert.equal(r.email, "benboopower@gmail.com");
+  assert.equal(r.real_name, "廖本恩");
+  assert.equal(r.is_first_submission, true);
+  assert.equal(r.author_intro, "中國神學研究院研究員…");
+  assert.equal(r.notes, "投稿系統誤填第12期，編輯部改排第十期");
+  assert.equal(r.word_url, "投稿的 docx");
+  assert.deepEqual(r.keywords, ["羅馬書", "聖經接受史"]);
+  assert.deepEqual(r.images, [{ url: "投稿附圖", name: "p1.jpg", order: 1 }]);
+  // 編輯部這次的成果有寫進去
+  assert.equal(r.parsed_html, "<p>編輯後 HTML</p>");
+  assert.equal(r.article_summary, "編輯部摘要");
+  assert.equal(r.article_id, "10-15某某");
+  assert.equal(r.status, "converted");
+});
+
+test("mergeSubmissionRow 沒有舊筆時原樣回傳", () => {
+  const row = buildSubmissionRow({ id: "9-3x", title: "t", category: "c" }, {});
+  assert.deepEqual(mergeSubmissionRow(null, row), row);
 });
 
 // 端到端：dry-run 不碰網路，驗證 orchestration 把 6 個產物都組出來、submissions 一定存在

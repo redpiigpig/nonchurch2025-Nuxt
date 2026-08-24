@@ -474,6 +474,12 @@
 .px-800 {
   max-width: 800px;
 }
+.px-850 {
+  max-width: 850px;
+}
+.px-900 {
+  max-width: 900px;
+}
 .w-full {
   width: 100%;
 }

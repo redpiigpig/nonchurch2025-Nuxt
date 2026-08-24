@@ -139,6 +139,29 @@ export function buildSubmissionRow(d, uploaded) {
   };
 }
 
+// 網站來稿（submissions 已有一筆，article_id 還是 null）轉文章時用：
+// 投稿者自己填的欄位以「原投稿」為準，編輯部只覆寫排版/分類相關欄位。
+// 這樣「把網站上的投稿改成編輯」不會把作者的 email、自介、是否首投洗掉。
+export function mergeSubmissionRow(existing, row) {
+  if (!existing) return row;
+  const KEEP_FROM_SUBMITTER = [
+    "real_name", "display_name", "author_bio", "email",
+    "is_first_submission", "author_intro", "avatar_url",
+    "word_url", "pdf_url", "notes",
+  ];
+  const merged = { ...row };
+  for (const k of KEEP_FROM_SUBMITTER) {
+    if (existing[k] !== null && existing[k] !== undefined && existing[k] !== "") {
+      merged[k] = existing[k];
+    }
+  }
+  // 投稿附圖：編輯部這次沒上傳新圖就沿用投稿時的
+  if (!merged.images?.length && existing.images?.length) merged.images = existing.images;
+  // 關鍵字：描述檔沒給就沿用投稿者填的
+  if (!merged.keywords?.length && existing.keywords?.length) merged.keywords = existing.keywords;
+  return merged;
+}
+
 export function buildAuthorRow(author, descriptor, issue, avatarUrl) {
   const row = {
     id: author.id,
@@ -301,14 +324,27 @@ export async function publishArticle(d, { dryRun = false } = {}) {
       if (/\.pdf$/i.test(doc)) pdfUrl = u; else wordUrl = u;
     }
   }
-  const subRow = buildSubmissionRow(d, { avatarUrl, imageUrls, wordUrl, pdfUrl, content });
+  let subRow = buildSubmissionRow(d, { avatarUrl, imageUrls, wordUrl, pdfUrl, content });
   if (!dryRun) {
-    // 同一篇文章只留一筆備份：先找有沒有舊的
-    const { data: ex } = await supabase.from("submissions").select("id").eq("article_id", d.id).limit(1);
-    if (ex && ex.length) {
-      const { error } = await supabase.from("submissions").update(subRow).eq("id", ex[0].id);
+    // 同一篇文章只留一筆備份。找舊筆的順序：
+    //   ① descriptor 指定的 submissionId（網站來稿轉文章）
+    //   ② 已經連回這篇文章的備份（重跑）
+    let ex = null;
+    if (d.submissionId != null) {
+      const { data } = await supabase
+        .from("submissions").select("*").eq("id", d.submissionId).limit(1);
+      if (!data?.length) throw new Error(`找不到 submission #${d.submissionId}`);
+      ex = data[0];
+      subRow = mergeSubmissionRow(ex, subRow);
+    } else {
+      const { data } = await supabase
+        .from("submissions").select("*").eq("article_id", d.id).limit(1);
+      ex = data?.[0] ?? null;
+    }
+    if (ex) {
+      const { error } = await supabase.from("submissions").update(subRow).eq("id", ex.id);
       if (error) throw new Error("submissions update 失敗：" + error.message);
-      console.log(`  投稿備份 ✓（更新 submission #${ex[0].id}）`);
+      console.log(`  投稿備份 ✓（更新 submission #${ex.id}）`);
     } else {
       const { data, error } = await supabase.from("submissions").insert([subRow]).select("id").single();
       if (error) throw new Error("submissions insert 失敗：" + error.message);

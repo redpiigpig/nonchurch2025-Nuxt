@@ -1,13 +1,17 @@
 ---
 name: interview-article
-description: 把《無境界者》本期人物專訪的「音檔 + 訪綱 docx」整理成可直接寫進 Supabase articles 表的 HTML 內容（category=人物專訪、section=特稿專區）。Gemini 2.5 Flash 轉錄 → Codex 對話中整理 Q&A、補簡介/受訪者簡介/後記、套用 HTML class 與腳注 → 寫入資料庫（並可選擇上傳 Cloudinary）。Use when 使用者拿本期人物專訪的音檔（m4a/mp3）+ 訪綱 docx 過來，要轉成可上架的文章。
+description: 把《無境界者》本期人物專訪的音檔（可能有訪綱 docx，也可能只有錄音）整理成可直接寫進 Supabase articles 表的 HTML（category=人物專訪、section=特稿專區）。轉錄（Gemini 2.5 Flash 或本機 faster-whisper）→ 整理 Q&A、補簡介/受訪者簡介/後記、套用 HTML class 與腳注 → 寫入資料庫並上圖。Use when 使用者拿人物專訪的音檔（m4a/mp3）過來要轉成可上架的文章。
 ---
 
 # 《無境界者》人物專訪 — 音檔到上架文章 Pipeline
 
 > 目標：把使用者交付的「訪問音檔 + 訪綱 docx」整理成符合 [`pages/articles/[id].vue`](../../../pages/articles/[id].vue) 預期格式的 HTML，寫進 Supabase `articles` 表，category=`人物專訪`、section=`特稿專區`。
 
-格式參考自第 4-8 期已上架的 6 篇人物專訪（id 前綴 `4-4`、`4-5`、`6-4`、`6-5`、`7-5`、`8-4`）。要重新撈一遍當參照時跑 [`scripts/query_interviews.cjs`](../../../scripts/query_interviews.cjs)。
+> 通用體例（class 清單、腳注兩套語法、標點、副標命名、篇幅）以 [`nonchurch-house-style`](../nonchurch-house-style/SKILL.md) 為準；本篇只寫專訪專屬的部分。
+
+格式參考自第 4–9 期已上架的 9 篇人物專訪（id 前綴 `4-4`、`4-5`、`6-4`、`6-5`、`7-5`、`8-4`、`9-5`、`9-6`、`9-7`）。要重新撈一遍當參照時跑 [`scripts/query_interviews.cjs`](../../../scripts/query_interviews.cjs)。
+
+**⚠️ 配圖版面已於 2026-08-24 改版**：訪談簡介不放圖、圖一是受訪者大頭照、合照放後記、每篇 6–8 張。第 4–8 期那 6 篇是舊版面（合照放開頭），拿它們對照文字結構可以，**對照配圖位置不行**。
 
 ---
 
@@ -41,23 +45,21 @@ description: 把《無境界者》本期人物專訪的「音檔 + 訪綱 docx�
 
 ```html
 <h3>訪談簡介</h3>
-<p class="no-indent">[1-2 段：說明本期主題、為何選這位受訪者、研究/採訪背景，
+<p>[1-2 段：說明本期主題、為何選這位受訪者、研究/採訪背景，
 最後一段可說明資料來源與授權狀況（若是論文訪談轉刊登）。]</p>
 <p>...</p>
 <p style="text-align: right; margin-top: -1rem">
 ──[訪問者]<br>YYYY.MM.DD
 </p>
 
-<figure class="img-bottom px-600">
-  <img src="https://res.cloudinary.com/nonchurch2025/image/upload/issue{X}_{Y}-1.jpg" alt="訪談合照">
-  <figcaption>[受訪者] 與 [訪問者] 的訪談合照<br>（YYYY.MM.DD拍攝於[地點]）</figcaption>
-</figure>
+<!-- ⚠️ 訪談簡介「不放任何圖」。合照留到訪談後記。 -->
 
 <div class="custom-divider"></div>
 
 <h3>受訪者簡介</h3>
+<!-- 圖一固定是受訪者大頭照，就在這裡 -->
 <figure class="img-right px-300">
-  <img src="https://res.cloudinary.com/nonchurch2025/image/upload/issue{X}_{Y}-2.jpg" alt="[受訪者]大頭照"
+  <img src="https://res.cloudinary.com/nonchurch2025/image/upload/images/articles/issue-{X}/{X}-{Y}-1.jpg" alt="[受訪者]大頭照"
        style="border: 1px solid #000; outline: 4.5px solid #000; outline-offset: 1px;">
 </figure>
 
@@ -92,11 +94,12 @@ description: 把《無境界者》本期人物專訪的「音檔 + 訪綱 docx�
 ...
 
 <h3>訪談後記：[7-12 字精神標題]</h3>
-<p class="no-indent">[1-2 段總結這場訪談的價值與感受，最後一個字後接 🌏]</p>
+<p>[1-2 段總結這場訪談的價值與感受，最後一個字後接 🌏]</p>
 
+<!-- 訪談合照放這裡（不放開頭） -->
 <figure class="img-bottom px-600">
-  <img src="...issue{X}_{Y}-N.jpg" alt="末尾合照">
-  <figcaption>...</figcaption>
+  <img src="...images/articles/issue-{X}/{X}-{Y}-N.jpg" alt="訪談合照">
+  <figcaption>[受訪者] 與 [訪問者] 的訪談合照<br>（YYYY.MM.DD拍攝於[地點]）</figcaption>
 </figure>
 ```
 
@@ -113,7 +116,12 @@ description: 把《無境界者》本期人物專訪的「音檔 + 訪綱 docx�
 - [ ] 每節 **2-5 個獨立的 `<strong>訪問者：</strong>` 問句**，回答每 1-3 段一斷
 - [ ] **段落間不重貼說話者標籤**（只在新發言才貼）
 - [ ] 末尾「訪談後記」最後一段尾字接 🌏（地球 emoji，象徵無境界）
-- [ ] 第一張圖 = 訪談合照（`img-bottom px-600`）；第二張 = 受訪者大頭照（`img-right px-300` 帶 outline 黑框）
+- [ ] **配圖版面（2026-08-24 使用者定案，取代舊寫法）**：
+  - **訪談簡介不放任何圖**
+  - **圖一固定是受訪者大頭照**，放在「受訪者簡介」，`img-right px-250~300` ＋ 黑框 outline
+  - 其餘圖片排在後面的訪談主體章節裡
+  - **訪談合照放「訪談後記」**，不放開頭
+  - **圖不能太少：每篇約 6–8 張**。編輯部自己拍的不夠，就主動去維基共享資源找授權圖補上（Commons API 查 `extmetadata` 確認授權 → 下載 → 上傳 Cloudinary 自存 → `figcaption` 末尾標「（攝影：X，授權，圖片來源：維基圖庫連結）」，PD 寫「公有領域」）
 
 ---
 
@@ -145,12 +153,13 @@ description: 把《無境界者》本期人物專訪的「音檔 + 訪綱 docx�
 
 ### Cloudinary URL 規則
 ```
-https://res.cloudinary.com/nonchurch2025/image/upload/issue{X}_{Y}-{N}.jpg
+https://res.cloudinary.com/nonchurch2025/image/upload/images/articles/issue-{X}/{X}-{Y}-{N}.jpg
 ```
-- `X` = 期數，`Y` = 該期序號（與 id 開頭一致）
-- `N` 由 1 開始：1=合照、2=大頭照、3+=內文配圖
+- `X` = 期數，`Y` = 該期序號（與 id 開頭一致），`N` = 該篇第幾張圖
+- **`N=1` 固定是受訪者大頭照**（放受訪者簡介）；合照排在最後、放訪談後記；其餘依出現順序
+- 早期第 4–7 期用的是舊命名 `issue{X}_{Y}-{N}.jpg`（沒有資料夾），那是遺留；**新稿一律用上面的正規命名**（memory `project_media_assets`）
 - 副檔名常見 `.jpg`，偶有 `.JPG`、`.png`，比照原檔名
-- **圖片還沒上傳時用 `[[圖片N]]` 佔位符**，例如 8-4 範例稿就用 `<img src="[[圖片1]]" alt="...">`，後續上傳完再批次替換
+- **圖片還沒上傳時用 `[[圖片N]]` 佔位符**，`<img src="[[圖片1]]" alt="...">`，交給 [`scripts/publish_article.mjs`](../../../scripts/publish_article.mjs) 上傳後自動替換
 
 ### 圖說格式
 ```
@@ -179,7 +188,7 @@ https://res.cloudinary.com/nonchurch2025/image/upload/issue{X}_{Y}-{N}.jpg
 **規則**：
 - `id` 用字串型整數（`"1"`, `"2"`...，舊資料偶有用數字型 `1`，新稿一律字串）
 - 順序按出現順序由 1 開始
-- `refId` 一律 `ref-{id}`
+- `refId` **前台不讀它**（渲染只用 `note.id`），填不填都能跑；要填就填 `ref-{id}`
 - 腳注內：書名用 `<i>外文書名</i>`、`《中文書名》`、〈文章名〉
 - 含網址用 `<a href="..." target="_blank" rel="noopener noreferrer">完整網址</a>`
 - 內容多為「徵引文獻」或「補充說明性註腳」，不要把訪談內容塞進去
@@ -243,7 +252,12 @@ https://res.cloudinary.com/nonchurch2025/image/upload/issue{X}_{Y}-{N}.jpg
 - 受訪者完整稱謂（**全稱用在 author 欄位、簡稱用在對話**）
 - 訪問者是誰、訪問日期、地點
 
-### Step 1 — 用 Gemini Audio 轉錄
+### Step 1 — 轉錄
+
+> **現況（2026-08）：`.env` 裡的 Gemini key 已全數失效**，實務上直接跑下面 9.3 的本機 faster-whisper（`--model large-v3 --device cuda`）。
+> Gemini 路線保留在這裡，等有新 key 或升到付費 tier 再用——它配上訪綱 docx 當 context 時，人名／專名辨識明顯比 Whisper 強。
+> **只有錄音、沒有訪綱時**：Whisper 沒有 diarization 也沒有 context，人名／專名一律靠第八、9.7 節的聽錯修正表 ＋ WebSearch 逐項查證（memory `project_skills_scope`）。
+
 腳本：[`scripts/transcribe_interview_gemini.py`](../../../scripts/transcribe_interview_gemini.py)（已包含此 skill 對應的訪綱 context prompt）。
 
 ```bash
@@ -269,10 +283,10 @@ done
 
 **注意**：
 - `.env` 用 `GEMINI_API_KEYS`（複數，逗號分隔多把 key），轉錄腳本自動讀取並 fallback
-- 不要把 key 寫死在腳本裡（AGENTS.md 規則）
+- 不要把 key 寫死在腳本裡（CLAUDE.md 規則）
 - Free-tier 每 key 一天 20 次 request，平行多段時自動 fallback 到下一把 key
 
-### Step 2 — Codex 整理成 HTML
+### Step 2 — Claude 整理成 HTML
 讀 `_tmp_audio/iv_{date}_raw.txt`，做：
 
 1. **辨識並修正說話者標籤**（Gemini 偶爾標錯）
@@ -385,7 +399,7 @@ console.log(rows[0]);
 4. OK 後 `is_published = true`
 
 ### Step 6 — Commit
-依專案規則（AGENTS.md「每次 AI 修改後，必須提交並上傳 Git」），但根據使用者偏好 [feedback_git_push](../../../../C:/Users/user/.Codex/projects/c--Users-user-Desktop-nonchurch-nuxt/memory/feedback_git_push.md)，**等使用者確認後再 push**。
+依專案規則（CLAUDE.md「每次 AI 修改後，必須提交並上傳 Git」），但根據使用者偏好 [feedback_git_push](../../../../C:/Users/user/.claude/projects/c--Users-user-Desktop-nonchurch-nuxt/memory/feedback_git_push.md)，**等使用者確認後再 push**。
 
 ---
 
@@ -405,6 +419,9 @@ node scripts/query_interviews.cjs
 | `6-5跨海來台的人權勇士` | 6 | 艾琳達教授 | 張辰瑋 | 學者、論文轉刊登 |
 | `7-5聆聽被遺忘的苦難` | 7 | 許明淳導演 | 張辰瑋 | 導演、含「作品簡介」 |
 | `8-4從苦難生發出的公義之光` | 8 | 田孟淑長老 | 曾加力、張辰瑋 | 長老、含「教會簡介」、台語訪談 |
+| `9-5不只是牧師，不只是師母` | 9 | 楊肇悅師母 | 張辰瑋 | 紀念專輯、家屬視角、長輩敬語、Q&A 整合密度（v1 被退稿，見 9.12） |
+| `9-6活出真實的門徒生活` | 9 | 邱泰耀牧師 | 張辰瑋 | 紀念專輯、繼任者視角、大量「請消音」內容（見 9.14） |
+| `9-7循道精神的同行者` | 9 | 吳昶興教授 | 張辰瑋 | 紀念專輯、學者視角、一場訪談拆兩篇（見 9.5）、Q&A 整合的好範本 |
 
 要看完整 content 取一篇對照時，用 [`scripts/query_interviews.cjs`](../../../scripts/query_interviews.cjs) 撈 dump 後讀對應 id。
 
@@ -481,7 +498,7 @@ python scripts/transcribe_interview_whisper.py "_tmp_audio/iv_wu/83_part1.m4a" \
 - 沒有 NVIDIA GPU → `--device cpu --compute-type int8`，但 large-v3 在 CPU 約 5-10x realtime（70 分鐘音檔要 6-12 小時，難等）
 
 **Whisper 輸出特性**：
-- **沒有說話者標籤**（faster-whisper 沒 diarization）→ Codex 整理時靠語意分辨「辰瑋（問問題）」vs「吳教授（長段敘述）」
+- **沒有說話者標籤**（faster-whisper 沒 diarization）→ Claude 整理時靠語意分辨「辰瑋（問問題）」vs「吳教授（長段敘述）」
 - **可能 hallucinate**：尾段有大量「嗯，嗯，嗯，嗯……」重複（VAD/silence 觸發迴圈），整理時整段刪
 - 大致準確度跟 Gemini 2.5 Flash 差不多，但 Gemini 配上訪綱 docx context 時對人名/專名辨識較強
 
@@ -727,8 +744,9 @@ HTML 寫法：
 
 ## 十、不適用此 Skill 的情況
 
-- 一般文章稿（非訪談） → 用 [`/admin/editor`](../../../pages/admin/editor.vue) 直接編輯
-- 投稿轉文章 → 走投稿管理流程（`/admin/submissions_manager` → 轉文章）
+- 一般文章稿（非訪談）、網站來稿轉文章 → [`upload-article`](../upload-article/SKILL.md)
+- 張辰瑋要你從概念／對話素材生成草稿 → [`chenwei-essay`](../chenwei-essay/SKILL.md)
+- 編輯室報告、本期作者簡介等結構頁 → [`issue-frontmatter`](../issue-frontmatter/SKILL.md)
 - 訪談是其他媒體做的、《無境界者》只是轉載 → 仍可用，但「訪談簡介」要明確標註原始出處與授權，footnotes 第一條放原始連結
 - 訪綱還沒寫的訪談 → 那是訪前準備，請使用者先寫訪綱再來
 
@@ -741,9 +759,9 @@ HTML 寫法：
 - [ ] `.env` 有 `GEMINI_API_KEYS`（複數，逗號分隔可放多把 fallback）
 - [ ] 跑 `query_interviews.cjs` 撈最近一篇當對照樣板
 - [ ] Gemini 轉錄成 `_tmp_audio/iv_{date}_raw.txt`
-- [ ] Codex 整理：簡介 / 受訪者簡介 / 〔作品簡介〕/ Q&A 分節 / 後記 / 腳注
+- [ ] Claude 整理：簡介 / 受訪者簡介 / 〔作品簡介〕/ Q&A 分節 / 後記 / 腳注
 - [ ] 圖片用 `[[圖片N]]` 佔位符（之後上 Cloudinary 再替換）
 - [ ] INSERT Supabase（`is_published=false`）並 SELECT 驗證
 - [ ] dev server 預覽 `/articles/{id}`
-- [ ] 與使用者確認後再 git commit + push（[feedback_git_push](../../../../C:/Users/user/.Codex/projects/c--Users-user-Desktop-nonchurch-nuxt/memory/feedback_git_push.md)）
+- [ ] 與使用者確認後再 git commit + push（[feedback_git_push](../../../../C:/Users/user/.claude/projects/c--Users-user-Desktop-nonchurch-nuxt/memory/feedback_git_push.md)）
 - [ ] 上 Cloudinary、替換圖片 URL、`is_published=true`

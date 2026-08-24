@@ -6,6 +6,13 @@ Directory structure:
     │       │   └── SKILL.md
     │       ├── interview-article/
     │       │   └── SKILL.md
+    │       ├── issue-frontmatter/
+    │       │   └── SKILL.md
+    │       ├── nonchurch-house-style/
+    │       │   ├── references/
+    │       │   │   ├── authors.md
+    │       │   │   └── genres.md
+    │       │   └── SKILL.md
     │       ├── pong-photo-writing/
     │       │   └── SKILL.md
     │       ├── pong-sermon/
@@ -72,6 +79,13 @@ Directory structure:
     │   │   ├── chenwei-essay/
     │   │   │   └── SKILL.md
     │   │   ├── interview-article/
+    │   │   │   └── SKILL.md
+    │   │   ├── issue-frontmatter/
+    │   │   │   └── SKILL.md
+    │   │   ├── nonchurch-house-style/
+    │   │   │   ├── references/
+    │   │   │   │   ├── authors.md
+    │   │   │   │   └── genres.md
     │   │   │   └── SKILL.md
     │   │   ├── seo-multilang/
     │   │   │   └── SKILL.md

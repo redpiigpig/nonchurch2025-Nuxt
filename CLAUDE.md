@@ -43,6 +43,23 @@ AI 獲得**明確授權**可以直接讀取 `.env` 並操作下列資源（登�
 | `stores/word_to_sql.md` | 文章格式規範完整版（HTML 標籤、腳注格式、標楷體等） |
 | `tree.txt` | 專案目錄樹（新增/刪除檔案後必須同步更新） |
 
+### Skills（動任何文章、任何一期之前先挑一支讀）
+
+| Skill | 什麼時候用 |
+|-------|-----------|
+| `nonchurch-house-style` | **格式規範的唯一權威來源**：欄位怎麼填、能用哪些 class、腳注兩套語法、標點、副標命名、分類與篇幅。其他 skill 的格式描述若與它衝突，以它為準 |
+| `upload-article` | 別人的完整投稿（網站來稿或 docx）→ 編輯 → 上架。**除了張辰瑋，所有作者都走這條，你是編輯不是代筆** |
+| `interview-article` | 人物專訪音檔 → 文章 |
+| `chenwei-essay` | 張辰瑋丟素材／概念要你生成草稿（**全刊只有他是這樣接件**） |
+| `issue-frontmatter` | 目次／編輯室報告／本期作者簡介／投稿資訊／編輯資訊 這五張結構頁 |
+| `seo-multilang` | SEO 與五語翻譯 |
+
+逐位作者的聲線檔在 `.agents/skills/preserve-nonchurch-author-voice/references/`（48 位，含證據等級），
+動別人的稿之前先查——用途是**避免改壞他的聲音**，不是拿來模仿。
+
+**兩棵 skill 樹**：`.claude/skills/`（Claude 用）與 `.agents/skills/`（Codex 等用）內容互為鏡像，
+`preserve-nonchurch-author-voice` 只放在 `.agents/`。**改了其中一棵的 SKILL.md，要同步另一棵。**
+
 ---
 
 ## 二、大檔案索引（修改前必看）
