@@ -49,7 +49,7 @@ PDF (in pong-archive/stores/...)
 | 用途 | 路徑 |
 |---|---|
 | Pipeline script | [scripts/pong-archive/thesis_flipbook_ingest.py](../../../scripts/pong-archive/thesis_flipbook_ingest.py) |
-| SQL migration | [database/pong-writings-thesis-flipbook.sql](../../../database/pong-writings-thesis-flipbook.sql) |
+| SQL migration | `database/pong-writings-thesis-flipbook.sql`（已套用，檔案未留在 repo） |
 | Reader component | [components/pong-archive/PongThesisFlipbook.vue](../../../components/pong-archive/PongThesisFlipbook.vue) |
 | Reader 頁面分支 | [pages/pong-archive/writings/[id].vue](../../../pages/pong-archive/writings/[id].vue) |
 | API – metadata | [server/api/pong-writing/[id].get.js](../../../server/api/pong-writing/[id].get.js) |

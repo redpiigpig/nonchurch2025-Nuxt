@@ -399,7 +399,8 @@ console.log(rows[0]);
 4. OK 後 `is_published = true`
 
 ### Step 6 — Commit
-依專案規則（CLAUDE.md「每次 AI 修改後，必須提交並上傳 Git」），但根據使用者偏好 [feedback_git_push](../../../../C:/Users/user/.claude/projects/c--Users-user-Desktop-nonchurch-nuxt/memory/feedback_git_push.md)，**等使用者確認後再 push**。
+依專案規則（CLAUDE.md「每次 AI 修改後，必須提交並上傳 Git」）**直接 `git add` → `commit` → `push`**。
+（memory `feedback_git_push`：2026-06-16 起改為完成可運行修改後自動 push，先前「等確認再 push」的規則已撤銷。）
 
 ---
 
@@ -763,5 +764,5 @@ HTML 寫法：
 - [ ] 圖片用 `[[圖片N]]` 佔位符（之後上 Cloudinary 再替換）
 - [ ] INSERT Supabase（`is_published=false`）並 SELECT 驗證
 - [ ] dev server 預覽 `/articles/{id}`
-- [ ] 與使用者確認後再 git commit + push（[feedback_git_push](../../../../C:/Users/user/.claude/projects/c--Users-user-Desktop-nonchurch-nuxt/memory/feedback_git_push.md)）
+- [ ] git commit + push（memory `feedback_git_push`：完成可運行修改後直接推，不用等確認）
 - [ ] 上 Cloudinary、替換圖片 URL、`is_published=true`
