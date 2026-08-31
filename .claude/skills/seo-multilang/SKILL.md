@@ -90,6 +90,11 @@ description: 《無境界者》的 SEO 與五語（en/ja/ko/zh_CN/zh_HK）資料
 | 世界是我的牧區 | The world is my parish | 世界は私の牧区 | 세계는 나의 교구 |
 | 崇基學院神學院 | Chung Chi Divinity School | 崇基神学院 | 충치신학원 |
 | 大齋期 / 禁食 | Lent / fasting | 四旬節 / 断食 | 사순절 / 금식 |
+| 濟南教會 | Chi-nan Presbyterian Church | 済南教会 | 지난교회 |
+| 台灣基督長老教會 | the Presbyterian Church in Taiwan | 台湾基督長老教会 | 대만기독장로교회 |
+| 青鳥行動 | the Bluebird Movement | 青鳥運動 | 블루버드 운동 |
+| 太陽花學運 | the Sunflower Movement | ひまわり学生運動 | 해바라기 학생운동 |
+| 反送中 | the anti-extradition protests | 逃亡犯条例改正案反対デモ（反送中） | 반송중 시위 |
 
 > 新增固定譯名時補進本表，讓後續一致。
 
