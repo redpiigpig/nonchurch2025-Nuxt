@@ -5,7 +5,9 @@
 // 對應 skill：.claude/skills/upload-article/SKILL.md
 // 做的事（依序）：
 //   1. 圖片上 Cloudinary（>10MB 自動用 ffmpeg 縮圖）→ images/articles/issue-{n}/{issue}-{order}-{seq}.jpg
-//   2. content 內 [[圖片N]] 佔位符換成真實 URL（若有）
+//   2. content 內的圖片一律**保留 [[圖片N]] 佔位符**（前台／編輯器／Word 都會依 media_assets
+//      的 sort_order 即時解析），這樣之後換圖只要換 media_assets，不必動內文。
+//      只有 job JSON 明寫 "bakeImageUrls": true 才會把真實 URL 寫死進 content。
 //   3.（可選）作者大頭貼上 Cloudinary、upsert authors、文章 linked_author_ids 連結
 //   4. upsert articles（含 seo / summary / keyword）
 //   5. 重寫 media_assets（編輯器顯示圖靠這張表）
@@ -67,6 +69,7 @@ export function versionlessUrl(fullPublicId, ext = "jpg") {
 }
 
 // content 內 [[圖片1]]、[[圖片2]]… 換成 urls[0]、urls[1]…
+// ⚠️ 只在 job JSON 設 bakeImageUrls:true 時才用；預設走佔位符，不要寫死 URL。
 export function replacePlaceholders(content, urls) {
   if (!content) return content;
   return content.replace(/\[\[圖片(\d+)\]\]/g, (whole, n) => {
@@ -264,8 +267,10 @@ export async function publishArticle(d, { dryRun = false } = {}) {
     images.push({ seq, url, publicIdFull: `${meta.folder}/${meta.publicId}`, src: img.src });
   }
 
-  // 2) 佔位符替換（content 沒寫 [[圖片N]] 就原樣）
-  const content = replacePlaceholders(d.content, images.map((i) => i.url));
+  // 2) 佔位符：預設**保留** [[圖片N]]，讓換圖只需改 media_assets（前台/編輯器/Word 都會即時解析）
+  const content = d.bakeImageUrls
+    ? replacePlaceholders(d.content, images.map((i) => i.url))
+    : d.content;
 
   // 3) 作者
   let linkedAuthorIds = Array.isArray(d.linked_author_ids) ? d.linked_author_ids.slice() : [];

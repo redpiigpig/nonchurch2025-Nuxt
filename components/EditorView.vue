@@ -117,6 +117,10 @@ const proofreadStatus = ref("incomplete");
 //
 // 【腳注 / 連結】                        ~L.1143
 //   insertFootnoteRef  主內文插入腳注引用（TipTap command）
+//   removeFootnote     刪下方那條 → 內文上標跟著消失並整體 -1
+//   syncFootnotesFromDoc  刪內文上標 → 下方那條跟著消失（掛 editor.onUpdate）
+//   renumberFootnotesOnLoad  重新整理後依內文順序把編號收成 1..N
+//   normalizeFootnotes 手動「🔢 重新編號並對齊」，可修復重複／斷號
 //   insertLink / removeLink
 //   insertRaw          插入自訂 HTML 區塊（RawBlock）
 //
@@ -765,6 +769,9 @@ const editor = useEditor({
   content: "",
   onUpdate: ({ editor }) => {
     form.value.content = cleanHTML(editor.getHTML());
+    // 使用者在內文刪掉 <sup> 引用 → 下方腳注清單要跟著消失並重編號。
+    // 延到 microtask 才跑，避免在 ProseMirror 的 dispatch 中再 dispatch。
+    queueMicrotask(syncFootnotesFromDoc);
   },
 });
 
@@ -878,11 +885,15 @@ const loadArticle = async (id) => {
     proofreadAnnotations.value = data.proofread_annotations || [];
     proofreadStatus.value = data.proofread_status || "incomplete";
 
+    fnReady.value = false;   // 灌內文期間先停掉腳注同步，避免誤判成「使用者刪了上標」
     editor.value?.commands.setContent(
       normalizeEmojiVariant(normalizeInlineTags(data.content || "")),
     );
 
     await nextTick();
+    renumberFootnotesOnLoad();   // 重新整理後：依內文出現順序把編號收成 1..N
+    fnReady.value = true;
+
     const rawRemark = form.value.remark;
     const remarkContent = rawRemark.startsWith("<p")
       ? rawRemark
@@ -1117,6 +1128,7 @@ const handleReupload = async (event) => {
     });
 
     const cleanedHtml = doc.body.innerHTML;
+    fnReady.value = false;   // 整批換內文期間停掉腳注同步，免得新腳注被當成孤兒清掉
     editor.value?.commands.setContent(cleanedHtml);
     form.value.content = cleanedHtml;
 
@@ -1124,6 +1136,12 @@ const handleReupload = async (event) => {
       newFootnotes.sort((a, b) => a.id - b.id);
       form.value.footnotes = newFootnotes;
     }
+    await nextTick();
+    lastRefCount = 0;
+    editor.value?.state.doc.descendants((node) => {
+      if (node.type.name === "footnoteRef") lastRefCount += 1;
+    });
+    fnReady.value = true;
 
     alert(
       `✅ 內文已更新！${imageCounter > 0 ? `（偵測到 ${imageCounter} 張圖片佔位）` : ""}請確認後儲存。`,
@@ -1517,13 +1535,95 @@ const insertFootnoteAfter = (afterIndex) => {
   form.value.footnotes.splice(afterIndex + 1, 0, { id: insertId, text: "" });
 };
 
+// ── 內文上標 ↔ 下方腳注清單：即時雙向同步 ─────────────────────────
+// 下方清單刪一條 → 內文上標跟著消失，靠 removeFootnote()；
+// 內文上標刪掉 → 下方那條跟著消失，靠這支（掛在 editor 的 onUpdate）。
+let fnSyncing = false;                 // 防止 dispatch → onUpdate → 再 dispatch 的遞迴
+let lastRefCount = 0;                  // 上一次看到的內文引用數，用來分辨「使用者刪光了」vs「內文根本沒解析出引用」
+const fnReady = ref(false);            // loadArticle 把內文灌進編輯器後才開始同步
+
+// 腳注編號也可能寫在 title / subtitle / author / remark 的 [^N] 簡寫裡（見 house-style §3.2）。
+// 這些欄位的編號不歸編輯器管，只要有就不自動重排，免得把它們的號碼打亂。
+const hasBracketFootnoteRefs = () =>
+  ["title", "subtitle", "author", "author_title", "remark"].some((k) =>
+    /\[\^\d+\]/.test(String(form.value?.[k] ?? "")),
+  );
+
+const syncFootnotesFromDoc = () => {
+  if (fnSyncing || !fnReady.value) return;
+  const editorInst = editor.value;
+  if (!editorInst?.view) return;
+  if (hasBracketFootnoteRefs()) return;
+
+  const { state, view } = editorInst;
+  const refs = [];
+  state.doc.descendants((node, pos) => {
+    if (node.type.name === "footnoteRef") {
+      refs.push({ pos, oldId: String(node.attrs.fnId ?? "").trim() });
+    }
+  });
+
+  const list = form.value.footnotes || [];
+
+  // 已經對齊（數量相同、編號依序 1..N）→ 什麼都不做，一般打字走這條，成本極低
+  const aligned =
+    refs.length === list.length &&
+    refs.every((r, i) => r.oldId === String(list[i]?.id));
+  if (aligned) { lastRefCount = refs.length; return; }
+
+  // 引用比腳注多 ＝ 剛插入或複製貼上，交給 insertFootnoteRef / 手動「重新編號並對齊」
+  if (refs.length > list.length) { lastRefCount = refs.length; return; }
+
+  // 內文一個引用都沒有、而且本來就沒有過 → 這批腳注的編號八成寫在別處（或內文的
+  // <sup> 沒被解析成 footnoteRef，例如 Word 匯入），不要當成「使用者刪光了」而清空。
+  if (refs.length === 0 && lastRefCount === 0) return;
+
+  const textById = {};
+  list.forEach((fn) => { textById[String(fn.id)] = fn.text ?? ""; });
+
+  fnSyncing = true;
+  try {
+    form.value.footnotes = refs.map((r, i) => ({
+      id: i + 1,
+      text: Object.prototype.hasOwnProperty.call(textById, r.oldId) ? textById[r.oldId] : "",
+    }));
+    if (refs.length > 0) {
+      const tr = state.tr;
+      refs.forEach((r, i) => tr.setNodeMarkup(r.pos, undefined, { fnId: String(i + 1) }));
+      view.dispatch(tr);
+    }
+    form.value.content = cleanHTML(editorInst.getHTML());
+    lastRefCount = refs.length;
+  } finally {
+    fnSyncing = false;
+  }
+};
+
+// 載入（重新整理）後自動依內文順序重排編號，把斷號 1、3、7 收成 1、2、3。
+// 有 [^N] 欄位、或有還帶文字的孤兒腳註時不動手，只在 console 提示。
+const renumberFootnotesOnLoad = () => {
+  // 先記下這篇內文實際有幾個引用，之後才分得出「使用者刪光」與「本來就沒有」
+  lastRefCount = 0;
+  editor.value?.state.doc.descendants((node) => {
+    if (node.type.name === "footnoteRef") lastRefCount += 1;
+  });
+  if (hasBracketFootnoteRefs()) return;
+  if (!(form.value.footnotes || []).length) return;
+  fnSyncing = true;
+  try {
+    normalizeFootnotes({ silent: true, abortOnOrphan: true });
+  } finally {
+    fnSyncing = false;
+  }
+};
+
 // ── 重新編號並對齊（Word 式：以內文出現順序為準）──────────────────
 // 走訪 ProseMirror doc，把所有腳注引用依「文件中出現的先後」重編為 1..N，
 // 並據此重建 footnotes 陣列，強制內文上標與下方清單嚴格對齊。
 //   • 複製造成的重複引用 → 各自拆成獨立腳註（文字複製一份）
 //   • 內文已無對應引用的孤兒腳註 → 移除（非空者會列出提示）
 //   • 引用存在但缺對應文字 → 補一條空白腳注待填
-const normalizeFootnotes = ({ silent = false } = {}) => {
+const normalizeFootnotes = ({ silent = false, abortOnOrphan = false } = {}) => {
   const editorInst = editor.value;
   if (!editorInst) return null;
   const { state, view } = editorInst;
@@ -1564,6 +1664,16 @@ const normalizeFootnotes = ({ silent = false } = {}) => {
   const orphanTexts = Object.keys(textById)
     .filter((id) => !usedOldIds.has(id) && (textById[id] || "").trim() !== "")
     .map((id) => textById[id]);
+
+  // 3.5 abortOnOrphan：載入時自動整理用。有「還有文字」的孤兒腳註就整個不動，
+  //     免得使用者一開頁面就被靜默刪掉內容；改在 console 提示他按「重新編號並對齊」。
+  if (abortOnOrphan && orphanTexts.length > 0) {
+    console.warn(
+      `[footnotes] ${orphanTexts.length} 條腳註在內文找不到對應引用，已跳過自動重新編號。` +
+      `請按「🔢 重新編號並對齊」手動處理。`,
+    );
+    return null;
+  }
 
   // 4. 一次 transaction 重設所有引用的 fnId（atom 節點大小不變，位置皆有效）
   if (refs.length > 0) {

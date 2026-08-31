@@ -172,10 +172,24 @@ const e2e = await publishArticle(
 test("publishArticle dry-run 串起全流程", () => {
   assert.equal(e2e.images.length, 1);
   assert.deepEqual(e2e.linkedAuthorIds, [44]);              // 新作者自動連結
-  assert.match(e2e.row.content, /9-3-1\.jpg/);              // 佔位符已換成正規圖 URL
+  assert.match(e2e.row.content, /\[\[圖片1\]\]/);            // 預設保留佔位符，換圖只改 media_assets
+  assert.equal(e2e.mediaRows[0].sort_order, 1);             // 佔位符 N 對得上 sort_order
   assert.equal(e2e.mediaRows.length, 1);
   assert.equal(e2e.subRow.article_id, "9-3父親的祈禱");      // ★ 一定有投稿備份
   assert.equal(e2e.subRow.status, "converted");
+});
+
+// bakeImageUrls:true 才把真實 URL 寫死進 content（舊行為，需明確指定）
+const e2eBaked = await publishArticle(
+  { id: "9-3父親的祈禱", title: "父親的祈禱", author: "龐亮軒", category: "封面故事",
+    section: "主題介紹", content: "<figure><img src=\"[[圖片1]]\"></figure><p>內文</p>",
+    images: [{ src: "/x/woodcut.jpg", seq: 1 }], bakeImageUrls: true,
+    seo: { image: "x" }, is_published: false },
+  { dryRun: true },
+);
+test("bakeImageUrls:true 才寫死 URL", () => {
+  assert.match(e2eBaked.row.content, /9-3-1\.jpg/);
+  assert.doesNotMatch(e2eBaked.row.content, /\[\[圖片/);
 });
 
 test("buildAuthorRow does not null existing identity fields", () => {

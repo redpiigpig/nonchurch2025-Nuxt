@@ -250,6 +250,28 @@ SITE_URL
   `local_python` 模式直接 exec。
 - **限制**：Render 免費版有 15 分鐘冷啟動（第一次下載要等 ~30 秒）。
 
+### ✅ 內文圖片一律用 `[[圖片N]]` 佔位符，不要寫死 URL（2026-08-31）
+- **問題**：`publish_article.mjs` 上架時會把 `[[圖片N]]` 換成真實 Cloudinary URL 寫進
+  `content`。結果換一張圖就得回頭改內文 HTML，刪掉舊圖後內文還會留死連結。
+- **修復**：`publish_article.mjs` 預設**保留佔位符**（要寫死才在 job JSON 加
+  `"bakeImageUrls": true`）。`[[圖片N]]` 的 `N` 對應 `media_assets.sort_order`，
+  前台 `pages/articles/[id].vue`、`EditorView.vue` 的 RawBlock 預覽、
+  `scripts/generate_docx.py` 三邊都會即時解析。
+- **換圖流程**：上新圖 → 改 `media_assets` 那一列的 `cloudinary_id`/`image_url` →
+  Cloudinary 刪舊圖。內文完全不用動。
+
+### ✅ 腳注上標與下方清單雙向同步（2026-08-31）
+- **問題**：在編輯器內文刪掉 `<sup>` 引用，下方腳注清單那一條還在（孤兒）；
+  編號也不會自動收斂，重新整理後仍是 1、3、7 這種斷號。
+- **修復**（`components/EditorView.vue`）：
+  - `syncFootnotesFromDoc()` 掛在主編輯器 `onUpdate`：內文引用變少時，依文件順序
+    重建 footnotes 陣列並把上標重編為 1..N。用 `fnSyncing` 旗標擋
+    dispatch → onUpdate 的遞迴，用 `queueMicrotask` 避免在 dispatch 中再 dispatch。
+  - `renumberFootnotesOnLoad()` 在 `loadArticle` 灌完內文後跑一次，重新整理即重排編號。
+  - 安全閥：`title`/`subtitle`/`author`/`author_title`/`remark` 有 `[^N]` 簡寫時整個不動
+    （那些編號不歸編輯器管）；還帶文字的孤兒腳註不靜默刪除，只在 console 提示按
+    「🔢 重新編號並對齊」；Word 匯入整批換內文期間停用同步。
+
 ### ✅ 腳注編號 bug（`fix(editor)` bd19122）
 - **問題 1**：`insertFootnoteRef` 內 `fn.id += 1` 在 id 是字串時做拼接
   → 6 → 61 → 611 → 6111。

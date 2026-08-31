@@ -133,7 +133,8 @@ node -e "require('dotenv').config({quiet:true});const u=process.env.VITE_SUPABAS
 ```
 
 欄位說明：
-- `images[]`：`src`＝本機圖片路徑，`seq`＝序號（對應 content 內 `[[圖片1]]`）。**內文用 `[[圖片N]]` 佔位符**，腳本上傳後自動換成正規 URL `…/issue-{n}/{issue}-{order}-{seq}.jpg`。也可直接寫死 URL（不寫佔位符）。
+- `images[]`：`src`＝本機圖片路徑，`seq`＝序號（對應 content 內 `[[圖片1]]`，也就是 `media_assets.sort_order`）。圖片上到 `…/issue-{n}/{issue}-{order}-{seq}.jpg`。
+  **內文一律留 `[[圖片N]]` 佔位符，腳本不會把它換成真實 URL**——前台／編輯器／Word 都會依 `media_assets` 即時解析，所以之後換圖只要換 `media_assets`，不必回頭改 content。真的要寫死 URL 才加 `"bakeImageUrls": true`（幾乎用不到）。
 - `newAuthor`：要建新作者才填。`id` 取目前最大 author id + 1（先 `SELECT max(id) FROM authors`）。`avatar` 是大頭貼本機路徑，上傳到 `images/authors/author_{id}.jpg`。腳本會 upsert 作者並把 `id` 加進文章 `linked_author_ids`。已存在的作者改用 `"linked_author_ids": [id]`、不要 `newAuthor`。
 - `sourceDocs[]`：原始 Word/PDF 路徑。會上到 `submissions/issue-{n}/`，`.pdf`→`pdf_url`、其餘→`word_url`。網站來稿已經有 `word_url`/`pdf_url` 就留 `[]`。
 - **`submissionId`：網站投稿轉文章時填那筆的 id**（路線 A）。腳本會改更新那一筆而不是新增，並保留投稿者填的 email / 自介 / 是否首投 / notes / keywords / images。路線 B（編輯部直接上架）留 `null` 或整個省略。
@@ -151,7 +152,7 @@ node scripts/publish_article.mjs scripts/_pub_9-3.json --dry-run
 node scripts/publish_article.mjs scripts/_pub_9-3.json
 ```
 
-腳本依序做：① 內文圖上 Cloudinary（>10MB 自動 ffmpeg 縮到寬 ≤2200）→ ② 換掉 `[[圖片N]]` → ③ upsert 作者 + 連結 → ④ upsert articles → ⑤ 重寫 media_assets → ⑥ **投稿管理備份**。
+腳本依序做：① 內文圖上 Cloudinary（>10MB 自動 ffmpeg 縮到寬 ≤2200）→ ② 內文保留 `[[圖片N]]`（除非 `bakeImageUrls:true`）→ ③ upsert 作者 + 連結 → ④ upsert articles → ⑤ 重寫 media_assets（`sort_order` = `seq`，佔位符靠它解析）→ ⑥ **投稿管理備份**。
 
 ---
 

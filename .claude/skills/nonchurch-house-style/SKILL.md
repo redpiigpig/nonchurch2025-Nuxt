@@ -69,10 +69,16 @@ description: 《無境界者》全刊通用體例規範 — articles 表每個�
 
 ```html
 <figure class="img-bottom px-600">
-  <img src="…" alt="…">
+  <img src="[[圖片1]]" alt="…">
   <figcaption>主要敘述<br>（日期或來源）</figcaption>
 </figure>
 ```
+
+**★ `src` 一律寫 `[[圖片N]]` 佔位符，不要寫死 Cloudinary URL。**
+`N` 對應 `media_assets.sort_order`；前台（`pages/articles/[id].vue`）、編輯器預覽、Word 匯出
+（`scripts/generate_docx.py`）三邊都會即時解析成 `media_assets.image_url`。
+好處是**換圖只要換 `media_assets` 那一列，內文一個字都不用動**；寫死 URL 就得回頭改 content，
+而且刪舊圖後內文會留死連結。`seo.image` 例外——那個欄位吃真實 URL。
 
 | 浮動 class | 用途 | 庫內用量 |
 |---|---|---|
@@ -84,7 +90,19 @@ description: 《無境界者》全刊通用體例規範 — articles 表每個�
 寬度 class：`px-150` ~ `px-800`。
 ⚠️ `px-900` 在 1-7 與 3-11 各用過一次但原本 CSS 沒定義（已於 2026-08-25 補上 `px-850` / `px-900`）。要用超過 800 的先確認 `assets/article.css` 有那一格。
 
-圖說授權標註：`（照片由XXX提供）`、`（圖片來源：XXX）`、`（Gemini 生成圖）`、`（ChatGPT 生成圖）`。外部圖走維基共享資源時標「（攝影：X，授權，圖片來源：維基圖庫連結）」，PD 寫「公有領域」。
+**圖說來源標註（2026-08-31 起，一律用這套，舊稿的長寫法不要跟著學）**：
+
+| 圖從哪來 | 就寫 |
+|---|---|
+| 維基共享資源／維基百科 | `（圖片來源：<a href="圖片頁網址" target="_blank" rel="noopener noreferrer">維基圖庫</a>）` |
+| 其他網站 | `（圖片來源：<a href="網址" target="_blank" rel="noopener noreferrer">某某網站</a>）` |
+| 具體報導裡的圖 | `（圖片來源：作者，〈<a href="網址" …>篇名</a>〉，某某媒體，YYYY.MM.DD）` |
+| 自己人拍的 | `（照片由XXX提供）` |
+| AI 生成 | `（Gemini 生成圖）`／`（ChatGPT 生成圖）` |
+
+★ **不要再寫授權條款與攝影者**——`公有領域`、`CC BY-SA 3.0`、`（攝影：X）` 一律省略，
+連結文字就是站名（維基一律寫「維基圖庫」，不寫「維基共享資源」）。
+只有「具體報導」這一格才補作者／篇名／日期。
 
 大頭照專用外框（**只用在受訪者／作者簡介的大頭照**）：
 
@@ -255,6 +273,8 @@ TipTap 編輯器用 `RawBlock` 把 `<table>` 當不可分割整段，能保留�
 - [ ] 破折號是 `──`，中英之間有空格
 - [ ] 收尾有 🌏
 - [ ] `keyword` 是 `🌿關鍵字：A、B、C、D、E`（🌿 後不空格）
+- [ ] 圖說來源只寫「（圖片來源：<a>站名</a>）」——沒有授權條款、沒有攝影者（見 2.2）
+- [ ] `<img src>` 是 `[[圖片N]]` 佔位符，沒有寫死的 Cloudinary URL
 - [ ] `summary` 沒有以「本期《無境界者》以…為題」開場
 - [ ] subtitle 沒有自己加 `──`
 - [ ] 腳注：content 內用 `<sup>`，title/subtitle/remark 用 `[^N]`
