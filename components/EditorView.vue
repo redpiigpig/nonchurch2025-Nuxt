@@ -1469,9 +1469,10 @@ const insertRaw = (html) => {
 };
 
 // ── 腳注管理 ─────────────────────────────────────────────────────
+// 「+ 新增註腳」＝在游標處插入一個上標，下面自然多出對應的那一條。
+// 內文的上標才是唯一真相來源：只加下面那條會被 syncFootnotesFromDoc 當成孤兒清掉。
 const addFootnote = () => {
-  const newId = form.value.footnotes.length + 1;
-  form.value.footnotes.push({ id: newId, text: "" });
+  insertFootnoteRef();
 };
 
 const removeFootnote = (index) => {
@@ -1506,33 +1507,33 @@ const removeFootnote = (index) => {
   form.value.footnotes.forEach((fn, idx) => { fn.id = idx + 1; });
 };
 
-// 在 afterIndex 之後插入新腳注，並把內文中 >= insertId 的引用號碼全部 +1
+// 在第 afterIndex 條之後插入一條新腳注：直接在內文那個上標的後面插一個新上標，
+// 編號交給 syncFootnotesFromDoc 依文件順序重算，保證上下永遠對得上。
 const insertFootnoteAfter = (afterIndex) => {
-  const insertId = afterIndex + 2;          // 新腳注的 1-based id
-  const prevMax = form.value.footnotes.length;
+  const editorInst = editor.value;
+  if (!editorInst?.view) return;
+  const { state, view } = editorInst;
 
-  // 先更新內文 HTML（從大到小替換，避免 3→4 後又把 4 再替換成 5）
-  if (form.value.content && insertId <= prevMax) {
-    let html = form.value.content;
-    for (let n = prevMax; n >= insertId; n--) {
-      html = html
-        .replaceAll(`#footnote-${n}"`,      `#footnote-${n + 1}"`)
-        .replaceAll(`footnote-ref-${n}"`,   `footnote-ref-${n + 1}"`)
-        .replaceAll(`>${n}</a></sup>`,       `>${n + 1}</a></sup>`);
-    }
-    form.value.content = html;
-    editor.value?.commands.setContent(html);
-  }
-
-  // 遞增後續腳注 id（用 Number 強制數值，避免字串拼接）
-  form.value.footnotes.forEach((fn) => {
-    const n = Number(fn.id) || 0;
-    if (n >= insertId) fn.id = n + 1;
-    else fn.id = n;
+  const refs = [];
+  state.doc.descendants((node, pos) => {
+    if (node.type.name === "footnoteRef") refs.push(pos);
   });
 
-  // 插入新空白腳注
-  form.value.footnotes.splice(afterIndex + 1, 0, { id: insertId, text: "" });
+  const anchor = refs[afterIndex];
+  if (anchor === undefined) {
+    // 內文找不到對應的上標（例如這條本來就是孤兒）→ 退回「在游標處插入」
+    insertFootnoteRef();
+    return;
+  }
+
+  const insertPos = anchor + 1;   // atom 節點大小為 1
+  const node = state.schema.nodes.footnoteRef.create({ fnId: String(afterIndex + 2) });
+  view.dispatch(state.tr.insert(insertPos, node));
+
+  // 陣列先補一條空白，接著由 sync 依內文順序把全部編號收成 1..N
+  form.value.footnotes.splice(afterIndex + 1, 0, { id: afterIndex + 2, text: "" });
+  form.value.footnotes.forEach((fn, i) => { fn.id = i + 1; });
+  queueMicrotask(syncFootnotesFromDoc);
 };
 
 // ── 內文上標 ↔ 下方腳注清單：即時雙向同步 ─────────────────────────
@@ -1541,6 +1542,15 @@ const insertFootnoteAfter = (afterIndex) => {
 let fnSyncing = false;                 // 防止 dispatch → onUpdate → 再 dispatch 的遞迴
 let lastRefCount = 0;                  // 上一次看到的內文引用數，用來分辨「使用者刪光了」vs「內文根本沒解析出引用」
 const fnReady = ref(false);            // loadArticle 把內文灌進編輯器後才開始同步
+
+// 剪下→貼上暫存：上標被剪掉時腳注文字先收在這裡，貼回來（同一個舊編號）就還原。
+// 只留 60 秒，避免久遠的刪除又被莫名其妙塞回來。
+const FN_CLIP_TTL = 60 * 1000;
+const fnClipboard = new Map();         // oldId → { text, at }
+const pruneFnClipboard = () => {
+  const now = Date.now();
+  for (const [k, v] of fnClipboard) if (now - v.at > FN_CLIP_TTL) fnClipboard.delete(k);
+};
 
 // 腳注編號也可能寫在 title / subtitle / author / remark 的 [^N] 簡寫裡（見 house-style §3.2）。
 // 這些欄位的編號不歸編輯器管，只要有就不自動重排，免得把它們的號碼打亂。
@@ -1571,22 +1581,39 @@ const syncFootnotesFromDoc = () => {
     refs.every((r, i) => r.oldId === String(list[i]?.id));
   if (aligned) { lastRefCount = refs.length; return; }
 
-  // 引用比腳注多 ＝ 剛插入或複製貼上，交給 insertFootnoteRef / 手動「重新編號並對齊」
-  if (refs.length > list.length) { lastRefCount = refs.length; return; }
-
   // 內文一個引用都沒有、而且本來就沒有過 → 這批腳注的編號八成寫在別處（或內文的
   // <sup> 沒被解析成 footnoteRef，例如 Word 匯入），不要當成「使用者刪光了」而清空。
   if (refs.length === 0 && lastRefCount === 0) return;
 
-  const textById = {};
-  list.forEach((fn) => { textById[String(fn.id)] = fn.text ?? ""; });
+  pruneFnClipboard();
+
+  // 依「目前清單 → 剪下暫存 → 空白」的順序給每個引用配文字。
+  // 同一個舊編號出現兩次時（剪下後貼在原處附近），第一個吃清單、第二個吃暫存。
+  const pool = new Map();
+  list.forEach((fn) => {
+    const k = String(fn.id);
+    if (!pool.has(k)) pool.set(k, []);
+    pool.get(k).push(fn.text ?? "");
+  });
+
+  const nextFootnotes = refs.map((r, i) => {
+    const bucket = pool.get(r.oldId);
+    if (bucket && bucket.length) return { id: i + 1, text: bucket.shift() };
+    const clipped = fnClipboard.get(r.oldId);
+    if (clipped) { fnClipboard.delete(r.oldId); return { id: i + 1, text: clipped.text }; }
+    return { id: i + 1, text: "" };
+  });
+
+  // 清單裡沒被任何引用認領的（上標被刪掉或剪下）→ 收進暫存，貼回來時還原
+  for (const [oldId, leftovers] of pool) {
+    for (const text of leftovers) {
+      if ((text || "").trim() !== "") fnClipboard.set(oldId, { text, at: Date.now() });
+    }
+  }
 
   fnSyncing = true;
   try {
-    form.value.footnotes = refs.map((r, i) => ({
-      id: i + 1,
-      text: Object.prototype.hasOwnProperty.call(textById, r.oldId) ? textById[r.oldId] : "",
-    }));
+    form.value.footnotes = nextFootnotes;
     if (refs.length > 0) {
       const tr = state.tr;
       refs.forEach((r, i) => tr.setNodeMarkup(r.pos, undefined, { fnId: String(i + 1) }));
@@ -3030,12 +3057,18 @@ const colorLabel = (color) => {
   text-indent: 0;
 }
 
+/* 引言：與前台 assets/article.css 一致——整段退後 2rem，第一行不再額外縮排。
+   border-left 只是編輯器裡的視覺提示，前台沒有。 */
 :deep(.ProseMirror blockquote) {
   border-left: 3px solid #ccc;
-  padding-left: 1.2em;
+  padding: 0 2rem;
   margin: 1em 0;
   color: #555;
   font-family: "DFKai-SB", "標楷體", serif;
+}
+
+:deep(.ProseMirror blockquote p) {
+  text-indent: 0;
 }
 
 :deep(.ProseMirror em) {
