@@ -18,7 +18,7 @@ description: 《無境界者》的 SEO 與五語（en/ja/ko/zh_CN/zh_HK）資料
 | 文章 SEO | `articles.seo`（jsonb） | 見下方「文章 seo 結構」 |
 | 文章多語 | `articles.translations`（jsonb） | `{ <locale>: { title, subtitle, author_display, summary } }` |
 | 文章多語 SEO | `article_seo_translations`（表） | 每篇 **6 個 locale** × `{ og_title, og_description, keywords, description }` |
-| 作者多語 | `authors.translations`（jsonb） | `{ <locale>: { name, bio } }` |
+| 作者多語 | `authors.translations`（jsonb） | `{ <locale>: { name, bio } }`；bio 怎麼寫見 [`nonchurch-house-style` 第十節](../nonchurch-house-style/SKILL.md) |
 | 期刊多語 | `issues.translations`（jsonb） | `{ <locale>: { title, date, intro_home, intro_cfp, cfp_title, cfp_theme } }` |
 
 `article_seo_translations` 的 locale 用 **6 個**：`zh_TW, zh_HK, zh_CN, en, ja, ko`（含原文 zh_TW）。
@@ -95,6 +95,10 @@ description: 《無境界者》的 SEO 與五語（en/ja/ko/zh_CN/zh_HK）資料
 | 青鳥行動 | the Bluebird Movement | 青鳥運動 | 블루버드 운동 |
 | 太陽花學運 | the Sunflower Movement | ひまわり学生運動 | 해바라기 학생운동 |
 | 反送中 | the anti-extradition protests | 逃亡犯条例改正案反対デモ（反送中） | 반송중 시위 |
+| 台灣神學院 | Taiwan Theological College and Seminary | 台湾神学院 | 대만신학원 |
+| 《新使者》 | New Messenger | 『新使者』 | 『신사자』 |
+| 大專神研班 | the student theological camps | 大学生「神研班」 | 대학생 신학연구반 |
+| 普世教會協會（WCC） | the World Council of Churches | 世界教会協議会（WCC） | 세계교회협의회(WCC) |
 
 > 新增固定譯名時補進本表，讓後續一致。
 
