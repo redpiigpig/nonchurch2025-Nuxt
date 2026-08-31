@@ -118,6 +118,11 @@ style="border: 1px solid #000; outline: 4.5px solid #000; outline-offset: 1px;"
 | `<blockquote>` | 一般引文 | 96 |
 | `<div class="indented-quote">` | 經文整段縮排引用（詩體直接換行，不需 `<br>`） | 10 |
 
+一般引文一律寫成 `<blockquote><p>…</p></blockquote>`，出處放 `<div class="rel">──出處</div>`。
+版面上它是**整段左右各退 2rem，第一行不再額外空兩格**（`assets/article.css` 的
+`blockquote { padding: 0 2rem }` ＋ `blockquote p { text-indent: 0 }`；編輯器與 Word 匯出同此）。
+所以 content 裡**不要自己補全形空白**來製造縮排。
+
 ### 2.4 方塊
 
 | Class | 用途 | 結構 |
