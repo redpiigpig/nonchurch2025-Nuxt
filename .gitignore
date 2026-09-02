@@ -58,3 +58,8 @@ data/reference/
 
 # upload-article skill - 文章上架描述檔（含本機圖片路徑，不 push）
 scripts/_pub_*.json
+
+# 環境變數（絕不進版控）
+.env
+.env.*
+!.env.example
