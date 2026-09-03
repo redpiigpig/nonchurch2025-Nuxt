@@ -180,8 +180,20 @@ TipTap 編輯器用 `RawBlock` 把 `<table>` 當不可分割整段，能保留�
 ### 3.1 content 內 → 寫完整 HTML
 
 ```html
-…需要註解處<sup class="footnote-ref"><a href="#footnote-1" id="footnote-ref-1">1</a></sup>。
+…需要註解的那句話。<sup class="footnote-ref"><a href="#footnote-1" id="footnote-ref-1">1</a></sup>
 ```
+
+**★ 上標的位置：放在標點符號「後面」，而且盡量放在整句句末。**
+
+| | 寫法 |
+|---|---|
+| ✅ 句末句號之後 | `…彷彿只要深呼吸、講道理、多溝通，一切就能解決。<sup>7</sup>` |
+| ❌ 標點之前 | `…一切就能解決<sup>7</sup>。` |
+| ❌ 黏在句中逗號前 | `…BDSM 裡的權力交換關係<sup>6</sup>，以及那些還沒有名字的關係。` → 應挪到該句句末 |
+
+**唯一例外**：要特別標註某個人名、書名或術語，而該詞附近沒有標點符號時，才緊貼在該詞後面。
+
+上架前掃一次：抓出每個 `<sup class="footnote-ref">`，看緊接其後的字元——是 `。？！` 就與上標對調；是 `，、；：` 就把上標挪到該句句末。
 
 ### 3.2 title / subtitle / author / author_title / remark → 寫 `[^N]` 簡寫
 
@@ -283,6 +295,7 @@ TipTap 編輯器用 `RawBlock` 把 `<table>` 當不可分割整段，能保留�
 - [ ] `summary` 沒有以「本期《無境界者》以…為題」開場
 - [ ] subtitle 沒有自己加 `──`
 - [ ] 腳注：content 內用 `<sup>`，title/subtitle/remark 用 `[^N]`
+- [ ] **腳注上標在標點之後、且落在句末**（見 3.1）
 - [ ] 年表用 `timeline-table` 且有 `<colgroup>`
 - [ ] **跑一次 `�`（U+FFFD）掃描**——Word 匯入路徑會壞字，每期上架後都要掃（memory `project_import_mojibake`）
 - [ ] `is_published=false` → 預覽 `/articles/{id}` → 校對 → 才開 `true`
