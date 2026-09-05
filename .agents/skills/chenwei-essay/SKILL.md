@@ -108,26 +108,42 @@ Claude **不要**代筆正文，也**不要**「先寫一版給 Gemini 參考」
 
 ### 怎麼呼叫 Gemini
 
-**API 目前不通**。2026-09-03 實測 `.env` 的 `GEMINI_API_KEYS` 共 8 把：5 把回 429「prepayment credits are depleted」、3 把回 400「API key not valid」；`gemini-2.5-pro` 另回 404，已不對新用戶開放（另見 memory `project_transcribe_fallback`）。
+**API 已恢復（2026-09-05）**。`.env` 的 `GEMINI_API_KEYS` 換成 7 把可用金鑰，主力模型 `gemini-3.5-flash`。**只從 `process.env` 讀，不要把金鑰寫進任何檔案或程式碼**（見 CLAUDE.md 第一節）。
 
-所以現況走**人工轉貼**：
+免費層的限制與對策：
 
-1. Claude 把寫作簡報寫成 `.md` 檔（放 `temp/`，不要留在專案根目錄）
-2. 使用者貼進 Gemini 網頁版，取回草稿
-3. 使用者把草稿丟回來，Claude 做事實複核＋套體例＋上架
+| 症狀 | 意思 | 怎麼辦 |
+|---|---|---|
+| 429 `prepayment credits are depleted` | 那個 AI Studio 專案已切付費層且額度歸零 | 這把金鑰報廢，換專案重開 |
+| 429 `GenerateRequestsPerDayPerModel-FreeTier` | 該金鑰**該模型**的當日免費額度用完 | **換模型**就有新額度：`gemini-3.5-flash` → `gemini-3-flash-preview` → `gemini-2.5-flash` |
+| 503 `high demand` | 模型忙碌，暫時性 | 換一把金鑰重試即可 |
+| 400 `API key not valid` | 金鑰已失效 | 從 `.env` 移掉 |
 
-金鑰恢復後改走 API（`gemini-2.5-flash`）。**只從 `process.env` 讀，不要把金鑰寫進任何檔案**（見 CLAUDE.md 第一節）：
+所以呼叫端要同時輪替**金鑰 × 模型**，逐組重試：
 
 ```js
 const keys = (process.env.GEMINI_API_KEYS || '').split(',').map(s => s.trim()).filter(Boolean);
-for (const key of keys) {                     // 逐把試，遇 429／400 就換下一把
+const models = ['gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-2.5-flash'];
+const pairs = models.flatMap(m => keys.map(k => [k, m]));
+for (const [key, model] of pairs) {
   const r = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + key,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: brief }] }] }) });
   if (r.status === 200) { /* j.candidates[0].content.parts[0].text */ break; }
 }
 ```
+
+★ **`gemini-2.5-flash` 之類的舊模型會吐簡體字**，提示詞要明寫「一律繁體中文（台灣用語）」，回稿後再掃一次簡體。
+
+★ **改寫既有文章時要分段送、逐段驗**（2026-09-05 改寫 10-1／10-10／10-11／10-14 的實作，腳本在 `temp/gem/`）：
+把 content 切成頂層區塊，`<figure>`／`<blockquote>`／`book-box`／`indented-quote`／表格／小標**凍結不送**（引文與經文一個字都不能動），
+其餘段落以 `<Pn>` 編號成批送出、要求原號原序回傳，回稿逐項驗：
+段落數、`<sup class="footnote-ref">` 腳注編號集合、`[[圖片N]]` 佔位符、`<a href>`、最外層標籤、每段字數 ±8%、簡體字、禁用語。
+不合格就把退稿理由附回去重送，三次不過就保留原文那一批。
+
+★ **聲線規格別把連接詞寫成硬指標**。把「因此」寫成「全篇 9～24 次」的結果是模型每段都用（實測灌到 30～44 次），
+要寫成「每千字最多一次」，並在改寫後補一道潤稿 pass 把浮濫的連接詞與過長句子收掉。
 
 ### 回稿之後，Claude 一定要做的事
 
