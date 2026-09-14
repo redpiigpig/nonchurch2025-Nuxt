@@ -130,6 +130,7 @@ function formatDate(iso) {
 // TAB 2：紙本訂閱者
 // ════════════════════════════════════════════════════════════════
 const printSubscribers = ref([]);
+const issue9Orders = ref([]);
 const printLoading = ref(true);
 const printSearch = ref("");
 const printFilterSubType = ref("");
@@ -139,25 +140,62 @@ onMounted(fetchPrint);
 
 async function fetchPrint() {
   printLoading.value = true;
-  const { data, error } = await supabase
-    .from("print_subscribers")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (!error) printSubscribers.value = data || [];
+  // 兩個來源：紙本訂閱表單（print_subscribers）＋第九期匯款訂購（issue_9_payment_orders，
+  // 後者有 RLS，只能走帶 service key 的後端 API）
+  const [formRes, orderRes] = await Promise.all([
+    supabase.from("print_subscribers").select("*").order("created_at", { ascending: false }),
+    $fetch("/api/issue-9-payment-orders").catch(() => ({ orders: [] })),
+  ]);
+  if (!formRes.error) {
+    printSubscribers.value = (formRes.data || []).map((s) => ({
+      ...s,
+      _key: `p-${s.id}`,
+      _source: "form",
+    }));
+  }
+  {
+    // 第九期的匯款表單沒有收地址／電話，寄送資料要另外跟訂購者要
+    issue9Orders.value = (orderRes?.orders || []).map((o) => ({
+      _key: `i9-${o.id}`,
+      _source: "issue9",
+      id: o.id,
+      created_at: o.created_at,
+      email: o.email,
+      recipient_name: o.name,
+      reader_name: o.name,
+      sub_type: "第九期匯款訂購",
+      issues: ["第九期"],
+      address: "",
+      phone: "",
+      note: o.note,
+      message: o.message,
+      copies: o.copies,
+      amount: o.amount,
+      last5: o.last5,
+      confirmed: o.confirmed,
+      confirmed_at: o.confirmed_at,
+    }));
+  }
   printLoading.value = false;
 }
 
+const printAll = computed(() =>
+  [...issue9Orders.value, ...printSubscribers.value].sort((a, b) =>
+    String(b.created_at || "").localeCompare(String(a.created_at || ""))
+  )
+);
+
 const printStats = computed(() => {
-  const total = printSubscribers.value.length;
+  const total = printAll.value.length;
   const subTypeCount = {};
-  for (const s of printSubscribers.value) {
+  for (const s of printAll.value) {
     if (s.sub_type) subTypeCount[s.sub_type] = (subTypeCount[s.sub_type] || 0) + 1;
   }
   return { total, subTypeCount };
 });
 
 const printFiltered = computed(() => {
-  return printSubscribers.value.filter((s) => {
+  return printAll.value.filter((s) => {
     if (printSearch.value) {
       const q = printSearch.value.trim().toLowerCase();
       const hay = `${s.email || ""} ${s.recipient_name || ""} ${s.reader_name || ""} ${s.phone || ""}`.toLowerCase();
@@ -178,11 +216,13 @@ async function deletePrintSubscriber(id) {
 
 function exportPrintCsv() {
   const header = [
-    "ID", "訂閱時間", "Email", "訂閱方式", "期數",
+    "來源", "ID", "訂閱時間", "Email", "訂閱方式", "期數",
     "收件人姓名", "收件地址", "聯絡電話", "寄送備註",
     "讀者姓名", "性別", "年齡層", "信仰背景", "得知來源", "留言",
+    "訂購本數", "金額", "帳號後五碼", "收款狀態",
   ];
   const rows = printFiltered.value.map((s) => [
+    s._source === "issue9" ? "第九期匯款" : "訂閱表單",
     s.id,
     s.created_at ? s.created_at.slice(0, 10) : "",
     s.email || "",
@@ -198,6 +238,10 @@ function exportPrintCsv() {
     `"${(s.faith_background || "").replace(/"/g, '""')}"`,
     `"${(s.how_found || "").replace(/"/g, '""')}"`,
     `"${(s.message || "").replace(/"/g, '""')}"`,
+    s.copies ?? "",
+    s.amount ?? "",
+    s.last5 || "",
+    s._source === "issue9" ? (s.confirmed ? "已確認收款" : "待確認") : "",
   ]);
   const csvContent = "﻿" + [header, ...rows].map((r) => r.join(",")).join("\n");
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -344,7 +388,7 @@ async function sendAll() {
         @click="activeTab = 'print'"
       >
         📦 紙本訂閱者
-        <span class="tab-badge">{{ printSubscribers.length }}</span>
+        <span class="tab-badge">{{ printAll.length }}</span>
       </button>
       <button
         :class="['tab-btn', { active: activeTab === 'compose' }]"
@@ -509,31 +553,32 @@ async function sendAll() {
 
       <div v-if="printLoading" class="loading-msg">載入中…</div>
       <div v-else-if="printFiltered.length === 0" class="empty-msg">
-        {{ printSubscribers.length === 0 ? "尚無紙本訂閱者" : "找不到符合條件的紙本訂閱者" }}
+        {{ printAll.length === 0 ? "尚無紙本訂閱者" : "找不到符合條件的紙本訂閱者" }}
       </div>
 
       <div v-else class="subscriber-list">
         <div
           v-for="s in printFiltered"
-          :key="s.id"
+          :key="s._key"
           class="subscriber-card"
         >
-          <div class="card-header" @click="printExpandedId = printExpandedId === s.id ? null : s.id">
+          <div class="card-header" @click="printExpandedId = printExpandedId === s._key ? null : s._key">
             <div class="card-main">
               <span class="s-name">{{ s.recipient_name }}</span>
               <span class="s-tags">
                 <span class="tag age">{{ s.sub_type }}</span>
                 <span v-if="s.issues && s.issues.length" class="tag gender">{{ s.issues.length }} 期</span>
+                <span v-if="s._source === 'issue9'" class="tag age">{{ s.copies }} 本 · {{ s.confirmed ? "已收款" : "待確認" }}</span>
               </span>
             </div>
             <div class="card-meta">
               <span class="s-email">{{ s.email }}</span>
               <span class="s-date">{{ formatDate(s.created_at) }}</span>
             </div>
-            <span class="expand-icon">{{ printExpandedId === s.id ? "▲" : "▼" }}</span>
+            <span class="expand-icon">{{ printExpandedId === s._key ? "▲" : "▼" }}</span>
           </div>
 
-          <div v-if="printExpandedId === s.id" class="card-detail">
+          <div v-if="printExpandedId === s._key" class="card-detail">
             <div class="detail-row">
               <span class="detail-label">訂閱方式</span>
               <span class="detail-val">{{ s.sub_type }}</span>
@@ -542,13 +587,33 @@ async function sendAll() {
               <span class="detail-label">期數</span>
               <span class="detail-val">{{ s.issues.join("、") }}</span>
             </div>
+            <template v-if="s._source === 'issue9'">
+              <div class="detail-row">
+                <span class="detail-label">訂購本數 / 金額</span>
+                <span class="detail-val">{{ s.copies }} 本 / NT$ {{ Number(s.amount || 0).toLocaleString("zh-TW") }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">帳號後五碼</span>
+                <span class="detail-val">{{ s.last5 || "—" }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">收款狀態</span>
+                <span class="detail-val">
+                  {{ s.confirmed ? `已確認收款（${formatDate(s.confirmed_at)}）` : "待確認" }}
+                </span>
+              </div>
+            </template>
             <div class="detail-row">
               <span class="detail-label">收件地址</span>
-              <span class="detail-val">{{ s.address }}</span>
+              <span class="detail-val">
+                {{ s.address || (s._source === "issue9" ? "—（匯款表單未收集，須另外向訂購者索取）" : "—") }}
+              </span>
             </div>
             <div class="detail-row">
               <span class="detail-label">聯絡電話</span>
-              <span class="detail-val">{{ s.phone }}</span>
+              <span class="detail-val">
+                {{ s.phone || (s._source === "issue9" ? "—（匯款表單未收集）" : "—") }}
+              </span>
             </div>
             <div class="detail-row" v-if="s.note">
               <span class="detail-label">寄送備註</span>
@@ -558,11 +623,11 @@ async function sendAll() {
               <span class="detail-label">讀者姓名</span>
               <span class="detail-val">{{ s.reader_name }}</span>
             </div>
-            <div class="detail-row">
+            <div class="detail-row" v-if="s._source !== 'issue9'">
               <span class="detail-label">性別 / 年齡</span>
               <span class="detail-val">{{ s.gender }} / {{ s.age_group }}</span>
             </div>
-            <div class="detail-row">
+            <div class="detail-row" v-if="s._source !== 'issue9'">
               <span class="detail-label">信仰背景</span>
               <span class="detail-val">{{ s.faith_background || "—" }}</span>
             </div>
@@ -575,7 +640,12 @@ async function sendAll() {
               <span class="detail-val msg">{{ s.message }}</span>
             </div>
             <div class="card-actions">
-              <button class="btn-delete" @click="deletePrintSubscriber(s.id)">刪除</button>
+              <NuxtLink
+                v-if="s._source === 'issue9'"
+                class="btn-export"
+                :to="`/admin/issue-9-payments?order=${s.id}`"
+              >前往第九期匯款訂購管理</NuxtLink>
+              <button v-else class="btn-delete" @click="deletePrintSubscriber(s.id)">刪除</button>
             </div>
           </div>
         </div>
