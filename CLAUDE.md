@@ -33,6 +33,23 @@ AI 獲得**明確授權**可以直接讀取 `.env` 並操作下列資源（登�
 - 核心頁面：期刊瀏覽、文章閱讀、投稿系統
 - 管理後台：`/admin/`、`/admin/editor/`、`/admin/submissions_manager/` 等
 
+### 姊妹專案：know-graph-lab（學術寫作端）
+
+`C:\Users\user\Desktop\know-graph-lab` 是另一個獨立 repo。本專案的**龐會督典藏**
+（`/pong-archive`、`pong_*` 各表）是那邊一篇研討會論文的一手史料來源：
+〈龐君華會督的衛斯理神學實踐與「新修道主義」願景〉（台灣宗教學會 2026 年會投稿，
+`public/content/works/pong-pastoral-spirituality-revision-draft.md`，作法見
+`.claude/skills/works-research-review/SKILL.md`）。
+
+- 動 `pong_writings` 的 `page_range`／`publication`／`published_date` 前請留意：**論文的
+  徵引書目直接照抄這些欄位**，改了要通知那邊重出 Word。
+- 典藏**尚未對外公開**，論文書目因此只寫「數位典藏（尚未公開），文稿／影音編號 N」不掛 URL；
+  哪天公開了要回頭把連結補上。
+- 《無境界者》Vol.9 的篇目頁碼（口訪 28–47／48–64／65–83、編輯室報告 4–17、年表 11–17）
+  是從 `issues.pdf_link` 的 Vol.9.pdf 目次與印刷頁碼讀出來的，論文註釋照此引用。
+  🚨 那份合併 PDF **缺頁**：印刷頁 156–175（15 我的循道宗史、16 前半）不在檔案裡。
+
+
 ---
 
 ## 一、必讀參考檔案
