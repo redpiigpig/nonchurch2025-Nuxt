@@ -200,37 +200,48 @@ def _full_text_of(p_element):
     return "".join((t.text or "") for t in p_element.iter(qn("w:t")))
 
 
-def _display_width(text):
-    """半形為 1、全形（CJK、全形標點）為 2 的粗略字寬，用來補齊頁首底線長度。"""
-    w = 0
-    for ch in text:
-        w += 2 if ord(ch) > 0x2000 else 1
-    return w
+HEADER_TAB_TWIPS = 3800   # 與第九期定稿、generate_docx.py 的偶數頁頁首相同
 
 
-def _rebuild_paragraph_text(p_element, new_text, keep_padding=False):
+def _set_tab_stop(p_element, pos_twips=HEADER_TAB_TWIPS):
+    """設一個 left tab stop，讓 run 結尾的 <w:tab/> 把底線拉到固定寬度。
+
+    ⚠ `<w:tabs>` 在 CT_PPrBase 裡有固定順序（必須排在 spacing / ind / jc / rPr 之前），
+    直接 append 到 pPr 尾端 Word 會整個忽略，底線就只有標題本身那麼長。
+    """
+    pPr = p_element.find(qn("w:pPr"))
+    if pPr is None:
+        pPr = OxmlElement("w:pPr")
+        p_element.insert(0, pPr)
+    for old in pPr.findall(qn("w:tabs")):
+        pPr.remove(old)
+    tabs = OxmlElement("w:tabs")
+    tab = OxmlElement("w:tab")
+    tab.set(qn("w:val"), "left")
+    tab.set(qn("w:pos"), str(pos_twips))
+    tabs.append(tab)
+    idx = 1 if pPr.find(qn("w:pStyle")) is not None else 0
+    pPr.insert(idx, tabs)
+
+
+def _rebuild_paragraph_text(p_element, new_text, with_tab=False):
     """整段重寫：保留 pPr 與第一個 run 的 rPr，刪除其他 runs 與 hyperlink。
 
-    keep_padding=True 時，保留原段落前後的空白，並依新舊文字的字寬差調整
-    尾端空白數量——頁首第二行（期主題）的底線就是靠這串空白畫出來的，
-    若直接換成新標題，底線會跟著標題長度忽長忽短，與上一行刊頭對不齊。
+    with_tab=True 時在文字後補一個 tab（並設好 tab stop）——頁首第二行的底線
+    就是這樣拉到與刊頭同寬的，不然底線會跟著期主題的長度忽長忽短。
     """
     rPr_clone = first_run_rPr_clone(p_element)
-    if keep_padding:
-        full = _full_text_of(p_element)
-        lead = full[:len(full) - len(full.lstrip(" 　"))]
-        trail = full[len(full.rstrip(" 　")):]
-        old_core = full.strip(" 　")
-        delta = _display_width(new_text) - _display_width(old_core)
-        trail_len = max(2, len(trail) - delta)
-        new_text = "{}{}{}".format(lead, new_text, " " * trail_len)
     for child in list(p_element):
         if child.tag in (qn("w:r"), qn("w:hyperlink"), qn("w:smartTag")):
             p_element.remove(child)
-    p_element.append(build_run(new_text, rPr_clone))
+    run = build_run(new_text, rPr_clone)
+    if with_tab:
+        _set_tab_stop(p_element)
+        run.append(OxmlElement("w:tab"))
+    p_element.append(run)
 
 
-def patch_header_paragraphs(hdr_element, anchor_substring, new_text, keep_padding=False):
+def patch_header_paragraphs(hdr_element, anchor_substring, new_text, with_tab=False):
     """對 hdr 內所有「leaf paragraph」（不含巢狀 <w:p>）做替換。
 
     跳過容器段（textbox 外層的 <w:p>），避免把整個 textbox 結構連同子段一起吃掉。
@@ -242,7 +253,7 @@ def patch_header_paragraphs(hdr_element, anchor_substring, new_text, keep_paddin
             continue
         full = _full_text_of(p)
         if anchor_substring in full:
-            _rebuild_paragraph_text(p, new_text, keep_padding=keep_padding)
+            _rebuild_paragraph_text(p, new_text, with_tab=with_tab)
             count += 1
     return count
 
@@ -306,9 +317,8 @@ def patch_meta_headers(doc, issue, article_id, label):
             if masthead:
                 patch_header_paragraphs(hdr_el, "Vol.", masthead)
             if issue_title:
-                # 偶數頁第二行：期主題後面的空白要留著（底線就是靠它畫的），
-                # 並依標題字數調整，讓底線長度與上一行刊頭維持一致
-                patch_header_paragraphs(hdr_el, "火燒島上的", issue_title, keep_padding=True)
+                # 偶數頁第二行：期主題 + tab，底線一路畫到 tab stop（與第九期定稿相同）
+                patch_header_paragraphs(hdr_el, "火燒島上的", issue_title, with_tab=True)
             if seq_label:
                 patch_header_paragraphs(hdr_el, label, seq_label)
 
