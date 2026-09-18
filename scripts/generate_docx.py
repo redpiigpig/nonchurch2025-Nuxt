@@ -1640,10 +1640,13 @@ class ProfessionalDocxGenerator:
         self._apply_font(run, 'Times New Roman', 'NSimSun', size=13, bold=True)
 
         for line in body_text.split('\n'):
-            line = line.strip()
+            # 內文常自己寫了「•&nbsp;&nbsp;」，要解實體字元並拔掉，否則會印成兩個黑點
+            line = _html_mod.unescape(line).replace(' ', ' ').strip()
+            line = re.sub(r'^[•●]\s*', '', line).strip()
             if line:
                 p = _ref_para()
-                run = p.add_run('• ' + line)
+                self._set_paragraph_num(p, 2, '0')   # 與編輯室報告同一種 Word 清單黑點
+                run = p.add_run(line)
                 self._apply_font(run, 'Times New Roman', 'NSimSun', size=11)
 
         self._add_blank_line()
@@ -2468,24 +2471,13 @@ class ProfessionalDocxGenerator:
         return False
 
     def _add_bullet_line(self, text):
-        """項目列表：●／&#9679; 開頭。編輯室報告整篇都用 Word「List Paragraph」+ 大圓點
-        （原本只有主題圖之前那份清單是這個格式，主題圖之後的各節清單會退回 •，兩種混在同一篇）；
-        其餘文章仍為 • + 左縮排 24pt。"""
+        """項目列表：●／&#9679; 開頭。一律用 Word「List Paragraph」+ 大圓點，
+        與編輯室報告一致（以前非編輯室報告是自己打一個「• 」加左縮排，兩種黑點混用）。"""
         text = _html_mod.unescape(text)
-        if getattr(self, 'is_editorial_report', False):
-            p = self.doc.add_paragraph(style='List Paragraph')
-            p.paragraph_format.space_before = Pt(0)
-            p.paragraph_format.space_after = Pt(0)
-            self._set_paragraph_num(p, 2, '0')
-            self._add_inline(p, text)
-            return
-        p = self.doc.add_paragraph()
+        p = self.doc.add_paragraph(style='List Paragraph')
         p.paragraph_format.space_before = Pt(0)
         p.paragraph_format.space_after = Pt(0)
-        p.paragraph_format.left_indent = Pt(24)
-        p.paragraph_format.first_line_indent = Pt(0)
-        bullet_run = p.add_run('• ')
-        self._apply_font(bullet_run, 'Times New Roman', 'NSimSun', size=11)
+        self._set_paragraph_num(p, 2, '0')
         self._add_inline(p, text)
 
     def _process_line(self, line):
