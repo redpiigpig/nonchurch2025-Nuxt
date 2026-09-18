@@ -3069,7 +3069,13 @@ def generate_issue_docx(articles_list, output_path):
     p0.add_run('\u00a0')
     _sect_pr_add_footnote_restart(gen.doc.sections[0]._sectPr)
 
+    META_TYPES = ('submission_info', 'editorial_info')
     for article_data in articles_list:
+        # 投稿資訊／編輯資訊是用 docx 模板另外產（render_meta_docx.py），
+        # 它們的 payload 沒有 content、issue 還是整個 dict，混進來會變成
+        # 「無標題」空白頁與頁首印出整包 dict，直接跳過。
+        if article_data.get('article_type') in META_TYPES:
+            continue
         gen.doc.add_section(WD_SECTION_START.NEW_PAGE)
         sec = gen.doc.sections[-1]
         _unlink_section_hdr_ftr(sec)

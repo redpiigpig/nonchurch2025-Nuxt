@@ -536,7 +536,8 @@ const generateTocHTML = (issueArticles) => {
     }
     const seqStr = String(a.tocSeq).padStart(2, "0");
     const color = a.category ? (TOC_CATEGORY_COLORS[a.category] || "#000000") : null;
-    const catTag = a.category
+    // 「編輯資訊」只是後台分類，目次不印
+    const catTag = a.category && a.category !== "編輯資訊"
       ? `<span class="toc-cat" style="color:${color};font-size:10pt">【${escapeHtml(a.category)}】</span>`
       : "";
     const subtitlePart = a.subtitle ? `<br>──${escapeHtml(a.subtitle)}` : "";
