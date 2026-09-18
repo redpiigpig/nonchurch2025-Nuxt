@@ -3058,6 +3058,12 @@ def generate_issue_docx(articles_list, output_path):
     gen = ProfessionalDocxGenerator()
     gen.doc.settings.odd_and_even_pages_header_footer = True
 
+    # 整期共用的期主題／期數／日期：某些篇（例如目次）client 端不一定會帶，
+    # 缺的時候拿同一批其他文章的值補，不要落到寫死的舊期標題
+    issue_title_fb = next((a.get('issue_title') for a in articles_list if a.get('issue_title')), '')
+    issue_no_fb    = next((a.get('issue') for a in articles_list if a.get('issue')), 7)
+    issue_date_fb  = next((a.get('issue_date') for a in articles_list if a.get('issue_date')), None)
+
     # 第一節：僅預留首頁（目次／第一篇自下一節起）
     p0 = gen.doc.add_paragraph()
     p0.add_run('\u00a0')
@@ -3071,11 +3077,11 @@ def generate_issue_docx(articles_list, output_path):
         _apply_article_body(gen, article_data)
         gen.add_header_footer(
             sec,
-            article_data.get('issue', 7),
-            article_data.get('issue_title', '') or '火燒島上的《耶穌傳》',
+            article_data.get('issue') or issue_no_fb,
+            article_data.get('issue_title') or issue_title_fb or '火燒島上的《耶穌傳》',
             article_data.get('id', ''),
             article_data.get('title', '無標題'),
-            issue_date=article_data.get('issue_date'),
+            issue_date=article_data.get('issue_date') or issue_date_fb,
         )
 
     gen.save(output_path)
