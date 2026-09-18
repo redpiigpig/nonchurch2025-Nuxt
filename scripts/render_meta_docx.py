@@ -397,16 +397,31 @@ def to_zh_issue_num(idv):
 
 
 def format_publish_date(raw):
-    """'2026年03-04月號' / '2026.04' → '2026年3月'"""
+    """版權頁出版日期：雙月刊一律取雙數月。
+
+    '2026年07-08月號' → '2026年8月'；'2026年03-04月號' → '2026年4月'；
+    只給單月時，奇數月進位成該雙月期的雙數月（'2026.07' → '2026年8月'）。
+    """
     if not raw:
         return ""
     import re
+
+    def even(mo):
+        mo = int(mo)
+        return mo if mo % 2 == 0 else mo + 1
+
+    m = re.search(r"(\d{4})年(\d{1,2})-(\d{1,2})月", raw)
+    if m:
+        return "{}年{}月".format(m.group(1), even(m.group(3)))
+    m = re.search(r"(\d{4})[.\-/](\d{1,2})-(\d{1,2})", raw)
+    if m:
+        return "{}年{}月".format(m.group(1), even(m.group(3)))
     m = re.search(r"(\d{4})年(\d{1,2})", raw)
     if m:
-        return "{}年{}月".format(m.group(1), int(m.group(2)))
-    m = re.search(r"(\d{4})\.(\d{1,2})", raw)
+        return "{}年{}月".format(m.group(1), even(m.group(2)))
+    m = re.search(r"(\d{4})[.\-/](\d{1,2})", raw)
     if m:
-        return "{}年{}月".format(m.group(1), int(m.group(2)))
+        return "{}年{}月".format(m.group(1), even(m.group(2)))
     return raw
 
 
