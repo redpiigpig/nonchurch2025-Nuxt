@@ -1571,11 +1571,23 @@ const syncFootnotesFromDoc = () => {
 
   const { state, view } = editorInst;
   const refs = [];
+  let rawRefCount = 0;
   state.doc.descendants((node, pos) => {
     if (node.type.name === "footnoteRef") {
       refs.push({ pos, oldId: String(node.attrs.fnId ?? "").trim() });
+      return;
+    }
+    // rawBlock（引文方塊／圖說／表格）裡的上標也要算，否則像編輯室報告題辭
+    // 那種把上標放在 .book-quote 裡的文章，會一直被當成「內文沒有引用」
+    if (node.type.name === "rawBlock") {
+      const html = String(node.attrs.html || "");
+      [...html.matchAll(/id=["']footnote-ref-(\d+)["']/g)].forEach((m, i) => {
+        refs.push({ pos: pos + (i + 1) / 1000, oldId: m[1], raw: true });
+        rawRefCount += 1;
+      });
     }
   });
+  refs.sort((a, b) => a.pos - b.pos);
 
   const list = form.value.footnotes || [];
 
@@ -1588,6 +1600,10 @@ const syncFootnotesFromDoc = () => {
   // 內文一個引用都沒有、而且本來就沒有過 → 這批腳注的編號八成寫在別處（或內文的
   // <sup> 沒被解析成 footnoteRef，例如 Word 匯入），不要當成「使用者刪光了」而清空。
   if (refs.length === 0 && lastRefCount === 0) return;
+
+  // rawBlock 內的上標編輯器改寫不了，編號沒對齊時交給「🔢 重新編號並對齊」處理，
+  // 這裡不要自動動手，免得改了陣列卻改不了內文
+  if (rawRefCount > 0) { lastRefCount = refs.length; return; }
 
   pruneFnClipboard();
 
@@ -1660,12 +1676,26 @@ const normalizeFootnotes = ({ silent = false, abortOnOrphan = false } = {}) => {
   const { state, view } = editorInst;
 
   // 1. 依文件順序收集所有腳注引用節點
+  //    rawBlock（book-quote／indented-quote／figure／table 這些不可分割區塊）裡也可能有
+  //    上標——ProseMirror 看不到它們，但 content 裡確實存在（例如編輯室報告題辭的出處）。
+  //    不一起算的話，會誤判成「內文沒有任何引用」，甚至把那些腳註當孤兒清掉。
   const refs = [];
+  let rawRefCount = 0;
   state.doc.descendants((node, pos) => {
     if (node.type.name === "footnoteRef") {
-      refs.push({ pos, oldId: String(node.attrs.fnId ?? "").trim() });
+      refs.push({ pos, oldId: String(node.attrs.fnId ?? "").trim(), raw: false });
+      return;
+    }
+    if (node.type.name === "rawBlock") {
+      const html = String(node.attrs.html || "");
+      [...html.matchAll(/id=["']footnote-ref-(\d+)["']/g)].forEach((m, i) => {
+        // 同一個 rawBlock 內的多個上標用小數維持先後順序
+        refs.push({ pos: pos + (i + 1) / 1000, oldId: m[1], raw: true });
+        rawRefCount += 1;
+      });
     }
   });
+  refs.sort((a, b) => a.pos - b.pos);
 
   // 現有腳注文字：以 id 為鍵
   const textById = {};
@@ -1706,10 +1736,25 @@ const normalizeFootnotes = ({ silent = false, abortOnOrphan = false } = {}) => {
     return null;
   }
 
+  // 3.6 rawBlock 內的上標編輯器改寫不了。若重新編號會動到編號，整個不動，
+  //     免得內文（raw HTML）與腳註陣列對不上。
+  const needsRenumber = refs.some((r, i) => r.oldId !== String(i + 1));
+  if (rawRefCount > 0 && needsRenumber) {
+    const msg =
+      `內文有 ${rawRefCount} 個上標放在引文方塊／圖說／表格這類不可分割區塊裡，` +
+      `編輯器無法改寫它們的編號，因此這次不做重新編號（腳註內容不會被更動）。` +
+      `需要調整編號請直接改該區塊的 HTML。`;
+    if (silent) console.warn(`[footnotes] ${msg}`);
+    else alert(msg);
+    return null;
+  }
+
   // 4. 一次 transaction 重設所有引用的 fnId（atom 節點大小不變，位置皆有效）
-  if (refs.length > 0) {
+  const editableRefs = refs.filter((r) => !r.raw);
+  if (editableRefs.length > 0) {
     const tr = state.tr;
     refs.forEach((r, i) => {
+      if (r.raw) return;
       tr.setNodeMarkup(r.pos, undefined, { fnId: String(i + 1) });
     });
     view.dispatch(tr);
