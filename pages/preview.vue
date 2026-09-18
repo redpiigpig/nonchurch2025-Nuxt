@@ -113,7 +113,7 @@ const categoryColor = computed(() => {
   <article v-else class="article-content">
     <div class="title-header">
       <div
-        v-if="article.category"
+        v-if="article.category && article.category !== '編輯資訊'"
         class="featured-box"
         :style="{ backgroundColor: categoryColor }"
       >

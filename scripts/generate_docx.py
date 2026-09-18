@@ -2956,7 +2956,8 @@ def _apply_article_body(generator, article_data):
         '實驗園地': '#db7093', '文獻與翻譯': '#548235',
     }
     category = article_data.get('category', '')
-    if category:
+    # 「編輯資訊」只是後台分類，前台與紙本都不印
+    if category and category != '編輯資訊':
         generator.add_category_tag(category, category_colors.get(category, '#000000'))
     else:
         # 無欄目時補同高空行（14pt），確保所有文章標題垂直位置一致

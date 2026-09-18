@@ -708,7 +708,7 @@ const keywordContent = computed(() => {
           <li v-else class="toc-art-row">
             <p>
               <span class="toc-art-seq">{{ String(row.seq).padStart(2, "0") }}</span>
-              <span v-if="row.category" class="toc-art-cat" :style="{ color: row.color }">【{{ row.category }}】</span>
+              <span v-if="row.category && row.category !== '編輯資訊'" class="toc-art-cat" :style="{ color: row.color }">【{{ row.category }}】</span>
               <NuxtLink
                 v-if="
                   row.article_type !== 'submission_info' &&
