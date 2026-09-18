@@ -556,12 +556,18 @@ const currentIssueAuthors = computed(() => {
 
   const orderList = currentIssue.value.authorOrder;
   if (orderList && Array.isArray(orderList)) {
-    filteredAuthors.sort((a, b) => {
-      const idxA = orderList.indexOf(a.name);
-      const idxB = orderList.indexOf(b.name);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      return idxA !== -1 ? -1 : 1;
-    });
+    // 名字沒出現在 author_order 裡的（例如作者改名、或建了重複的作者列）
+    // 一律排到最後並保持原順序；舊寫法在兩邊都是 -1 時回傳 1，
+    // 是不對稱的比較函式，會讓整份名單的排序變得無法預期。
+    filteredAuthors = filteredAuthors
+      .map((a, i) => ({ a, i, idx: orderList.indexOf(a.name) }))
+      .sort((x, y) => {
+        if (x.idx === -1 && y.idx === -1) return x.i - y.i;
+        if (x.idx === -1) return 1;
+        if (y.idx === -1) return -1;
+        return x.idx - y.idx;
+      })
+      .map((w) => w.a);
   }
 
   return filteredAuthors.map((a) => {
