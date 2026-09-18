@@ -109,6 +109,8 @@ DOC_FLOAT_BODY_HALF_CM = DOC_BODY_WIDTH_CM / 2
 # 超過此高度就依比例縮小（寬度跟著縮），確保每張圖下面都還留得住內文。
 # 11.0cm 是刻意訂的：4:3 橫式照片滿欄剛好 10.65cm，不受影響；只有直式／正方形會被縮。
 DOC_CENTER_IMAGE_MAX_H_CM = 11.0
+DOC_IMAGE_MAX_PX = 2000          # 內嵌圖長邊上限（印刷 18.2cm 寬約 280dpi）
+DOC_IMAGE_JPEG_QUALITY = 85      # 內嵌圖 JPEG 品質（300dpi 印刷下與 92 幾乎無差）
 
 # 「本期作者簡介」頁：表格外框灰；頭像框線為黑色減淡約 25%（#404040，對照編輯用語）
 AUTHOR_INTRO_TABLE_BORDER_GRAY = "A6A6A6"
@@ -601,9 +603,18 @@ class ProfessionalDocxGenerator:
     # ── 圖片段落 ────────────────────────────────────────────
 
     def _pil_to_doc_bytes(self, pil_img):
-        """一律寫成 RGB baseline JPEG。避免 CMYK／16-bit PNG／透明 PNG 等導致 python-docx 拒讀。"""
+        """一律寫成 RGB baseline JPEG，並把長邊限制在 DOC_IMAGE_MAX_PX。
+
+        避免 CMYK／16-bit PNG／透明 PNG 等導致 python-docx 拒讀；縮圖是因為
+        原圖多半是 Cloudinary 全解析度（單張可到 6000px／10MB），整期合併會
+        變成一兩百 MB，Word 存檔在雲端硬碟上常直接失敗。18.2cm 寬的版面放
+        2000px 仍有約 280dpi，印刷看不出差別。
+        """
         clean = io.BytesIO()
         img = pil_img
+        if max(img.size) > DOC_IMAGE_MAX_PX:
+            img = ImageOps.contain(img, (DOC_IMAGE_MAX_PX, DOC_IMAGE_MAX_PX),
+                                   method=PILImage.LANCZOS)
         if img.mode in ('RGBA', 'LA'):
             if img.mode == 'LA':
                 img = img.convert('RGBA')
@@ -620,7 +631,7 @@ class ProfessionalDocxGenerator:
                 img = img.convert('RGB')
         elif img.mode != 'RGB':
             img = img.convert('RGB')
-        img.save(clean, format='JPEG', quality=92, subsampling=2)
+        img.save(clean, format='JPEG', quality=DOC_IMAGE_JPEG_QUALITY, subsampling=2, optimize=True)
         clean.seek(0)
         return clean
 
