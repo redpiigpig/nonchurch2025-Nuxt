@@ -66,10 +66,33 @@ def first_run_rPr_clone(p_element):
     return deepcopy(rPr) if rPr is not None else None
 
 
+ASCII_FONT = "Times New Roman"   # 與 generate_docx.py 一致：西文與阿拉伯數字用 Times New Roman
+
+
+def force_ascii_font(rPr, font_name=ASCII_FONT):
+    """把 rPr 的西文字型（ascii/hAnsi）指定為 font_name，東亞字型保持原樣。
+
+    模板裡的 run 常把 ascii 設成中文字型，導致「2026年10月20日」的數字
+    跟著用中文字型；文章正文（generate_docx.py）則一律 Times New Roman。
+    """
+    if rPr is None:
+        return None
+    rFonts = rPr.find(qn("w:rFonts"))
+    if rFonts is None:
+        rFonts = OxmlElement("w:rFonts")
+        rPr.insert(0, rFonts)
+    rFonts.set(qn("w:ascii"), font_name)
+    rFonts.set(qn("w:hAnsi"), font_name)
+    rFonts.attrib.pop(qn("w:asciiTheme"), None)
+    rFonts.attrib.pop(qn("w:hAnsiTheme"), None)
+    return rPr
+
+
 def build_run(text, rPr_clone=None):
     """組一個 <w:r> element，含 rPr 與 w:t（text 保留前後空白）。"""
     r = OxmlElement("w:r")
     if rPr_clone is not None:
+        force_ascii_font(rPr_clone)
         r.append(rPr_clone)
     t = OxmlElement("w:t")
     t.text = text or ""
@@ -177,16 +200,37 @@ def _full_text_of(p_element):
     return "".join((t.text or "") for t in p_element.iter(qn("w:t")))
 
 
-def _rebuild_paragraph_text(p_element, new_text):
-    """整段重寫：保留 pPr 與第一個 run 的 rPr，刪除其他 runs 與 hyperlink。"""
+def _display_width(text):
+    """半形為 1、全形（CJK、全形標點）為 2 的粗略字寬，用來補齊頁首底線長度。"""
+    w = 0
+    for ch in text:
+        w += 2 if ord(ch) > 0x2000 else 1
+    return w
+
+
+def _rebuild_paragraph_text(p_element, new_text, keep_padding=False):
+    """整段重寫：保留 pPr 與第一個 run 的 rPr，刪除其他 runs 與 hyperlink。
+
+    keep_padding=True 時，保留原段落前後的空白，並依新舊文字的字寬差調整
+    尾端空白數量——頁首第二行（期主題）的底線就是靠這串空白畫出來的，
+    若直接換成新標題，底線會跟著標題長度忽長忽短，與上一行刊頭對不齊。
+    """
     rPr_clone = first_run_rPr_clone(p_element)
+    if keep_padding:
+        full = _full_text_of(p_element)
+        lead = full[:len(full) - len(full.lstrip(" 　"))]
+        trail = full[len(full.rstrip(" 　")):]
+        old_core = full.strip(" 　")
+        delta = _display_width(new_text) - _display_width(old_core)
+        trail_len = max(2, len(trail) - delta)
+        new_text = "{}{}{}".format(lead, new_text, " " * trail_len)
     for child in list(p_element):
         if child.tag in (qn("w:r"), qn("w:hyperlink"), qn("w:smartTag")):
             p_element.remove(child)
     p_element.append(build_run(new_text, rPr_clone))
 
 
-def patch_header_paragraphs(hdr_element, anchor_substring, new_text):
+def patch_header_paragraphs(hdr_element, anchor_substring, new_text, keep_padding=False):
     """對 hdr 內所有「leaf paragraph」（不含巢狀 <w:p>）做替換。
 
     跳過容器段（textbox 外層的 <w:p>），避免把整個 textbox 結構連同子段一起吃掉。
@@ -198,7 +242,7 @@ def patch_header_paragraphs(hdr_element, anchor_substring, new_text):
             continue
         full = _full_text_of(p)
         if anchor_substring in full:
-            _rebuild_paragraph_text(p, new_text)
+            _rebuild_paragraph_text(p, new_text, keep_padding=keep_padding)
             count += 1
     return count
 
@@ -248,7 +292,10 @@ def patch_meta_headers(doc, issue, article_id, label):
     seq = extract_seq_from_id(article_id) or ""
 
     masthead = "無境界者｜Vol. {}（{}）".format(issue_id, date_label) if issue_id else ""
-    seq_label = "{}{}".format(seq, label) if seq else label
+    # 奇數頁頁首與 generate_docx.py 的文章頁一致：前 8 個半形空格、後 2 個
+    # （尾端用「半形空格 + 不換行空格」，Word 才不會把行尾空白的底線裁掉）
+    seq_label = ("        {} {}  ".format(seq, label) if seq
+                 else "        {}  ".format(label))
 
     for section in doc.sections:
         for hdr_attr in ("header", "first_page_header", "even_page_header"):
@@ -259,7 +306,9 @@ def patch_meta_headers(doc, issue, article_id, label):
             if masthead:
                 patch_header_paragraphs(hdr_el, "Vol.", masthead)
             if issue_title:
-                patch_header_paragraphs(hdr_el, "火燒島上的", issue_title)
+                # 偶數頁第二行：期主題後面的空白要留著（底線就是靠它畫的），
+                # 並依標題字數調整，讓底線長度與上一行刊頭維持一致
+                patch_header_paragraphs(hdr_el, "火燒島上的", issue_title, keep_padding=True)
             if seq_label:
                 patch_header_paragraphs(hdr_el, label, seq_label)
 
@@ -320,7 +369,9 @@ def render_submission_info(template_path, issue, article_id, output_path):
     deadline = (issue.get("cfp_deadline") or "（待編輯）").strip()
     for p in doc.paragraphs:
         if p.text.startswith("📌截稿期限") or p.text.startswith("📌 截稿期限"):
-            replace_full_paragraph(p, "📌截稿期限：{}".format(deadline))
+            # 保留 📌 那個 run（它的字型是 Segoe UI Symbol，換掉 emoji 會變成空框），
+            # 其餘文字沿用第二個 run 的 Times New Roman，日期數字才不會變成符號字型。
+            replace_after_prefix_run(p, "截稿期限：{}".format(deadline))
             break
 
     doc.save(output_path)
