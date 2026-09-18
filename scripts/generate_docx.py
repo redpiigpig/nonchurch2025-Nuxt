@@ -2457,10 +2457,11 @@ class ProfessionalDocxGenerator:
         return False
 
     def _add_bullet_line(self, text):
-        """項目列表：●／&#9679; 開頭。編輯室報告且主題圖前用 Word「List Paragraph」+ Wingdings 大圓點（與比對版一致）；其餘為 • + 左縮排 24pt。"""
+        """項目列表：●／&#9679; 開頭。編輯室報告整篇都用 Word「List Paragraph」+ 大圓點
+        （原本只有主題圖之前那份清單是這個格式，主題圖之後的各節清單會退回 •，兩種混在同一篇）；
+        其餘文章仍為 • + 左縮排 24pt。"""
         text = _html_mod.unescape(text)
-        pre_theme = getattr(self, '_editorial_pre_theme_image', False)
-        if getattr(self, 'is_editorial_report', False) and pre_theme:
+        if getattr(self, 'is_editorial_report', False):
             p = self.doc.add_paragraph(style='List Paragraph')
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after = Pt(0)
