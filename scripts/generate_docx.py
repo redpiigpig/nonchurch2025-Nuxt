@@ -839,12 +839,17 @@ class ProfessionalDocxGenerator:
         WPG_URI = 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup'
         NS_WP14 = 'http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing'
 
+        # 圖片錨點段落：本身不該佔一行高度（否則置中圖前後會各多出一條空行、
+        # 左右浮動圖也會在正文中間插一條空行）。壓成 1pt 固定行高＋1pt 字級。
         p = self.doc.add_paragraph()
         p.paragraph_format.space_before = Pt(0)
         p.paragraph_format.space_after = Pt(0)
         p.paragraph_format.first_line_indent = Pt(0)
+        p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.EXACTLY
+        p.paragraph_format.line_spacing = Pt(1)
         part = p.part
         run = p.add_run()
+        run.font.size = Pt(1)
 
         norm = self._reencode_for_word_embedding(img_stream)
         if norm is None:
