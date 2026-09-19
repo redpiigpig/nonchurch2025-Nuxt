@@ -109,6 +109,7 @@ DOC_FLOAT_BODY_HALF_CM = DOC_BODY_WIDTH_CM / 2
 # 超過此高度就依比例縮小（寬度跟著縮），確保每張圖下面都還留得住內文。
 # 11.0cm 是刻意訂的：4:3 橫式照片滿欄剛好 10.65cm，不受影響；只有直式／正方形會被縮。
 DOC_CENTER_IMAGE_MAX_H_CM = 11.0
+DOC_CAPTION_GAP_PT = 6         # 圖與圖說之間的間距（0.5rem = 6pt）
 DOC_IMAGE_MAX_PX = 2000          # 內嵌圖長邊上限（印刷 18.2cm 寬約 280dpi）
 DOC_IMAGE_JPEG_QUALITY = 85      # 內嵌圖 JPEG 品質（300dpi 印刷下與 92 幾乎無差）
 
@@ -831,6 +832,8 @@ class ProfessionalDocxGenerator:
         p.paragraph_format.space_after = Pt(0)
         p.paragraph_format.first_line_indent = Pt(0)
         p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        if caption_lines:
+            p.paragraph_format.space_after = Pt(DOC_CAPTION_GAP_PT)
         run = p.add_run()
 
         norm = self._reencode_for_word_embedding(img_stream)
@@ -921,7 +924,7 @@ class ProfessionalDocxGenerator:
 
         # 圖說高度：約 10pt/行（過大會在圖說下方留下空白區）。
         # 長圖說會在方塊內自動換行，須把換行後的實際行數算進去，否則超出的字會被 Word 壓成極小字。
-        cap_gap = 6350 if caption_lines else 0
+        cap_gap = int(Pt(DOC_CAPTION_GAP_PT)) if caption_lines else 0
         line_emu = 210000
         cap_lines_wrapped = self._count_caption_lines(caption_lines, img_cx)
         cap_h = (cap_lines_wrapped * line_emu + 50000) if caption_lines else 0
