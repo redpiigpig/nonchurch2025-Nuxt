@@ -763,14 +763,12 @@ class ProfessionalDocxGenerator:
                 wrap_through=wrap_through,
             )
         else:
-            # 置中圖：wordprocessingGroup 浮動錨點（與左右浮動圖相同，可整組縮放／搬移）
-            self._insert_figure_wordprocessing_group(
+            # 置中圖：嵌入型（Word 版面配置＝「與文字排列」），圖與圖說都是一般段落
+            self._insert_figure_inline(
                 img_stream,
                 width_cm,
                 caption_lines,
-                float_dir='center',
                 portrait_border=has_portrait_border,
-                wrap_through=False,
             )
 
         if not float_dir:
@@ -820,6 +818,55 @@ class ProfessionalDocxGenerator:
 
     def _caption_xml_escape(self, text):
         return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    def _insert_figure_inline(self, img_stream, width_cm, caption_lines,
+                              portrait_border=False):
+        """置中圖：嵌入型（Word 版面配置選項＝「與文字排列」）。
+
+        圖與圖說都是一般置中段落，跟著正文流動，不用浮動錨點，
+        對照編輯時不會整塊亂跑。"""
+        p = self.doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
+        p.paragraph_format.first_line_indent = Pt(0)
+        p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        run = p.add_run()
+
+        norm = self._reencode_for_word_embedding(img_stream)
+        if norm is None:
+            run.add_text('[圖片無法嵌入]')
+            return
+        try:
+            shape = run.add_picture(norm, width=Cm(width_cm))
+        except UnrecognizedImageError as e:
+            print(f'Warning: figure image rejected by python-docx: {e}', file=sys.stderr)
+            run.add_text('[圖片無法嵌入]')
+            return
+
+        # 限高：直式照片依滿欄寬會撐掉整頁
+        max_h = int(Cm(DOC_CENTER_IMAGE_MAX_H_CM))
+        if int(shape.height) > max_h:
+            shape.width = int(int(shape.width) * max_h / int(shape.height))
+            shape.height = Emu(max_h)
+
+        if portrait_border:
+            try:
+                self._drawingml_portrait_double_border_on_pic(
+                    shape._inline.graphic.graphicData.pic)
+            except Exception:
+                pass
+
+        for line in caption_lines:
+            cp = self.doc.add_paragraph()
+            cp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            cp.paragraph_format.space_before = Pt(0)
+            cp.paragraph_format.space_after = Pt(0)
+            cp.paragraph_format.first_line_indent = Pt(0)
+            cp.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+            cap_run = cp.add_run(_html_mod.unescape(str(line)))
+            self._apply_font(cap_run, 'Times New Roman', 'PMingLiU',
+                             size=10, color=(0x59, 0x59, 0x59))
 
     def _insert_figure_wordprocessing_group(
         self,
