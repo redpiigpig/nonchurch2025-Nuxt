@@ -1176,7 +1176,8 @@ class ProfessionalDocxGenerator:
         pPr.append(pBdr)
 
     def add_author(self, author, author_title=None, remark=None):
-        def _add_field(text, ascii_font, east_font, size, allow_footnote=False):
+        def _add_field(text, ascii_font, east_font, size, allow_footnote=False,
+                       digits_tnr=False):
             if not text:
                 return
             parts = re.split(r'<br\s*/?>', text, flags=re.IGNORECASE)
@@ -1190,6 +1191,23 @@ class ProfessionalDocxGenerator:
                 p.paragraph_format.space_after     = Pt(0)
                 p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
                 p.paragraph_format.line_spacing      = 1.5
+
+                def _emit(par, plain):
+                    # 備註（出刊日期那類）裡的數字一律 Times New Roman，
+                    # 手寫體 Brush Script MT 的阿拉伯數字不適合當日期用
+                    if not digits_tnr:
+                        run = par.add_run(plain)
+                        self._apply_font(run, ascii_font, east_font, size=size)
+                        return
+                    for chunk2 in re.split(r'([0-9][0-9.\-/:]*)', plain):
+                        if not chunk2:
+                            continue
+                        run = par.add_run(chunk2)
+                        if chunk2[0].isdigit():
+                            self._apply_font(run, 'Times New Roman', east_font, size=size)
+                        else:
+                            self._apply_font(run, ascii_font, east_font, size=size)
+
                 if allow_footnote:
                     # 支援 [^N] → Word 腳注引用；其餘 HTML 剝除後以備註字體輸出
                     fn_pat = re.compile(r'\[\^(\d+)\]')
@@ -1201,17 +1219,16 @@ class ProfessionalDocxGenerator:
                         else:
                             plain = re.sub(r'<[^>]+>', '', chunk).strip()
                             if plain:
-                                run = p.add_run(plain)
-                                self._apply_font(run, ascii_font, east_font, size=size)
+                                _emit(p, plain)
                 else:
                     plain = re.sub(r'<[^>]+>', '', part).strip()
                     if plain:
-                        run = p.add_run(plain)
-                        self._apply_font(run, ascii_font, east_font, size=size)
+                        _emit(p, plain)
 
         _add_field(author,       'Brush Script MT', '文鼎中行書', 12)
         _add_field(author_title, 'Brush Script MT', '文鼎中行書', 12)
-        _add_field(remark,       'Brush Script MT', '文鼎中行書', 12, allow_footnote=True)
+        _add_field(remark,       'Brush Script MT', '文鼎中行書', 12, allow_footnote=True,
+                   digits_tnr=True)
 
     def add_keywords(self, keywords):
         if not keywords:
