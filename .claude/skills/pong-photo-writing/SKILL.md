@@ -193,3 +193,19 @@ Layout invariants in all three:
 - The byline is `article.author || '龐君華 會督'`. Leave `author` NULL for modern 會督-era pieces; set it for earlier-career pieces (e.g. `代理院長 龐君華牧師` for 衛神 2009-2014 articles). If a future article needs co-author / interview / etc., add a new field at that point.
 - The `colophon.lines` array preserves order, so you can put 出版者 / 發行人 / 編輯 in whatever order matches the original 版權頁 (with 編輯 after 發行人 per user preference).
 - For multi-volume publications or articles spanning a few different sources, file each as its own row — don't try to merge.
+
+## 整批掃描期刊（《衛報》案例，2026-09-23）
+
+使用者一次掃了整疊刊物（`衛報20-40.pdf` 等三份、225 張），要「分期歸檔＋轉正＋對照典藏補缺」。跟單篇拍照不同，要走批次：
+
+1. **轉正與切頁**：掃描機把 A4 橫式對頁存成直式、整張轉了 90°。判方向別靠文字層（掃描機自帶的 OCR 是側著辨識的亂碼），直接試轉看圖——這批是 `/Rotate 90`。對頁從中間切成兩張 A4；封面、封底本來就是單頁不切。🚨 PyMuPDF `show_pdf_page(clip=…)` 的裁切座標會受來源頁 `/Rotate` 影響，**先把來源頁 `set_rotation(0)` 再裁、輸出頁再轉 90°**，否則左半頁會被截掉一大塊（右半頁卻正常，很容易漏看）。
+2. **分期**：看封面（紫色刊頭＋`No.NN`＋日期）與封底切期。三份檔名寫「20-40」但實際只有 20、32、33、34、37、38、40…，**檔名的期號範圍不等於實際收了哪幾期**，要逐張看封面。另外要找「失敗重掃」：第 47 期有一張紙翹起來的對頁，後面緊跟著正確的重掃，要刪掉重複的那張。
+3. **歸檔**：Drive `資料\無境界者\龐君華檔案\著作與專文\衛報\第NN期_YYYY-MM-DD\衛報第NN期_YYYY-MM-DD.pdf`；使用者放在 Drive 根目錄的原始三份移到同層 `原始掃描\`。
+4. **OCR**：走 know-graph-lab 的 `scripts/mineru_ocr.py run --pdf … --out … --device cpu`（對切好的 A4 版跑，`-m ocr` 會忽略亂碼文字層）。Gemini 免費層撐不住 200 多張：`gemini-2.5-flash` 對大部分 key 已回 404（新帳號下架），剩下的 key 跑到 60 張左右就全 429。
+5. **找出龐君華的篇章**：用「獨立一行的署名 `龐君華`／`龐君華牧師`」定位，再看封面目錄確認欄目與頁碼。同期很多篇是郭曜郎（經課講章）、曾正男、謝敏蘭、龐文翰（譯）寫的，不要收。「編者案頭」是楊肇悅。
+6. **校對**：MinerU 初稿有簡體混入（耶稣、讲章）、漏「一二三十」、跨欄順序接錯、同頁別篇混入。把每篇的頁圖＋初稿交給 subagent 逐字對圖定稿（原刊錯字照錄、另列 notes）。🚨 **別拿 Gemini OCR 當對照標準**：它會自動「修正」原文（把「回應上主」改成「上帝」、把原刊錯字「其督徒」改成「基督徒」、漏整句）。
+7. **入庫**：`publication='衛報'`、`category='periodical'`、`author` 照原刊署名（`龐君華`／`龐君華牧師`）、`editor`＝該期主編（多為楊肇悅，第 40 期是何嘉蘭）、`page_range`＝印刷頁碼、colophon 放刊名期號／衛蘭中心／召集人／主編／欄目／出版日期、tags `['衛報','衛報第NN期', 欄目, '講章']`。第一批 21 篇是 id 50–70。
+
+🚨 **《衛報》和網路版「衛蘭專文」是兩個不同的資料來源，不可合併**（使用者明言）。同一篇（〈我們的呼召〉〈我們的信念〉〈恩典的途徑〉）兩邊文字不同——網路版是之後修訂過的版本——各自一筆，不要拿掃描稿覆蓋網路版，也不要把衛報的「衛蘭專文」欄目名打成標籤。
+
+🚨 **`pong_writings` 的 id 序列曾經落後**（序列在 3、實際最大 id 49），POST 會回 409 `duplicate key (id)`。用 know-graph-lab `.env` 的 `SUPABASE_ACCESS_TOKEN` 走 Management API 跑 `select setval('public.pong_writings_id_seq',(select max(id) from pong_writings))` 校正後再寫。
