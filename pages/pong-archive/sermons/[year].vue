@@ -329,7 +329,8 @@ function onSongsInput(e) {
 
 // ── Content paragraphs ───────────────────────────────────────
 // Any line starting with 1-8 chars then ： is treated as a speaker label
-const SPEAKER_RE = /^(.{1,8})：(.*)/
+// 排除講章裡的小標（前言：／結語：…）與引語（耶穌說：「…」），它們不是對話講者
+const SPEAKER_RE = /^(?!(?:前言|結語|經課|經文|引言|小結)：)([^：「」]{1,8}?)(?<![說道])：(.*)/
 
 function normalizeSpeakerName(name) {
   return name.replace(/^李牧師$/, '李信政牧師')
