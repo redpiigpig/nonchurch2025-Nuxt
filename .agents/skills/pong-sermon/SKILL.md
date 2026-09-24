@@ -548,3 +548,22 @@ DB-only enrichment 不需 commit。加了 specials block 才提交那個檔。
 4. **生稿**：2013–2015 大量未整理的 Whisper 原稿（幾乎無標點、每句有誤聽），逐條修補沒有意義，應從 YouTube 重轉；錄音來源都在 youtube_url。
 5. **禮文**：使徒信經、聖餐禮文、主禱文被辨識成亂句時，拿正本整段重貼，不要逐字猜。
 6. **辨識幻覺**：「請不吝點贊訂閱轉發打賞」「明鏡與點點」「直到訂閱結束」「YoYo Television」、同一短句連續重複十幾次——刪除；但講者真的說「片尾字幕」「打字幕」不算。
+
+
+## 收錄範圍與服事欄（使用者 2026-09-24 定）
+
+- **只收龐君華本人的講道**；別人講的（客座、神學生、其他牧者／會督）不收錄。例外：年議會禮拜、告別式／追思禮拜。判講員以城中週報 v2（崇拜程序「證道」那一行）＋內文自述為準；龐牧師到別的教會客座那天，城中週報上是別人，不能據此判成非龐。
+- **worship_team 只記重要職分**：講道（主禮／證道／襄禮）、司會、讀經、音樂相關（司琴、領唱、詩班、指揮、獻詩、獻樂、鋼琴…）、牧禱、祝福。獻花、獻刊、招待、司獻、兒童主日學、愛筵、簡餐、輪值、攝影、聖餐聖杯協助一律不寫（完整服事表在城中週報電子檔）。
+
+## 城中週報 v2 對照（2026-09-24）
+
+know-graph-lab `scripts/cz_parse_v2.py` → `output/cz_bulletins_v2.jsonl`（只取「本週」崇拜程序：證道者、講題、含福音書的全部經課、帶用途的詩歌、服事）。舊版 `cz_parse.py` 的三個錯：講員抓到下週的、「福 音 書」字間空格認不得而整批漏福音書、2003–2007 詩歌全沒抓。
+
+已套用到講道集（只限週報證道者＝龐、地點＝城中）：經課補齊 519 場＋衝突依週報 20 場（2013 起；2013 前的 10 場與週報疑印錯的 2 場保留待看）、詩歌補齊 613 場（格式「頌讚：讚美上主（新普頌 30 首）」）、講題補 123 場、服事只補空欄。🚨 週報本身也會印錯卷名（2005-02-27、2006-03-19 把出埃及記印成創世記，下面印的經文才是真的），v2 會在 `warn` 標出。
+
+## 從 YouTube 批次重轉（2026-09-24）
+
+- `scripts/pong-archive/sermon_retranscribe_batch.py <list.json…> [--share-gpu]`（用 know-graph-lab `_whisper_venv` 的 python）→ `tmp_sermon/retrans/<id>_raw.txt`；預設等 know-graph-lab 的 MinerU GPU 鎖，`--share-gpu` 只在使用者核准時用。
+- 🚨 **yt-dlp 回 403 先更新**（`pythoncore-3.14-64` 的 `pip install -U "yt-dlp[default]"`；2026.07.04 版已失效）。
+- 🚨 **`pong_sermon_pipeline.transcribe()` 把切段的 `chunk_*.mp3` 寫在音檔同目錄再整個 glob**：多支影片共用目錄，上一支較長影片的殘段會接到下一篇尾巴（實際發生，整理時看到「講道後面冒出另一場禮拜」就是這個）。batch 腳本已改成每支影片獨立子夾。
+- 整理由對話中的 agent 做（規則 `tmp_sermon/retrans/CLEAN.md`、背景資料 `<id>_ctx.txt` 含週報經課詩歌），寫 `<id>_clean.txt`＋最後寫 `<id>_note.txt`；`scripts/pong-archive/sermon_retranscribe_commit.py [--go]` 驗講者標籤／長度／簡體／簡轉繁錯字後寫回 content＋media transcript，舊稿先備份 Drive。
