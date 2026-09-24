@@ -201,14 +201,35 @@
     <section class="sd-section sd-section--content">
       <div class="sd-section-inner">
         <h2 class="sd-section-title">講道內容</h2>
-        <textarea
-          v-if="isEditing"
-          v-model="local.content"
-          class="sd-content-textarea sd-textarea-plain"
-          rows="30"
-          placeholder="講道逐字稿或摘要…"
-          @input="save('content', local.content)"
-        />
+        <div v-if="!isEditing && textVersions.length > 1" class="sd-version-tabs" role="tablist">
+          <button
+            v-for="v in textVersions"
+            :key="v.key"
+            class="sd-version-tab"
+            :class="{ 'sd-version-tab--on': activeVersion === v.key }"
+            role="tab"
+            :aria-selected="activeVersion === v.key"
+            @click="activeVersion = v.key"
+          >{{ v.label }}</button>
+        </div>
+        <template v-if="isEditing">
+          <p class="sd-edit-label">錄音逐字稿</p>
+          <textarea
+            v-model="local.content"
+            class="sd-content-textarea sd-textarea-plain"
+            rows="30"
+            placeholder="講道逐字稿或摘要…"
+            @input="save('content', local.content)"
+          />
+          <p class="sd-edit-label">書面講稿（有的話）</p>
+          <textarea
+            v-model="local.manuscript"
+            class="sd-content-textarea sd-textarea-plain"
+            rows="12"
+            placeholder="龐牧師親撰的講稿…"
+            @input="save('manuscript', local.manuscript)"
+          />
+        </template>
         <div v-else-if="contentParagraphs.length" class="sd-content-body">
           <template v-for="(item, i) in contentParagraphs" :key="i">
             <p v-if="item.type === 'section'" class="sd-content-section">{{ item.text }}</p>
@@ -336,8 +357,22 @@ function normalizeSpeakerName(name) {
   return name.replace(/^李牧師$/, '李信政牧師')
 }
 
+// 同一篇講道可能同時有錄音逐字稿（content）與書面講稿（manuscript），兩份都有時可切換
+const textVersions = computed(() => {
+  const s = sermon.value || {}
+  const both = s.content?.trim() && s.manuscript?.trim()
+  return [
+    { key: 'content', label: both ? '錄音逐字稿' : '講道內容', text: s.content },
+    { key: 'manuscript', label: '書面講稿', text: s.manuscript },
+  ].filter(v => v.text?.trim())
+})
+const activeVersion = ref('content')
+watch(textVersions, (vs) => {
+  if (vs.length && !vs.some(v => v.key === activeVersion.value)) activeVersion.value = vs[0].key
+}, { immediate: true })
+
 const contentParagraphs = computed(() => {
-  const t = sermon.value?.content
+  const t = textVersions.value.find(v => v.key === activeVersion.value)?.text
   if (!t) return []
   return t.split(/\n+/).filter(Boolean).flatMap(line => {
     if (/^【.+】/.test(line)) return [{ type: 'section', text: line }]
@@ -487,6 +522,22 @@ const seasonColor = computed(() => {
   padding-bottom: 10px;
   border-bottom: 1px solid #DDD8CF;
 }
+
+/* ── 錄音逐字稿／書面講稿 切換 ───────────────────────────── */
+.sd-version-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 22px; }
+.sd-version-tab {
+  font-family: 'Noto Serif TC', serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  padding: 6px 14px;
+  border: 1px solid #DDD8CF;
+  border-radius: 999px;
+  background: transparent;
+  color: #8A7E6E;
+  cursor: pointer;
+}
+.sd-version-tab--on { background: #6A5E4A; border-color: #6A5E4A; color: #F9F8F6; }
+.sd-edit-label { font-size: 0.8rem; color: #8A7E6E; margin: 14px 0 6px; }
 
 /* ── Service Team ─────────────────────────────────────────── */
 .sd-section--team { background-color: #F4F1EC; }
