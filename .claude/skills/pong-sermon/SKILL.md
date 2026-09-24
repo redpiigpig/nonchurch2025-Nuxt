@@ -567,3 +567,11 @@ know-graph-lab `scripts/cz_parse_v2.py` → `output/cz_bulletins_v2.jsonl`（只
 - 🚨 **yt-dlp 回 403 先更新**（`pythoncore-3.14-64` 的 `pip install -U "yt-dlp[default]"`；2026.07.04 版已失效）。
 - 🚨 **`pong_sermon_pipeline.transcribe()` 把切段的 `chunk_*.mp3` 寫在音檔同目錄再整個 glob**：多支影片共用目錄，上一支較長影片的殘段會接到下一篇尾巴（實際發生，整理時看到「講道後面冒出另一場禮拜」就是這個）。batch 腳本已改成每支影片獨立子夾。
 - 整理由對話中的 agent 做（規則 `tmp_sermon/retrans/CLEAN.md`、背景資料 `<id>_ctx.txt` 含週報經課詩歌），寫 `<id>_clean.txt`＋最後寫 `<id>_note.txt`；`scripts/pong-archive/sermon_retranscribe_commit.py [--go]` 驗講者標籤／長度／簡體／簡轉繁錯字後寫回 content＋media transcript，舊稿先備份 Drive。
+
+## 🚨 cmpc 網站的講章不全是龐牧師的（2026-09-24 查證）
+
+`cmpc.health999.net`＝城中牧區網站，放的是**所有講員**的講章；早期匯入一律標成龐君華，結果有 9 篇其實是邱泰耀傳道、蕢建華會督的（〈使心靈成為沃土〉〈捨棄魚而取熊掌〉〈成為活水江河〉〈關鍵的抉擇〉〈忠心的僕人〉〈信心的翅膀〉〈工價與恩典〉〈這是我的愛子〉…），已刪（備份在 Drive 講道集\_備份）。判準：城中週報崇拜程序「證道」行的講員＋週報刊登的講章署名（「講員：邱泰耀傳道」「證道：龐君華牧師 整理：某某」）。cmpc 頁面上的「龐君華 日期」署名多半可信，但日期不一定準（word_076〈眾人之僕〉標 2006/10/01，實為 9/24）。
+
+- **同一篇講道有書面講稿＋錄音逐字稿**：錄音稿放 `content`、講稿放 `manuscript`，頁面可切換（`[year].vue` 的 textVersions）。不要各放一列。
+- 城中牧區同日有多堂（早堂／午堂／黃昏崇拜），週報只記其中一堂；某堂週報寫別人，不代表龐牧師那天沒講。
+- **週報常刊登上週講道的整理稿**（「證道：龐君華牧師　整理：楊秀惠姊妹」），可拿來補沒有逐字稿的場次（尚未做）。
