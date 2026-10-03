@@ -1185,11 +1185,7 @@ const exportToWord = async () => {
       issue_title: form.value.issue_title,
       page_start: form.value.page_start,
     };
-    const response = await fetch("/api/export-word", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(articleData),
-    });
+    const response = await fetchWordExport("/api/export-word", articleData);
     if (!response.ok) {
       const errText = await response.text();
       if (response.status === 503 && errText.includes("Word export is disabled")) {

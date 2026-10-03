@@ -621,10 +621,12 @@ const downloadIssueWord = async () => {
     const issueMeta = issuesOptions.value.find((i) => i.id === selectedIssueId.value);
     const safeTitle = (issueMeta?.title || "").replace(/[\\/:*?"<>|]/g, "_");
     const filename = `Vol.${selectedIssueId.value}-${safeTitle || "本期"}.docx`;
-    const result = await $fetch("/api/export-issue-word", {
-      method: "POST",
-      body: { articles: payloads, filename },
-    });
+    const response = await fetchWordExport("/api/export-issue-word", { articles: payloads, filename });
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(errText.includes("Word export is disabled") ? "Word export is disabled" : `匯出服務錯誤（${response.status}）`);
+    }
+    const result = await response.json();
     if (!result.success) throw new Error(result.error || "匯出失敗");
     const bytes = new Uint8Array(atob(result.file).split("").map((c) => c.charCodeAt(0)));
     const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
@@ -651,11 +653,7 @@ const downloadWord = async (article) => {
   try {
     const exportData = await buildExportPayloadForArticle(article);
 
-    const response = await fetch("/api/export-word", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(exportData),
-    });
+    const response = await fetchWordExport("/api/export-word", exportData);
     if (!response.ok) {
       const errText = await response.text();
       if (response.status === 503 && errText.includes("Word export is disabled")) {

@@ -348,7 +348,8 @@ Directory structure:
     │   ├── formatSpecParser.js
     │   ├── formatSpecWatcher.js
     │   ├── geminiAPI.js
-    │   └── metaTemplates.js
+    │   ├── metaTemplates.js
+    │   └── wordExportFetch.js
     ├── word-export-service/
     │   ├── .gitignore
     │   ├── .python-version
